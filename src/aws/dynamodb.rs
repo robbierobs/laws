@@ -160,13 +160,5 @@ impl DynamoDbService {
         })
     }
 
-    pub async fn delete_table(&self, table_name: &str) -> anyhow::Result<()> {
-        self.client
-            .delete_table()
-            .table_name(table_name)
-            .send()
-            .await
-            .map_err(|e| format_dynamodb_error(e, "delete_table", table_name))?;
-        Ok(())
-    }
+
 }

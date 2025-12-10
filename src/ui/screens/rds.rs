@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
@@ -16,10 +16,12 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
     }
 }
 
+use crate::ui::theme::THEME;
+
 fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Identifier", "Engine", "Class", "Status", "Endpoint", "Multi-AZ"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -35,7 +37,12 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || engine.contains(&filter)
         })
         .map(|instance| {
-        let status_color = instance.status_color();
+        let status_color = match instance.status.as_str() {
+            "available" => THEME.success,
+            "stopped" => THEME.error,
+            "creating" | "modifying" | "rebooting" => THEME.warning,
+            _ => THEME.muted,
+        };
         
         let cells = vec![
             Cell::from(instance.db_instance_identifier.clone()),
@@ -55,10 +62,11 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("RDS Instances")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -74,7 +82,7 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.rds_list_state);
 }
@@ -93,13 +101,22 @@ fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("RDS Instance Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("RDS Instance Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
 
 fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
-    let status_color = instance.status_color();
+    let status_color = match instance.status.as_str() {
+        "available" => THEME.success,
+        "stopped" => THEME.error,
+        "creating" | "modifying" | "rebooting" => THEME.warning,
+        _ => THEME.muted,
+    };
     
     let engine_str = format!("{} {}", 
         instance.engine.clone(),
@@ -127,77 +144,77 @@ fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
-            Span::styled("Identifier: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Identifier: ", Style::default().fg(THEME.primary)),
             Span::raw(instance.db_instance_identifier.clone()),
             Span::raw("   "),
-            Span::styled("Status: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Status: ", Style::default().fg(THEME.primary)),
             Span::styled(instance.status.clone(), Style::default().fg(status_color)),
         ]),
         Line::from(vec![
-            Span::styled("Engine: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Engine: ", Style::default().fg(THEME.primary)),
             Span::raw(engine_str),
             Span::raw("   "),
-            Span::styled("Class: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Class: ", Style::default().fg(THEME.primary)),
             Span::raw(instance.db_instance_class.clone()),
         ]),
         Line::from(vec![
-            Span::styled("Endpoint: ", Style::default().fg(Color::Cyan)),
-            Span::styled(endpoint_str, Style::default().fg(Color::Blue)),
+            Span::styled("Endpoint: ", Style::default().fg(THEME.primary)),
+            Span::styled(endpoint_str, Style::default().fg(THEME.selection_fg)),
         ]),
         Line::from(vec![
-            Span::styled("Master User: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Master User: ", Style::default().fg(THEME.primary)),
             Span::raw(master_str),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Storage ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Storage ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Allocated Storage: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Allocated Storage: ", Style::default().fg(THEME.primary)),
             Span::raw(storage_str),
             Span::raw("   "),
-            Span::styled("Type: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Type: ", Style::default().fg(THEME.primary)),
             Span::raw(storage_type_str),
             Span::raw("   "),
-            Span::styled("IOPS: ", Style::default().fg(Color::Cyan)),
+            Span::styled("IOPS: ", Style::default().fg(THEME.primary)),
             Span::raw(iops_str),
         ]),
         Line::from(vec![
-            Span::styled("Encrypted: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Encrypted: ", Style::default().fg(THEME.primary)),
             if instance.storage_encrypted {
-                Span::styled("Yes ✓", Style::default().fg(Color::Green))
+                Span::styled("Yes ✓", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Red))
+                Span::styled("No", Style::default().fg(THEME.error))
             },
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Network ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Network ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Availability Zone: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Availability Zone: ", Style::default().fg(THEME.primary)),
             Span::raw(az_str),
             Span::raw("   "),
-            Span::styled("Multi-AZ: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Multi-AZ: ", Style::default().fg(THEME.primary)),
             if instance.multi_az {
-                Span::styled("Yes ✓", Style::default().fg(Color::Green))
+                Span::styled("Yes ✓", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Yellow))
+                Span::styled("No", Style::default().fg(THEME.warning))
             },
         ]),
         Line::from(vec![
-            Span::styled("VPC: ", Style::default().fg(Color::Cyan)),
+            Span::styled("VPC: ", Style::default().fg(THEME.primary)),
             Span::raw(vpc_str),
             Span::raw("   "),
-            Span::styled("Subnet Group: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Subnet Group: ", Style::default().fg(THEME.primary)),
             Span::raw(subnet_str),
         ]),
         Line::from(vec![
-            Span::styled("Publicly Accessible: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Publicly Accessible: ", Style::default().fg(THEME.primary)),
             if instance.publicly_accessible {
-                Span::styled("Yes", Style::default().fg(Color::Yellow))
+                Span::styled("Yes", Style::default().fg(THEME.warning))
             } else {
-                Span::styled("No ✓", Style::default().fg(Color::Green))
+                Span::styled("No ✓", Style::default().fg(THEME.success))
             },
         ]),
     ];
@@ -205,47 +222,47 @@ fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
     // Security groups
     if !instance.security_groups.is_empty() {
         lines.push(Line::from(vec![
-            Span::styled("Security Groups: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Security Groups: ", Style::default().fg(THEME.primary)),
             Span::raw(instance.security_groups.join(", ")),
         ]));
     }
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("─── Backup & Maintenance ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+        Span::styled("─── Backup & Maintenance ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Backup Window: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Backup Window: ", Style::default().fg(THEME.primary)),
         Span::raw(backup_window_str),
         Span::raw("   "),
-        Span::styled("Retention: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Retention: ", Style::default().fg(THEME.primary)),
         Span::raw(backup_retention_str),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Maintenance Window: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Maintenance Window: ", Style::default().fg(THEME.primary)),
         Span::raw(maint_window_str),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Auto Minor Version Upgrade: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Auto Minor Version Upgrade: ", Style::default().fg(THEME.primary)),
         if instance.auto_minor_version_upgrade {
-            Span::styled("Yes", Style::default().fg(Color::Green))
+            Span::styled("Yes", Style::default().fg(THEME.success))
         } else {
-            Span::styled("No", Style::default().fg(Color::Gray))
+            Span::styled("No", Style::default().fg(THEME.muted))
         },
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Deletion Protection: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Deletion Protection: ", Style::default().fg(THEME.primary)),
         if instance.deletion_protection {
-            Span::styled("Enabled ✓", Style::default().fg(Color::Green))
+            Span::styled("Enabled ✓", Style::default().fg(THEME.success))
         } else {
-            Span::styled("Disabled", Style::default().fg(Color::Yellow))
+            Span::styled("Disabled", Style::default().fg(THEME.warning))
         },
     ]));
     lines.push(Line::from(vec![
-        Span::styled("License: ", Style::default().fg(Color::Cyan)),
+        Span::styled("License: ", Style::default().fg(THEME.primary)),
         Span::raw(license_str),
         Span::raw("   "),
-        Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Created: ", Style::default().fg(THEME.primary)),
         Span::raw(created_str),
     ]));
 

@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
@@ -16,10 +16,12 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
     }
 }
 
+use crate::ui::theme::THEME;
+
 fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Function Name", "Runtime", "Memory", "Timeout", "Code Size", "State"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -35,7 +37,12 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
             name.contains(&filter) || runtime.contains(&filter)
         })
         .map(|func| {
-        let state_color = func.state_color();
+        let state_color = match func.state.as_deref() {
+            Some("Active") => THEME.success,
+            Some("Inactive") => THEME.muted,
+            Some("Failed") => THEME.error,
+            _ => THEME.warning,
+        };
         let runtime = func.runtime.clone().unwrap_or_else(|| "-".to_string());
         let memory = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
         let timeout = func.timeout.map(|t| format!("{}s", t)).unwrap_or_else(|| "-".to_string());
@@ -56,10 +63,11 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Lambda Functions")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -75,7 +83,7 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.lambda_list_state);
 }
@@ -94,13 +102,22 @@ fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Function Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Function Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
 
 fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
-    let state_color = func.state_color();
+    let state_color = match func.state.as_deref() {
+        Some("Active") => THEME.success,
+        Some("Inactive") => THEME.muted,
+        Some("Failed") => THEME.error,
+        _ => THEME.warning,
+    };
     
     let runtime_str = func.runtime.clone().unwrap_or_else(|| "-".to_string());
     let handler_str = func.handler.clone().unwrap_or_else(|| "-".to_string());
@@ -116,54 +133,54 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
-            Span::styled("Function: ", Style::default().fg(Color::Cyan)),
-            Span::styled(func.function_name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Function: ", Style::default().fg(THEME.primary)),
+            Span::styled(func.function_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
             Span::raw("   "),
-            Span::styled("State: ", Style::default().fg(Color::Cyan)),
+            Span::styled("State: ", Style::default().fg(THEME.primary)),
             Span::styled(state_str, Style::default().fg(state_color)),
         ]),
         Line::from(vec![
-            Span::styled("Description: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Description: ", Style::default().fg(THEME.primary)),
             Span::raw(desc_str),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Runtime ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Runtime ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Runtime: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Runtime: ", Style::default().fg(THEME.primary)),
             Span::raw(runtime_str),
             Span::raw("   "),
-            Span::styled("Architecture: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Architecture: ", Style::default().fg(THEME.primary)),
             Span::raw(arch_str),
         ]),
         Line::from(vec![
-            Span::styled("Handler: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Handler: ", Style::default().fg(THEME.primary)),
             Span::raw(handler_str),
         ]),
         Line::from(vec![
-            Span::styled("Package Type: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Package Type: ", Style::default().fg(THEME.primary)),
             Span::raw(package_type_str),
             Span::raw("   "),
-            Span::styled("Version: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Version: ", Style::default().fg(THEME.primary)),
             Span::raw(version_str),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Resources ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Resources ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Memory: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Memory: ", Style::default().fg(THEME.primary)),
             Span::raw(memory_str),
             Span::raw("   "),
-            Span::styled("Timeout: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Timeout: ", Style::default().fg(THEME.primary)),
             Span::raw(timeout_str),
         ]),
         Line::from(vec![
-            Span::styled("Code Size: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Code Size: ", Style::default().fg(THEME.primary)),
             Span::raw(func.format_code_size()),
             Span::raw("   "),
-            Span::styled("Ephemeral Storage: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Ephemeral Storage: ", Style::default().fg(THEME.primary)),
             Span::raw(ephemeral_str),
         ]),
     ];
@@ -172,23 +189,23 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
     if func.vpc_id.is_some() || !func.subnet_ids.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("─── VPC Configuration ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── VPC Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]));
         if let Some(vpc) = &func.vpc_id {
             lines.push(Line::from(vec![
-                Span::styled("VPC ID: ", Style::default().fg(Color::Cyan)),
+                Span::styled("VPC ID: ", Style::default().fg(THEME.primary)),
                 Span::raw(vpc.clone()),
             ]));
         }
         if !func.subnet_ids.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("Subnets: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Subnets: ", Style::default().fg(THEME.primary)),
                 Span::raw(func.subnet_ids.join(", ")),
             ]));
         }
         if !func.security_group_ids.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("Security Groups: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Security Groups: ", Style::default().fg(THEME.primary)),
                 Span::raw(func.security_group_ids.join(", ")),
             ]));
         }
@@ -198,7 +215,7 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
     if !func.environment_variables.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("Environment Variables: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Environment Variables: ", Style::default().fg(THEME.primary)),
             Span::raw(format!("{} defined", func.environment_variables.len())),
         ]));
     }
@@ -207,13 +224,13 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
     if !func.layers.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("─── Layers ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Layers ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]));
         for layer in &func.layers {
             // Extract layer name from ARN
             let layer_name = layer.split(':').nth(6).unwrap_or(layer);
             lines.push(Line::from(vec![
-                Span::styled("• ", Style::default().fg(Color::Yellow)),
+                Span::styled("• ", Style::default().fg(THEME.warning)),
                 Span::raw(layer_name.to_string()),
             ]));
         }
@@ -222,7 +239,7 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
     // Last modified and Role
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("Last Modified: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Last Modified: ", Style::default().fg(THEME.primary)),
         Span::raw(last_modified_str),
     ]));
 
@@ -230,7 +247,7 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
         // Extract role name from ARN
         let role_name = role.split('/').last().unwrap_or(role);
         lines.push(Line::from(vec![
-            Span::styled("IAM Role: ", Style::default().fg(Color::Cyan)),
+            Span::styled("IAM Role: ", Style::default().fg(THEME.primary)),
             Span::raw(role_name.to_string()),
         ]));
     }
@@ -239,7 +256,7 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
     if let Some(reason) = &func.state_reason {
         if !reason.is_empty() {
             lines.push(Line::from(vec![
-                Span::styled("State Reason: ", Style::default().fg(Color::Yellow)),
+                Span::styled("State Reason: ", Style::default().fg(THEME.warning)),
                 Span::raw(reason.clone()),
             ]));
         }

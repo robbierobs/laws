@@ -71,14 +71,5 @@ impl RdsService {
         Ok(())
     }
 
-    pub async fn create_snapshot(&self, db_instance_identifier: &str, snapshot_identifier: &str) -> anyhow::Result<()> {
-        self.client
-            .create_db_snapshot()
-            .db_instance_identifier(db_instance_identifier)
-            .db_snapshot_identifier(snapshot_identifier)
-            .send()
-            .await
-            .map_err(|e| format_rds_error(e, "create snapshot", db_instance_identifier))?;
-        Ok(())
-    }
+
 }

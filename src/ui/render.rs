@@ -7,6 +7,8 @@ use ratatui::{
 use crate::app::App;
 use crate::ui::components::Component;
 
+use crate::ui::theme::THEME;
+
 pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -43,14 +45,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     };
     
     let header_style = if app.error_message.is_some() {
-        Style::default().fg(Color::Red)
+        Style::default().fg(THEME.error)
     } else {
-        Style::default()
+        Style::default().fg(THEME.primary)
     };
     
     let title = Paragraph::new(header_text)
         .style(header_style)
-        .block(Block::default().borders(Borders::ALL).title("LazyAWS"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border))
+            .title("LazyAWS")
+            .title_style(Style::default().fg(THEME.secondary)));
     frame.render_widget(title, chunks[0]);
 
     // Body split - sidebar on left, main content on right

@@ -73,14 +73,6 @@ impl Ec2Service {
         Ok(())
     }
 
-    pub async fn terminate_instance(&self, instance_id: &str) -> anyhow::Result<()> {
-        self.client
-            .terminate_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .map_err(|e| format_ec2_error(e, "terminate", instance_id))?;
-        Ok(())
-    }
+
 }
 

@@ -89,12 +89,4 @@ impl RdsInstance {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RdsCluster {
-    pub cluster_identifier: String,
-    pub engine: String,
-    pub status: String,
-    pub endpoint: Option<String>,
-    pub reader_endpoint: Option<String>,
-    pub members: Vec<String>,
-}
+

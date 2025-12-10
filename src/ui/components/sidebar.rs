@@ -1,6 +1,6 @@
 use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
-    style::{Style, Color, Modifier},
+    style::{Style, Modifier},
     layout::Rect,
     Frame,
 };
@@ -59,6 +59,8 @@ impl Sidebar {
     }
 }
 
+use crate::ui::theme::THEME;
+
 impl Component for Sidebar {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let items: Vec<ListItem> = self.items
@@ -70,18 +72,19 @@ impl Component for Sidebar {
 
         // Highlight style
         let highlight_style = Style::default()
-            .bg(Color::Blue)
-            .fg(Color::White)
+            .bg(THEME.selection_bg)
+            .fg(THEME.selection_fg)
             .add_modifier(Modifier::BOLD);
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .title("Services");
+            .title("Services")
+            .title_style(Style::default().fg(THEME.primary));
             
         let block = if self.is_focused {
-            block.border_style(Style::default().fg(Color::Yellow))
+            block.border_style(Style::default().fg(THEME.secondary))
         } else {
-            block
+            block.border_style(Style::default().fg(THEME.border))
         };
 
         let list = List::new(items)
@@ -117,7 +120,5 @@ impl Component for Sidebar {
         }
     }
     
-    fn is_focused(&self) -> bool {
-        self.is_focused
-    }
+
 }

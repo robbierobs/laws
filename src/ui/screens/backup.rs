@@ -1,12 +1,13 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
 use crate::app::App;
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
+use crate::ui::theme::THEME;
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -49,7 +50,7 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
 fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Vault Name", "Recovery Points", "Locked", "Created"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -80,10 +81,11 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Backup Vaults (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -97,7 +99,7 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.backup_list_state);
 }
@@ -116,7 +118,11 @@ fn render_vault_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Backup Vault Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Backup Vault Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -128,43 +134,43 @@ fn build_vault_detail_lines(vault: &BackupVault) -> Vec<Line<'_>> {
 
     vec![
         Line::from(vec![
-            Span::styled("Vault Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(vault.backup_vault_name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Vault Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(vault.backup_vault_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Statistics ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Statistics ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Recovery Points: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Recovery Points: ", Style::default().fg(THEME.primary)),
             Span::raw(vault.number_of_recovery_points.to_string()),
         ]),
         Line::from(vec![
-            Span::styled("Locked: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Locked: ", Style::default().fg(THEME.primary)),
             if vault.locked {
-                Span::styled("Yes ✓", Style::default().fg(Color::Green))
+                Span::styled("Yes ✓", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created),
         ]),
         Line::from(vec![
-            Span::styled("Encryption Key: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Encryption Key: ", Style::default().fg(THEME.primary)),
             Span::raw(encryption_key),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
         ]),
         Line::from(vec![
-            Span::styled(arn, Style::default().fg(Color::Blue)),
+            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
         ]),
     ]
 }
@@ -172,7 +178,7 @@ fn build_vault_detail_lines(vault: &BackupVault) -> Vec<Line<'_>> {
 fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Plan Name", "Plan ID", "Version", "Last Execution"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -205,10 +211,11 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Backup Plans (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -222,7 +229,7 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.backup_list_state);
 }
@@ -241,7 +248,11 @@ fn render_plan_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Backup Plan Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Backup Plan Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -254,35 +265,35 @@ fn build_plan_detail_lines(plan: &BackupPlan) -> Vec<Line<'_>> {
 
     vec![
         Line::from(vec![
-            Span::styled("Plan Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(plan.backup_plan_name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Plan Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(plan.backup_plan_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Plan ID: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Plan ID: ", Style::default().fg(THEME.primary)),
             Span::raw(plan.backup_plan_id.clone()),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Version ID: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Version ID: ", Style::default().fg(THEME.primary)),
             Span::raw(version),
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created),
         ]),
         Line::from(vec![
-            Span::styled("Last Execution: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Last Execution: ", Style::default().fg(THEME.primary)),
             Span::raw(last_exec),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
         ]),
         Line::from(vec![
-            Span::styled(arn, Style::default().fg(Color::Blue)),
+            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
         ]),
     ]
 }
@@ -290,7 +301,7 @@ fn build_plan_detail_lines(plan: &BackupPlan) -> Vec<Line<'_>> {
 fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Job ID", "State", "Resource Type", "Percent Done", "Created"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -306,7 +317,12 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || resource.contains(&filter)
         })
         .map(|job| {
-        let state_color = job.state_color();
+        let state_color = match job.state.as_str() {
+            "COMPLETED" => THEME.success,
+            "FAILED" => THEME.error,
+            "RUNNING" => THEME.warning,
+            _ => THEME.muted,
+        };
         let created = job.creation_date.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
             .unwrap_or_else(|| "-".to_string());
@@ -325,10 +341,11 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Backup Jobs (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -343,7 +360,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.backup_list_state);
 }
@@ -362,13 +379,22 @@ fn render_job_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Backup Job Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Backup Job Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
 
 fn build_job_detail_lines(job: &BackupJob) -> Vec<Line<'_>> {
-    let state_color = job.state_color();
+    let state_color = match job.state.as_str() {
+        "COMPLETED" => THEME.success,
+        "FAILED" => THEME.error,
+        "RUNNING" => THEME.warning,
+        _ => THEME.muted,
+    };
     let created = job.creation_date.clone().unwrap_or_else(|| "-".to_string());
     let completed = job.completion_date.clone().unwrap_or_else(|| "-".to_string());
     let resource_arn = job.resource_arn.clone().unwrap_or_else(|| "-".to_string());
@@ -376,43 +402,43 @@ fn build_job_detail_lines(job: &BackupJob) -> Vec<Line<'_>> {
 
     vec![
         Line::from(vec![
-            Span::styled("Job ID: ", Style::default().fg(Color::Cyan)),
-            Span::styled(job.backup_job_id.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Job ID: ", Style::default().fg(THEME.primary)),
+            Span::styled(job.backup_job_id.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("State: ", Style::default().fg(Color::Cyan)),
+            Span::styled("State: ", Style::default().fg(THEME.primary)),
             Span::styled(job.state.clone(), Style::default().fg(state_color)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Resource ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Resource ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Type: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Type: ", Style::default().fg(THEME.primary)),
             Span::raw(job.resource_type.clone().unwrap_or_default()),
         ]),
         Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
             Span::raw(resource_arn),
         ]),
         Line::from(vec![
-            Span::styled("Vault: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Vault: ", Style::default().fg(THEME.primary)),
             Span::raw(vault),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Progress ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Progress ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Percent Done: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Percent Done: ", Style::default().fg(THEME.primary)),
             Span::raw(job.percent_done.clone().unwrap_or_else(|| "-".to_string())),
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created),
         ]),
         Line::from(vec![
-            Span::styled("Completed: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Completed: ", Style::default().fg(THEME.primary)),
             Span::raw(completed),
         ]),
     ]

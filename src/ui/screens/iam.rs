@@ -1,12 +1,14 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
 use crate::app::App;
 use crate::models::iam::{IamRole, IamUser, IamPolicy};
+
+use crate::ui::theme::THEME;
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -27,7 +29,11 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
             5 => format!("Policy Document: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
             _ => "Details".to_string(),
         };
-        let block = Block::default().borders(Borders::ALL).title(title).style(Style::default().fg(Color::Magenta));
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border));
         frame.render_widget(block, chunks[0]);
     } else {
         let tabs = ["Users", "Roles", "Policies"];
@@ -58,7 +64,7 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
 fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["User Name", "User ID", "Path", "Created", "Password Last Used"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -96,10 +102,11 @@ fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("IAM Users (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -114,7 +121,7 @@ fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.iam_list_state);
 }
@@ -133,7 +140,11 @@ fn render_user_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("IAM User Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("IAM User Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -146,35 +157,35 @@ fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'_>> {
 
     vec![
         Line::from(vec![
-            Span::styled("User Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(user.user_name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("User Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(user.user_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("User ID: ", Style::default().fg(Color::Cyan)),
+            Span::styled("User ID: ", Style::default().fg(THEME.primary)),
             Span::raw(user.user_id.clone()),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Path: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Path: ", Style::default().fg(THEME.primary)),
             Span::raw(path),
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created),
         ]),
         Line::from(vec![
-            Span::styled("Password Last Used: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Password Last Used: ", Style::default().fg(THEME.primary)),
             Span::raw(pwd_last_used),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
         ]),
         Line::from(vec![
-            Span::styled(arn, Style::default().fg(Color::Blue)),
+            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
         ]),
     ]
 }
@@ -182,7 +193,7 @@ fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'_>> {
 fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Role Name", "Role ID", "Path", "Created", "Max Session"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -220,10 +231,11 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("IAM Roles (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -238,7 +250,7 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.iam_list_state);
 }
@@ -257,7 +269,11 @@ fn render_role_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("IAM Role Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("IAM Role Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -273,39 +289,39 @@ fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'_>> {
 
     vec![
         Line::from(vec![
-            Span::styled("Role Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(role.role_name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Role Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(role.role_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Role ID: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Role ID: ", Style::default().fg(THEME.primary)),
             Span::raw(role.role_id.clone()),
         ]),
         Line::from(vec![
-            Span::styled("Description: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Description: ", Style::default().fg(THEME.primary)),
             Span::raw(desc),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Path: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Path: ", Style::default().fg(THEME.primary)),
             Span::raw(path),
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created),
         ]),
         Line::from(vec![
-            Span::styled("Max Session Duration: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Max Session Duration: ", Style::default().fg(THEME.primary)),
             Span::raw(max_session),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
         ]),
         Line::from(vec![
-            Span::styled(arn, Style::default().fg(Color::Blue)),
+            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
         ]),
     ]
 }
@@ -313,7 +329,7 @@ fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'_>> {
 fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Policy Name", "Policy ID", "Attachments", "Created", "Updated"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -351,10 +367,11 @@ fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("IAM Policies (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -369,7 +386,7 @@ fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.iam_list_state);
 }
@@ -388,7 +405,11 @@ fn render_policy_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("IAM Policy Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("IAM Policy Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -401,43 +422,43 @@ fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'_>> {
 
     vec![
         Line::from(vec![
-            Span::styled("Policy Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(policy.policy_name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Policy Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(policy.policy_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Policy ID: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Policy ID: ", Style::default().fg(THEME.primary)),
             Span::raw(policy.policy_id.clone().unwrap_or_default()),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Attachment Count: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Attachment Count: ", Style::default().fg(THEME.primary)),
             Span::raw(attachments),
         ]),
         Line::from(vec![
-            Span::styled("Is Attachable: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Is Attachable: ", Style::default().fg(THEME.primary)),
             if policy.is_attachable {
-                Span::styled("Yes", Style::default().fg(Color::Green))
+                Span::styled("Yes", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created),
         ]),
         Line::from(vec![
-            Span::styled("Updated: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Updated: ", Style::default().fg(THEME.primary)),
             Span::raw(updated),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
         ]),
         Line::from(vec![
-            Span::styled(arn, Style::default().fg(Color::Blue)),
+            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
         ]),
     ]
 }
@@ -445,7 +466,7 @@ fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'_>> {
 fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Policy Name", "ARN"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -465,10 +486,11 @@ fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Attached Policies (Press Esc to back)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -480,7 +502,7 @@ fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.iam_list_state);
 }
@@ -488,7 +510,11 @@ fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
 fn render_policy_document(frame: &mut Frame, area: Rect, app: &App) {
     let text = app.current_policy_document.clone();
     let paragraph = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title("Policy Document (Press Esc to back)"))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Policy Document (Press Esc to back)")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)))
         .wrap(ratatui::widgets::Wrap { trim: false });
     
     frame.render_widget(paragraph, area);
@@ -508,7 +534,11 @@ fn render_policy_details_from_list(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Policy Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Policy Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }

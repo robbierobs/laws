@@ -50,21 +50,12 @@ impl Service {
 pub enum Message {
     // Navigation
     NavigateToService(Service),
-    NavigateBack,
-
-    // Selection
-    SelectNext,
-    SelectPrevious,
-    SelectItem(usize),
 
     // Actions
     RefreshData,
-    ConfirmAction,
-    CancelAction,
     StartInstance(String),
     StopInstance(String),
     RebootInstance(String),
-    TerminateInstance(String),
     LoadS3Objects(String),
     LoadBucketDetails(String),
     LeaveS3Bucket,
@@ -81,7 +72,6 @@ pub enum Message {
     // UI
     ToggleDetailPanel,
     CycleViewMode,
-    ShowHelp,
     Quit,
 
     // VPC Specific

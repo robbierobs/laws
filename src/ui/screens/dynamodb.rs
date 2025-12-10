@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
@@ -16,10 +16,12 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
     }
 }
 
+use crate::ui::theme::THEME;
+
 fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Table Name", "Status", "Items", "Size", "Partition Key", "Billing"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -33,7 +35,11 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
             t.table_name.to_lowercase().contains(&filter)
         })
         .map(|table| {
-        let status_color = table.status_color();
+        let status_color = match table.table_status.as_str() {
+            "ACTIVE" => THEME.success,
+            "CREATING" | "UPDATING" | "DELETING" => THEME.warning,
+            _ => THEME.muted,
+        };
         let pk_str = table.partition_key.as_ref()
             .map(|pk| format!("{} ({})", pk.name, pk.attribute_type))
             .unwrap_or_else(|| "-".to_string());
@@ -55,10 +61,11 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("DynamoDB Tables")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -74,7 +81,7 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.dynamodb_list_state);
 }
@@ -93,13 +100,21 @@ fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Table Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Table Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
 
 fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
-    let status_color = table.status_color();
+    let status_color = match table.table_status.as_str() {
+        "ACTIVE" => THEME.success,
+        "CREATING" | "UPDATING" | "DELETING" => THEME.warning,
+        _ => THEME.muted,
+    };
     
     let item_count_str = table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
     let created_str = table.creation_date_time.clone().unwrap_or_else(|| "-".to_string());
@@ -107,37 +122,37 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
-            Span::styled("Table Name: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Table Name: ", Style::default().fg(THEME.primary)),
             Span::raw(table.table_name.clone()),
             Span::raw("   "),
-            Span::styled("Status: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Status: ", Style::default().fg(THEME.primary)),
             Span::styled(table.table_status.clone(), Style::default().fg(status_color)),
         ]),
         Line::from(vec![
-            Span::styled("Items: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Items: ", Style::default().fg(THEME.primary)),
             Span::raw(item_count_str),
             Span::raw("   "),
-            Span::styled("Size: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Size: ", Style::default().fg(THEME.primary)),
             Span::raw(table.format_size()),
             Span::raw("   "),
-            Span::styled("Class: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Class: ", Style::default().fg(THEME.primary)),
             Span::raw(table_class_str),
         ]),
         Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
             Span::raw(created_str),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Key Schema ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Key Schema ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
     ];
 
     // Partition Key
     if let Some(pk) = &table.partition_key {
         lines.push(Line::from(vec![
-            Span::styled("Partition Key: ", Style::default().fg(Color::Cyan)),
-            Span::styled(&pk.name, Style::default().fg(Color::Yellow)),
+            Span::styled("Partition Key: ", Style::default().fg(THEME.primary)),
+            Span::styled(&pk.name, Style::default().fg(THEME.warning)),
             Span::raw(format!(" ({}) ", pk.attribute_type)),
         ]));
     }
@@ -145,20 +160,20 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     // Sort Key
     if let Some(sk) = &table.sort_key {
         lines.push(Line::from(vec![
-            Span::styled("Sort Key: ", Style::default().fg(Color::Cyan)),
-            Span::styled(&sk.name, Style::default().fg(Color::Yellow)),
+            Span::styled("Sort Key: ", Style::default().fg(THEME.primary)),
+            Span::styled(&sk.name, Style::default().fg(THEME.warning)),
             Span::raw(format!(" ({}) ", sk.attribute_type)),
         ]));
     }
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("─── Billing ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+        Span::styled("─── Billing ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
     ]));
 
     let billing_mode = table.billing_mode.clone().unwrap_or_else(|| "PROVISIONED".to_string());
     lines.push(Line::from(vec![
-        Span::styled("Billing Mode: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Billing Mode: ", Style::default().fg(THEME.primary)),
         Span::raw(billing_mode.clone()),
     ]));
 
@@ -166,10 +181,10 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
         let rcu = table.read_capacity_units.map(|r| r.to_string()).unwrap_or_else(|| "-".to_string());
         let wcu = table.write_capacity_units.map(|w| w.to_string()).unwrap_or_else(|| "-".to_string());
         lines.push(Line::from(vec![
-            Span::styled("Read Capacity: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Read Capacity: ", Style::default().fg(THEME.primary)),
             Span::raw(rcu),
             Span::raw(" RCU   "),
-            Span::styled("Write Capacity: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Write Capacity: ", Style::default().fg(THEME.primary)),
             Span::raw(wcu),
             Span::raw(" WCU"),
         ]));
@@ -179,14 +194,14 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     if !table.global_secondary_indexes.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("─── Global Secondary Indexes ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Global Secondary Indexes ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]));
         for gsi in &table.global_secondary_indexes {
             let status = gsi.index_status.clone().unwrap_or_else(|| "?".to_string());
             let items = gsi.item_count.map(|c| c.to_string()).unwrap_or_else(|| "?".to_string());
             lines.push(Line::from(vec![
-                Span::styled("• ", Style::default().fg(Color::Yellow)),
-                Span::styled(&gsi.index_name, Style::default().fg(Color::Yellow)),
+                Span::styled("• ", Style::default().fg(THEME.warning)),
+                Span::styled(&gsi.index_name, Style::default().fg(THEME.warning)),
                 Span::raw(format!(" [{}] - {} - {} items", status, gsi.key_schema, items)),
             ]));
         }
@@ -196,13 +211,13 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     if !table.local_secondary_indexes.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("─── Local Secondary Indexes ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Local Secondary Indexes ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]));
         for lsi in &table.local_secondary_indexes {
             let items = lsi.item_count.map(|c| c.to_string()).unwrap_or_else(|| "?".to_string());
             lines.push(Line::from(vec![
-                Span::styled("• ", Style::default().fg(Color::Yellow)),
-                Span::styled(&lsi.index_name, Style::default().fg(Color::Yellow)),
+                Span::styled("• ", Style::default().fg(THEME.warning)),
+                Span::styled(&lsi.index_name, Style::default().fg(THEME.warning)),
                 Span::raw(format!(" - {} - {} items", lsi.key_schema, items)),
             ]));
         }
@@ -211,20 +226,20 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     // Stream
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("─── Stream ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+        Span::styled("─── Stream ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Stream Enabled: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Stream Enabled: ", Style::default().fg(THEME.primary)),
         if table.stream_enabled {
-            Span::styled("Yes ✓", Style::default().fg(Color::Green))
+            Span::styled("Yes ✓", Style::default().fg(THEME.success))
         } else {
-            Span::styled("No", Style::default().fg(Color::Gray))
+            Span::styled("No", Style::default().fg(THEME.muted))
         },
     ]));
     if table.stream_enabled {
         if let Some(view_type) = &table.stream_view_type {
             lines.push(Line::from(vec![
-                Span::styled("View Type: ", Style::default().fg(Color::Cyan)),
+                Span::styled("View Type: ", Style::default().fg(THEME.primary)),
                 Span::raw(view_type.clone()),
             ]));
         }
@@ -232,11 +247,11 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
 
     // Deletion Protection
     lines.push(Line::from(vec![
-        Span::styled("Deletion Protection: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Deletion Protection: ", Style::default().fg(THEME.primary)),
         if table.deletion_protection {
-            Span::styled("Enabled ✓", Style::default().fg(Color::Green))
+            Span::styled("Enabled ✓", Style::default().fg(THEME.success))
         } else {
-            Span::styled("Disabled", Style::default().fg(Color::Yellow))
+            Span::styled("Disabled", Style::default().fg(THEME.warning))
         },
     ]));
 

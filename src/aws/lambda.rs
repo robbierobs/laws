@@ -53,31 +53,5 @@ impl LambdaService {
         Ok(functions)
     }
 
-    pub async fn invoke_function(&self, function_name: &str) -> anyhow::Result<String> {
-        let response = self.client
-            .invoke()
-            .function_name(function_name)
-            .send()
-            .await
-            .map_err(|e| format_lambda_error(e, "invoke", function_name))?;
 
-        let status = response.status_code();
-        let payload = response.payload()
-            .map(|p| String::from_utf8_lossy(p.as_ref()).to_string())
-            .unwrap_or_else(|| "No payload".to_string());
-
-        Ok(format!("Status: {}, Payload: {}", status, payload))
-    }
-
-    pub async fn get_function_url(&self, function_name: &str) -> anyhow::Result<Option<String>> {
-        match self.client
-            .get_function_url_config()
-            .function_name(function_name)
-            .send()
-            .await
-        {
-            Ok(response) => Ok(Some(response.function_url().to_string())),
-            Err(_) => Ok(None), // Function URL might not be configured
-        }
-    }
 }

@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
@@ -21,10 +21,12 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
     }
 }
 
+use crate::ui::theme::THEME;
+
 fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Name", "Creation Date", "Region"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -50,10 +52,11 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("S3 Buckets")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -66,7 +69,7 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.s3_list_state);
 }
@@ -85,7 +88,11 @@ fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Bucket Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Bucket Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -93,20 +100,20 @@ fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
 fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(vec![
-            Span::styled("Bucket Name: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Bucket Name: ", Style::default().fg(THEME.primary)),
             Span::raw(bucket.name.clone()),
         ]),
         Line::from(vec![
-            Span::styled("Creation Date: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Creation Date: ", Style::default().fg(THEME.primary)),
             Span::raw(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
         ]),
         Line::from(vec![
-            Span::styled("Region: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Region: ", Style::default().fg(THEME.primary)),
             Span::raw(bucket.region.clone().unwrap_or_else(|| "-".to_string())),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Configuration ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
     ];
 
@@ -114,18 +121,18 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
     if let Some(details) = app.s3_bucket_details.get(&bucket.name) {
         if details.loading {
             lines.push(Line::from(vec![
-                Span::styled("⏳ ", Style::default().fg(Color::Yellow)),
+                Span::styled("⏳ ", Style::default().fg(THEME.warning)),
                 Span::raw("Loading bucket details..."),
             ]));
         } else {
             // Versioning
             let versioning_text = match details.versioning_enabled {
-                Some(true) => Span::styled("Enabled", Style::default().fg(Color::Green)),
-                Some(false) => Span::styled("Disabled", Style::default().fg(Color::Red)),
-                None => Span::styled("Unknown", Style::default().fg(Color::Gray)),
+                Some(true) => Span::styled("Enabled", Style::default().fg(THEME.success)),
+                Some(false) => Span::styled("Disabled", Style::default().fg(THEME.error)),
+                None => Span::styled("Unknown", Style::default().fg(THEME.muted)),
             };
             lines.push(Line::from(vec![
-                Span::styled("Versioning: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Versioning: ", Style::default().fg(THEME.primary)),
                 versioning_text,
             ]));
 
@@ -133,13 +140,13 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
             let encryption_text = details.encryption.clone()
                 .unwrap_or_else(|| "None/Unknown".to_string());
             lines.push(Line::from(vec![
-                Span::styled("Encryption: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Encryption: ", Style::default().fg(THEME.primary)),
                 Span::raw(encryption_text),
             ]));
 
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
-                Span::styled("─── Statistics ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+                Span::styled("─── Statistics ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
             ]));
 
             // Object count
@@ -147,7 +154,7 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
                 .map(|c| c.to_string())
                 .unwrap_or_else(|| "-".to_string());
             lines.push(Line::from(vec![
-                Span::styled("Object Count: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Object Count: ", Style::default().fg(THEME.primary)),
                 Span::raw(object_count_text),
             ]));
 
@@ -156,13 +163,13 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
                 .map(|s| format_size(s))
                 .unwrap_or_else(|| "-".to_string());
             lines.push(Line::from(vec![
-                Span::styled("Total Size: ", Style::default().fg(Color::Cyan)),
+                Span::styled("Total Size: ", Style::default().fg(THEME.primary)),
                 Span::raw(total_size_text),
             ]));
         }
     } else {
         lines.push(Line::from(vec![
-            Span::styled("ℹ ", Style::default().fg(Color::Blue)),
+            Span::styled("ℹ ", Style::default().fg(THEME.primary)),
             Span::raw("Press 'i' to load detailed bucket info"),
         ]));
     }
@@ -173,7 +180,7 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
 fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &str) {
     let header_cells = ["Key", "Size", "Last Modified", "Storage Class"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -200,10 +207,11 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
     let block = Block::default()
         .borders(Borders::ALL)
         .title(format!("Objects in {}", bucket_name))
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -217,7 +225,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.s3_object_list_state);
 }
@@ -236,7 +244,11 @@ fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Object Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Object Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -244,35 +256,35 @@ fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
 fn build_object_detail_lines(object: &crate::models::s3::S3Object, bucket_name: Option<&str>) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(vec![
-            Span::styled("Key: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Key: ", Style::default().fg(THEME.primary)),
             Span::raw(object.key.clone()),
         ]),
     ];
 
     if let Some(bucket) = bucket_name {
         lines.push(Line::from(vec![
-            Span::styled("S3 URI: ", Style::default().fg(Color::Cyan)),
-            Span::styled(format!("s3://{}/{}", bucket, object.key), Style::default().fg(Color::Blue)),
+            Span::styled("S3 URI: ", Style::default().fg(THEME.primary)),
+            Span::styled(format!("s3://{}/{}", bucket, object.key), Style::default().fg(THEME.selection_fg)),
         ]));
     }
 
     lines.push(Line::from(vec![
-        Span::styled("Size: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Size: ", Style::default().fg(THEME.primary)),
         Span::raw(format_size(object.size)),
         Span::raw(format!(" ({} bytes)", object.size)),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Last Modified: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Last Modified: ", Style::default().fg(THEME.primary)),
         Span::raw(object.last_modified.clone().unwrap_or_else(|| "-".to_string())),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Storage Class: ", Style::default().fg(Color::Cyan)),
+        Span::styled("Storage Class: ", Style::default().fg(THEME.primary)),
         Span::raw(object.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
     ]));
     
     if let Some(etag) = &object.etag {
         lines.push(Line::from(vec![
-            Span::styled("ETag: ", Style::default().fg(Color::Cyan)),
+            Span::styled("ETag: ", Style::default().fg(THEME.primary)),
             Span::raw(etag.clone()),
         ]));
     }

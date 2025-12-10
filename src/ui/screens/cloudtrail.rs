@@ -1,12 +1,13 @@
 use ratatui::{
     layout::{Constraint, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
 use crate::app::App;
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
+use crate::ui::theme::THEME;
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -43,7 +44,7 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
 fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Trail Name", "S3 Bucket", "Multi-Region", "Organization", "Region"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -76,10 +77,11 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("CloudTrail Trails (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -94,7 +96,7 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.cloudtrail_list_state);
 }
@@ -113,7 +115,11 @@ fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Trail Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Trail Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -122,93 +128,92 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
     let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
     let prefix = trail.s3_key_prefix.clone().unwrap_or_else(|| "(none)".to_string());
     let region = trail.home_region.clone().unwrap_or_else(|| "-".to_string());
-    let arn = trail.trail_arn.clone().unwrap_or_else(|| "-".to_string());
     let kms = trail.kms_key_id.clone().unwrap_or_else(|| "(none)".to_string());
     let cw_logs = trail.cloudwatch_logs_log_group_arn.clone().unwrap_or_else(|| "(not configured)".to_string());
 
     vec![
         Line::from(vec![
-            Span::styled("Trail Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(trail.name.clone(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Trail Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(trail.name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Home Region: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Home Region: ", Style::default().fg(THEME.primary)),
             Span::raw(region),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Storage ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Storage ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("S3 Bucket: ", Style::default().fg(Color::Cyan)),
+            Span::styled("S3 Bucket: ", Style::default().fg(THEME.primary)),
             Span::raw(bucket),
         ]),
         Line::from(vec![
-            Span::styled("S3 Key Prefix: ", Style::default().fg(Color::Cyan)),
+            Span::styled("S3 Key Prefix: ", Style::default().fg(THEME.primary)),
             Span::raw(prefix),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Configuration ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Multi-Region Trail: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Multi-Region Trail: ", Style::default().fg(THEME.primary)),
             if trail.is_multi_region_trail {
-                Span::styled("Yes ✓", Style::default().fg(Color::Green))
+                Span::styled("Yes ✓", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
         Line::from(vec![
-            Span::styled("Organization Trail: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Organization Trail: ", Style::default().fg(THEME.primary)),
             if trail.is_organization_trail {
-                Span::styled("Yes ✓", Style::default().fg(Color::Green))
+                Span::styled("Yes ✓", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
         Line::from(vec![
-            Span::styled("Global Service Events: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Global Service Events: ", Style::default().fg(THEME.primary)),
             if trail.include_global_service_events {
-                Span::styled("Yes", Style::default().fg(Color::Green))
+                Span::styled("Yes", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
         Line::from(vec![
-            Span::styled("Log File Validation: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Log File Validation: ", Style::default().fg(THEME.primary)),
             if trail.log_file_validation_enabled {
-                Span::styled("Enabled ✓", Style::default().fg(Color::Green))
+                Span::styled("Enabled ✓", Style::default().fg(THEME.success))
             } else {
-                Span::styled("Disabled", Style::default().fg(Color::Yellow))
+                Span::styled("Disabled", Style::default().fg(THEME.warning))
             },
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Integrations ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Integrations ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("KMS Key: ", Style::default().fg(Color::Cyan)),
+            Span::styled("KMS Key: ", Style::default().fg(THEME.primary)),
             Span::raw(kms),
         ]),
         Line::from(vec![
-            Span::styled("CloudWatch Logs: ", Style::default().fg(Color::Cyan)),
+            Span::styled("CloudWatch Logs: ", Style::default().fg(THEME.primary)),
             Span::raw(cw_logs),
         ]),
         Line::from(vec![
-            Span::styled("Custom Event Selectors: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Custom Event Selectors: ", Style::default().fg(THEME.primary)),
             if trail.has_custom_event_selectors {
-                Span::styled("Yes", Style::default().fg(Color::Green))
+                Span::styled("Yes", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
         Line::from(vec![
-            Span::styled("Insight Selectors: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Insight Selectors: ", Style::default().fg(THEME.primary)),
             if trail.has_insight_selectors {
-                Span::styled("Yes", Style::default().fg(Color::Green))
+                Span::styled("Yes", Style::default().fg(THEME.success))
             } else {
-                Span::styled("No", Style::default().fg(Color::Gray))
+                Span::styled("No", Style::default().fg(THEME.muted))
             },
         ]),
     ]
@@ -217,7 +222,7 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
 fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let header_cells = ["Event Name", "Time", "Source", "Username", "Read Only"]
         .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
     
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
@@ -252,10 +257,11 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("CloudTrail Events (Tab to switch view)")
+        .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(Color::Green)
+            Style::default().fg(THEME.secondary)
         } else {
-            Style::default()
+            Style::default().fg(THEME.border)
         });
 
     let t = Table::new(
@@ -270,7 +276,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     frame.render_stateful_widget(t, area, &mut app.cloudtrail_list_state);
 }
@@ -289,7 +295,11 @@ fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Event Details"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Event Details")
+            .title_style(Style::default().fg(THEME.primary))
+            .border_style(Style::default().fg(THEME.border)));
     
     frame.render_widget(paragraph, area);
 }
@@ -303,27 +313,27 @@ fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
     
     let mut lines = vec![
         Line::from(vec![
-            Span::styled("Event Name: ", Style::default().fg(Color::Cyan)),
-            Span::styled(name, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Event Name: ", Style::default().fg(THEME.primary)),
+            Span::styled(name, Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Event ID: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Event ID: ", Style::default().fg(THEME.primary)),
             Span::raw(event_id),
         ]),
         Line::from(vec![
-            Span::styled("Time: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Time: ", Style::default().fg(THEME.primary)),
             Span::raw(event_time),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("─── Source ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Source ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("Source: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Source: ", Style::default().fg(THEME.primary)),
             Span::raw(source),
         ]),
         Line::from(vec![
-            Span::styled("Username: ", Style::default().fg(Color::Cyan)),
+            Span::styled("Username: ", Style::default().fg(THEME.primary)),
             Span::raw(username),
         ]),
     ];
@@ -331,11 +341,11 @@ fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
     if !event.resources.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("─── Resources ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled("─── Resources ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         ]));
         for resource in &event.resources {
             lines.push(Line::from(vec![
-                Span::styled("• ", Style::default().fg(Color::Yellow)),
+                Span::styled("• ", Style::default().fg(THEME.warning)),
                 Span::raw(resource.clone()),
             ]));
         }

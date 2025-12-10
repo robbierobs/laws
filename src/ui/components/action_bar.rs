@@ -1,11 +1,13 @@
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
 use crate::app::{App, Service};
+
+use crate::ui::theme::THEME;
 
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let mut actions = vec![
@@ -59,11 +61,17 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Service::VPC => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("v", "View"),
+                ("Enter", "Drill Down"),
+                ("Esc", "Back"),
             ]);
         }
         Service::IAM => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("v", "View"),
+                ("Enter", "Drill Down"),
+                ("Esc", "Back"),
             ]);
         }
         Service::Backup => {
@@ -84,14 +92,18 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         .iter()
         .flat_map(|(key, desc)| {
             vec![
-                Span::styled(format!(" {} ", key), Style::default().bg(Color::DarkGray).fg(Color::White)),
-                Span::raw(format!(" {} ", desc)),
+                Span::styled(format!(" {} ", key), Style::default().bg(THEME.selection_bg).fg(THEME.primary)),
+                Span::styled(format!(" {} ", desc), Style::default().fg(THEME.fg)),
             ]
         })
         .collect();
 
     let p = Paragraph::new(Line::from(spans))
-        .block(Block::default().borders(Borders::ALL).title("Actions"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(THEME.border))
+            .title("Actions")
+            .title_style(Style::default().fg(THEME.secondary)));
 
     frame.render_widget(p, area);
 }
