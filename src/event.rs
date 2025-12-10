@@ -8,7 +8,9 @@ pub enum Event {
     Aws(AwsEvent),
 }
 
+use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
+use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 
@@ -19,6 +21,8 @@ pub enum AwsEvent {
     S3ObjectsLoaded(Vec<S3Object>),
     S3BucketDetailsLoaded { bucket_name: String, details: S3BucketDetails },
     RdsInstancesLoaded(Vec<RdsInstance>),
+    DynamoDbTablesLoaded(Vec<DynamoDbTable>),
+    LambdaFunctionsLoaded(Vec<LambdaFunction>),
     ActionCompleted(String), // Message to display
     Error(String),
 }

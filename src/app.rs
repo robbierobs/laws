@@ -96,7 +96,9 @@ pub enum Focus {
 }
 
 use crate::aws::client::AwsClients;
+use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
+use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails};
 
@@ -128,6 +130,12 @@ pub struct App {
     // RDS state
     pub rds_instances: Vec<RdsInstance>,
     pub rds_list_state: TableState,
+    // DynamoDB state
+    pub dynamodb_tables: Vec<DynamoDbTable>,
+    pub dynamodb_list_state: TableState,
+    // Lambda state
+    pub lambda_functions: Vec<LambdaFunction>,
+    pub lambda_list_state: TableState,
 }
 
 impl App {
@@ -155,6 +163,10 @@ impl App {
             detail_loading: false,
             rds_instances: Vec::new(),
             rds_list_state: TableState::default(),
+            dynamodb_tables: Vec::new(),
+            dynamodb_list_state: TableState::default(),
+            lambda_functions: Vec::new(),
+            lambda_list_state: TableState::default(),
         }
     }
 
@@ -209,6 +221,36 @@ impl App {
                                     match service.list_instances().await {
                                         Ok(instances) => {
                                             tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::DynamoDB => {
+                                let client = clients.dynamodb.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::dynamodb::DynamoDbService::new(client);
+                                    match service.list_tables().await {
+                                        Ok(tables) => {
+                                            tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::Lambda => {
+                                let client = clients.lambda.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::lambda::LambdaService::new(client);
+                                    match service.list_functions().await {
+                                        Ok(functions) => {
+                                            tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions))).ok();
                                         }
                                         Err(e) => {
                                             tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
@@ -605,6 +647,76 @@ impl App {
                             _ => {}
                         }
                     }
+                    Service::DynamoDB => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.dynamodb_tables.is_empty() {
+                                    let i = match self.dynamodb_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.dynamodb_tables.len() - 1 {
+                                                0
+                                            } else {
+                                                i + 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.dynamodb_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.dynamodb_tables.is_empty() {
+                                    let i = match self.dynamodb_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 {
+                                                self.dynamodb_tables.len() - 1
+                                            } else {
+                                                i - 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.dynamodb_list_state.select(Some(i));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Service::Lambda => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.lambda_functions.is_empty() {
+                                    let i = match self.lambda_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.lambda_functions.len() - 1 {
+                                                0
+                                            } else {
+                                                i + 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.lambda_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.lambda_functions.is_empty() {
+                                    let i = match self.lambda_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 {
+                                                self.lambda_functions.len() - 1
+                                            } else {
+                                                i - 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.lambda_list_state.select(Some(i));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -656,6 +768,14 @@ impl App {
             }
             AwsEvent::RdsInstancesLoaded(instances) => {
                 self.rds_instances = instances;
+                self.loading = false;
+            }
+            AwsEvent::DynamoDbTablesLoaded(tables) => {
+                self.dynamodb_tables = tables;
+                self.loading = false;
+            }
+            AwsEvent::LambdaFunctionsLoaded(functions) => {
+                self.lambda_functions = functions;
                 self.loading = false;
             }
             AwsEvent::ActionCompleted(msg) => {

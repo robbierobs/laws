@@ -84,6 +84,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         crate::app::Service::RDS => {
             crate::ui::screens::rds::render(frame, list_area, detail_area, app);
         }
+        crate::app::Service::DynamoDB => {
+            crate::ui::screens::dynamodb::render(frame, list_area, detail_area, app);
+        }
+        crate::app::Service::Lambda => {
+            crate::ui::screens::lambda::render(frame, list_area, detail_area, app);
+        }
         _ => {
             let content = Paragraph::new("Content goes here")
                 .block(Block::default().borders(Borders::ALL).title("Body"));

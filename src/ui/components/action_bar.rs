@@ -46,6 +46,16 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("R", "Reboot"),
             ]);
         }
+        Service::DynamoDB => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
+        }
+        Service::Lambda => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
+        }
         _ => {
             actions.push(("j/k", "Navigate"));
         }
