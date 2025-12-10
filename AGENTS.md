@@ -30,23 +30,25 @@ When working on this project, adopt the following persona:
 
 ### 4.1 Adding a New AWS Service
 1.  **Update `Cargo.toml`**: Add the `aws-sdk-<service>` crate.
-2.  **Update `Service` Enum**: Add the new service variant in `src/app.rs`.
+2.  **Update `Service` Enum**: Add the new service variant in `src/app/messages.rs`.
 3.  **Create Service Module**: Create `src/aws/<service>.rs` for SDK interactions.
 4.  **Create Data Models**: Create `src/models/<service>.rs` for internal representations.
 5.  **Create UI Screen**: Create `src/ui/screens/<service>.rs` for the service view.
-6.  **Update `App` State**: Add state storage for the new service in `App` struct.
-7.  **Register Navigation**: Update sidebar and input handling to allow navigating to the new service.
+6.  **Update `App` State**: Add state storage for the new service in `src/app/state.rs`.
+7.  **Update Input Handling**: Add navigation and keybindings in `src/app/input.rs`.
+8.  **Update Message Handling**: Add message handlers in `src/app/update.rs`.
+9.  **Register Navigation**: Update sidebar and render.rs to allow navigating to the new service.
 
 ### 4.2 Implementing an Action (e.g., Start Instance)
-1.  **Define Action**: Add variant to `Action` enum (if generic) or specific `Message`.
-2.  **Update Handler**: Implement the logic in `src/actions/handlers.rs` or the service module.
-3.  **Trigger Async Task**: Spawn a tokio task to execute the action and send a result message back.
-4.  **Handle Result**: Update `App::update` to handle success/failure messages (e.g., refresh list, show error).
+1.  **Define Message**: Add variant to `Message` enum in `src/app/messages.rs`.
+2.  **Update Input Handler**: In `src/app/input.rs`, add keybinding that returns `InputResult::Action(Message::YourAction)`.
+3.  **Update Update Handler**: In `src/app/update.rs`, implement the async logic in the `update()` function.
+4.  **Handle Result**: Ensure `AwsEvent::ActionCompleted` or `AwsEvent::Error` is sent back and handled in `src/app/events.rs`.
 
 ### 4.3 Implementing Hierarchical Navigation (e.g., S3 Buckets -> Objects)
-1.  **Update App State**: Add state for the child view (e.g., `current_bucket`, `s3_objects`).
-2.  **Add Navigation Messages**: Add messages to enter/leave the child view (e.g., `LoadS3Objects`, `LeaveS3Bucket`).
-3.  **Update Key Handler**: In `handle_key`, check the state (e.g., `current_bucket.is_some()`) to determine which key bindings apply (drill-down vs. back).
+1.  **Update App State** (`src/app/state.rs`): Add state for the child view (e.g., `current_bucket`, `s3_objects`).
+2.  **Add Navigation Messages** (`src/app/messages.rs`): Add messages to enter/leave the child view.
+3.  **Update Key Handler** (`src/app/input.rs`): Check the state to determine which key bindings apply (drill-down vs. back).
 4.  **Update Renderer**: In the screen's `render` function, conditionally render the parent or child view.
 5.  **Update Action Bar**: Ensure the action bar reflects the current context (e.g., "Esc: Back").
 
@@ -54,19 +56,27 @@ When working on this project, adopt the following persona:
 ```
 lazy-aws/
 ├── src/
-│   ├── main.rs                 # Entry point
-│   ├── app.rs                  # State machine
+│   ├── main.rs                 # Entry point, event loop
 │   ├── config.rs               # Configuration and CLI args
-│   ├── event.rs                # Event loop
+│   ├── event.rs                # Event definitions (Key, Tick, Aws)
+│   ├── app/                    # Application state machine (modular)
+│   │   ├── mod.rs              # Module exports
+│   │   ├── messages.rs         # Service, Message, Focus, InputMode enums
+│   │   ├── state.rs            # App struct, new(), render(), on_tick()
+│   │   ├── update.rs           # Message handling (reducer)
+│   │   ├── input.rs            # Keyboard input handling
+│   │   └── events.rs           # AWS event handling
 │   ├── ui/                     # Rendering logic
 │   │   ├── mod.rs
 │   │   ├── render.rs           # Main render dispatcher
 │   │   ├── theme.rs            # Centralized theming
-│   │   ├── components/         # Reusable widgets (sidebar, modal, etc.)
+│   │   ├── components/         # Reusable widgets (sidebar, modal, action_bar, action_log, etc.)
 │   │   └── screens/            # Service-specific views
 │   ├── aws/                    # AWS SDK wrappers
-│   ├── models/                 # Data structures
-│   └── actions/                # Command handlers
+│   │   ├── client.rs           # AwsClients initialization
+│   │   ├── ec2.rs, s3.rs, ...  # Per-service SDK wrappers
+│   ├── models/                 # Data structures for each service
+│   └── utils/                  # Utility functions (formatting, etc.)
 ```
 
 ## 6. Recent Features & Patterns
@@ -77,8 +87,8 @@ lazy-aws/
   - `App` struct has a `read_only: bool` field.
   - CLI argument `--read-only` enables it.
   - Header displays a yellow "READ-ONLY" warning.
-  - Destructive actions (like `StartInstance`) check this flag in `handle_key` or `request_action` helper.
-  - If `read_only` is true, an error message "Read-only mode: Action not allowed" is shown instead of prompting for confirmation.
+  - Destructive actions check this flag via `request_action()` helper in `input.rs`.
+  - If `read_only` is true, an error message "Read-only mode: Action not allowed" is shown.
 
 ### 6.2 Confirmation Modals
 - **Feature**: Require user confirmation for destructive actions.
@@ -86,7 +96,7 @@ lazy-aws/
   - `App` has `pending_action: Option<Message>` and `show_confirmation: bool`.
   - When an action is requested (and not read-only), `pending_action` is set and `show_confirmation` becomes true.
   - `render_confirmation_modal` draws the dialog overlay.
-  - `handle_key` intercepts keys when `show_confirmation` is true (Enter to confirm, Esc to cancel).
+  - Only `y/Y` confirms, `n/N/Esc` cancels (Enter does NOT confirm for safety).
 
 ### 6.3 Multi-View Navigation
 - **Feature**: Switch between different lists within a service (e.g., VPCs <-> Subnets <-> Security Groups).
@@ -109,3 +119,18 @@ lazy-aws/
   - `Args` struct supports `--endpoint-url` and `AWS_ENDPOINT_URL`.
   - `AwsClients::new` configures the SDKs to use this endpoint (force_path_style for S3).
 
+### 6.6 Action Log
+- **Feature**: Track and display action history.
+- **Implementation**:
+  - `App` has `action_log: Vec<String>` and `action_log_expanded: bool`.
+  - Success and error events are logged to `action_log` in `src/app/events.rs`.
+  - Action bar title shows the last action (color-coded green/red).
+  - Press `Shift+A` (or `A`) to open a full-screen popup showing the action history.
+  - `src/ui/components/action_log.rs` handles the popup rendering.
+
+### 6.7 Auto-Loading Details
+- **Feature**: Automatically fetch detailed information without manual trigger.
+- **Implementation** (S3 Bucket Details):
+  - When buckets are loaded, details are fetched automatically in the background.
+  - Rate limiting: Semaphore limits to 3 concurrent requests, 100ms delay per request, max 20 buckets.
+  - UI shows "⏳ Loading bucket details..." until data arrives.

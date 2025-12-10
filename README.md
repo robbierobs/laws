@@ -2,21 +2,45 @@
 
 A terminal user interface (TUI) for managing AWS resources, built with Rust and Ratatui.
 
-## Features (Planned)
-- **EC2**: List, start, stop, reboot instances.
-- **S3**: Browse buckets and objects.
-- **RDS**: Manage database instances.
-- **DynamoDB**: View tables.
-- **Lambda**: List functions.
-- **VPC**: View networking resources.
-- **IAM**: View users and roles.
-- **CloudTrail**: View event logs.
+![LazyAWS Demo](docs/demo.gif) <!-- TODO: Add demo gif -->
+
+## Features
+
+### Supported Services
+- **EC2**: List, start, stop, reboot instances
+- **S3**: Browse buckets and objects, delete objects, view bucket details
+- **RDS**: Manage database instances (start, stop, reboot)
+- **DynamoDB**: View tables
+- **Lambda**: List functions
+- **VPC**: View VPCs, subnets, security groups, and drill into rules
+- **IAM**: View users, roles, policies, and attached policy documents
+- **Backup**: View backup vaults, plans, and jobs
+- **CloudTrail**: View trails and recent events
+
+### Highlights
+- **Keyboard-driven**: Vim-style navigation (`j/k/h/l`)
+- **Read-only mode**: Safely browse production resources
+- **Confirmation dialogs**: Prevent accidental destructive actions
+- **Action log**: Track all operations with success/error history
+- **LocalStack support**: Develop locally with `--endpoint-url`
+- **Auto-loading**: S3 bucket details load automatically in the background
 
 ## Getting Started
 
 ### Prerequisites
 - Rust 1.75+
 - AWS Credentials configured (`~/.aws/credentials` or environment variables)
+
+### Installation
+```bash
+# Clone and build
+git clone https://github.com/youruser/lazy-aws.git
+cd lazy-aws
+cargo build --release
+
+# Run
+./target/release/lazy-aws
+```
 
 ### Running
 ```bash
@@ -33,29 +57,66 @@ cargo run -- --endpoint-url http://localhost:4566
 cargo run -- --read-only
 ```
 
-### Key Bindings
+## Key Bindings
 
-**Global**
-- `1-9`: Quick switch to service
-- `Tab`: Toggle focus between Sidebar and Main View
-- `q`: Quit
-- `?`: Show Help (Coming Soon)
+### Global
+| Key | Action |
+|-----|--------|
+| `1-9` | Quick switch to service |
+| `Tab` | Toggle focus between Sidebar and Main View |
+| `q` | Quit |
+| `d` | Toggle detail panel |
+| `A` | Toggle action log popup |
+| `/` | Filter items |
 
-**Navigation**
-- `j` / `Down`: Move selection down
-- `k` / `Up`: Move selection up
-- `Enter`: Select / Drill down
-- `Esc`: Back / Cancel / Close Modal
+### Navigation
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move selection down |
+| `k` / `↑` | Move selection up |
+| `Enter` | Select / Drill down |
+| `Esc` | Back / Cancel |
 
-**Multi-View Services (VPC, IAM, Backup, CloudTrail)**
-- `v`: Cycle views
-- `h` / `Left`: Previous view
-- `l` / `Right`: Next view
+### Multi-View Services (VPC, IAM, Backup, CloudTrail)
+| Key | Action |
+|-----|--------|
+| `v` | Cycle views |
+| `h` / `←` | Previous view |
+| `l` / `→` | Next view |
 
-**Actions**
-- `s`: Start Instance (EC2, RDS)
-- `S`: Stop Instance (EC2, RDS)
-- `R`: Reboot Instance (EC2, RDS)
+### Actions (requires confirmation)
+| Key | Action |
+|-----|--------|
+| `s` | Start instance (EC2, RDS) |
+| `S` | Stop instance (EC2, RDS) |
+| `R` | Reboot instance (EC2, RDS) |
+| `D` | Delete object (S3) |
+| `y` | Confirm action |
+| `n` / `Esc` | Cancel action |
 
 ## Architecture
-See [DESIGN.md](DESIGN.md) for detailed architecture and [AGENTS.md](AGENTS.md) for development guidelines.
+
+The application follows a hybrid Component + Elm Architecture pattern:
+
+```
+src/
+├── main.rs              # Entry point, event loop
+├── app/                 # Application state (modular)
+│   ├── messages.rs      # Enums: Service, Message, Focus, InputMode
+│   ├── state.rs         # App struct and initialization
+│   ├── update.rs        # Message handling (reducer)
+│   ├── input.rs         # Keyboard input handling
+│   └── events.rs        # AWS event handling
+├── aws/                 # AWS SDK wrappers
+├── models/              # Data structures
+├── ui/                  # Rendering
+│   ├── components/      # Reusable widgets
+│   └── screens/         # Service-specific views
+└── utils/               # Helpers
+```
+
+See [AGENTS.md](AGENTS.md) for development guidelines.
+
+## License
+
+MIT
