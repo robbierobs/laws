@@ -255,6 +255,7 @@ impl App {
                 Message::Quit => self.should_quit = true,
                 Message::NavigateToService(service) => {
                     self.current_service = service;
+                    self.sidebar.select_service(service);
                     // Trigger data refresh when switching services
                     self.update(Message::RefreshData, event_tx).await;
                 }

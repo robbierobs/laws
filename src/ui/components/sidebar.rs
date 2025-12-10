@@ -57,6 +57,12 @@ impl Sidebar {
     pub fn selected_service(&self) -> Option<Service> {
         self.state.selected().map(|i| self.items[i])
     }
+
+    pub fn select_service(&mut self, service: Service) {
+        if let Some(index) = self.items.iter().position(|&s| s == service) {
+            self.state.select(Some(index));
+        }
+    }
 }
 
 use crate::ui::theme::THEME;
