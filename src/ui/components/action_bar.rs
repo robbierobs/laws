@@ -38,6 +38,14 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ]);
             }
         }
+        Service::RDS => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+                ("s", "Start"),
+                ("S", "Stop"),
+                ("R", "Reboot"),
+            ]);
+        }
         _ => {
             actions.push(("j/k", "Navigate"));
         }

@@ -68,6 +68,10 @@ pub enum Message {
     LoadS3Objects(String),
     LoadBucketDetails(String),
     LeaveS3Bucket,
+    // RDS actions
+    StartRdsInstance(String),
+    StopRdsInstance(String),
+    RebootRdsInstance(String),
 
     // Async results
     // DataLoaded(ServiceData),
@@ -93,6 +97,7 @@ pub enum Focus {
 
 use crate::aws::client::AwsClients;
 use crate::models::ec2::Ec2Instance;
+use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails};
 
 use ratatui::widgets::TableState;
@@ -120,6 +125,9 @@ pub struct App {
     pub detail_panel_visible: bool,
     pub s3_bucket_details: HashMap<String, S3BucketDetails>,
     pub detail_loading: bool,
+    // RDS state
+    pub rds_instances: Vec<RdsInstance>,
+    pub rds_list_state: TableState,
 }
 
 impl App {
@@ -145,6 +153,8 @@ impl App {
             detail_panel_visible: true,
             s3_bucket_details: HashMap::new(),
             detail_loading: false,
+            rds_instances: Vec::new(),
+            rds_list_state: TableState::default(),
         }
     }
 
@@ -184,6 +194,21 @@ impl App {
                                     match service.list_buckets().await {
                                         Ok(buckets) => {
                                             tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::RDS => {
+                                let client = clients.rds.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::rds::RdsService::new(client);
+                                    match service.list_instances().await {
+                                        Ok(instances) => {
+                                            tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances))).ok();
                                         }
                                         Err(e) => {
                                             tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
@@ -298,6 +323,61 @@ impl App {
                 }
                 Message::ToggleDetailPanel => {
                     self.detail_panel_visible = !self.detail_panel_visible;
+                }
+                // RDS actions
+                Message::StartRdsInstance(id) => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.rds.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::rds::RdsService::new(client);
+                            match service.start_instance(&id).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Started RDS instance {}", id)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
+                Message::StopRdsInstance(id) => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.rds.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::rds::RdsService::new(client);
+                            match service.stop_instance(&id).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Stopped RDS instance {}", id)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
+                Message::RebootRdsInstance(id) => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.rds.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::rds::RdsService::new(client);
+                            match service.reboot_instance(&id).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Rebooted RDS instance {}", id)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
                 }
                 _ => {}
             }
@@ -469,6 +549,62 @@ impl App {
                             }
                         }
                     }
+                    Service::RDS => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.rds_instances.is_empty() {
+                                    let i = match self.rds_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.rds_instances.len() - 1 {
+                                                0
+                                            } else {
+                                                i + 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.rds_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.rds_instances.is_empty() {
+                                    let i = match self.rds_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 {
+                                                self.rds_instances.len() - 1
+                                            } else {
+                                                i - 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.rds_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Char('s') => {
+                                if let Some(i) = self.rds_list_state.selected() {
+                                    if let Some(instance) = self.rds_instances.get(i) {
+                                        return Some(Message::StartRdsInstance(instance.db_instance_identifier.clone()));
+                                    }
+                                }
+                            }
+                            KeyCode::Char('S') => {
+                                if let Some(i) = self.rds_list_state.selected() {
+                                    if let Some(instance) = self.rds_instances.get(i) {
+                                        return Some(Message::StopRdsInstance(instance.db_instance_identifier.clone()));
+                                    }
+                                }
+                            }
+                            KeyCode::Char('R') => {
+                                if let Some(i) = self.rds_list_state.selected() {
+                                    if let Some(instance) = self.rds_instances.get(i) {
+                                        return Some(Message::RebootRdsInstance(instance.db_instance_identifier.clone()));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -516,6 +652,10 @@ impl App {
             }
             AwsEvent::S3ObjectsLoaded(objects) => {
                 self.s3_objects = objects;
+                self.loading = false;
+            }
+            AwsEvent::RdsInstancesLoaded(instances) => {
+                self.rds_instances = instances;
                 self.loading = false;
             }
             AwsEvent::ActionCompleted(msg) => {

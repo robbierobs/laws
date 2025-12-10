@@ -81,6 +81,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         crate::app::Service::S3 => {
             crate::ui::screens::s3::render(frame, list_area, detail_area, app);
         }
+        crate::app::Service::RDS => {
+            crate::ui::screens::rds::render(frame, list_area, detail_area, app);
+        }
         _ => {
             let content = Paragraph::new("Content goes here")
                 .block(Block::default().borders(Borders::ALL).title("Body"));
