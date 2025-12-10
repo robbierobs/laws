@@ -56,8 +56,25 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("j/k", "Navigate"),
             ]);
         }
-        _ => {
-            actions.push(("j/k", "Navigate"));
+        Service::VPC => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
+        }
+        Service::IAM => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
+        }
+        Service::Backup => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
+        }
+        Service::CloudTrail => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
         }
     }
 

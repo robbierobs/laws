@@ -8,11 +8,15 @@ pub enum Event {
     Aws(AwsEvent),
 }
 
+use crate::models::backup::BackupVault;
+use crate::models::cloudtrail::Trail;
 use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
+use crate::models::iam::IamRole;
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
+use crate::models::vpc::Vpc;
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -23,6 +27,10 @@ pub enum AwsEvent {
     RdsInstancesLoaded(Vec<RdsInstance>),
     DynamoDbTablesLoaded(Vec<DynamoDbTable>),
     LambdaFunctionsLoaded(Vec<LambdaFunction>),
+    VpcsLoaded(Vec<Vpc>),
+    IamRolesLoaded(Vec<IamRole>),
+    BackupVaultsLoaded(Vec<BackupVault>),
+    CloudTrailTrailsLoaded(Vec<Trail>),
     ActionCompleted(String), // Message to display
     Error(String),
 }

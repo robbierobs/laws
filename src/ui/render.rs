@@ -90,16 +90,17 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         crate::app::Service::Lambda => {
             crate::ui::screens::lambda::render(frame, list_area, detail_area, app);
         }
-        _ => {
-            let content = Paragraph::new("Content goes here")
-                .block(Block::default().borders(Borders::ALL).title("Body"));
-            frame.render_widget(content, list_area);
-            
-            if let Some(area) = detail_area {
-                let detail = Paragraph::new("Select an item to view details")
-                    .block(Block::default().borders(Borders::ALL).title("Details"));
-                frame.render_widget(detail, area);
-            }
+        crate::app::Service::VPC => {
+            crate::ui::screens::vpc::render(frame, list_area, detail_area, app);
+        }
+        crate::app::Service::IAM => {
+            crate::ui::screens::iam::render(frame, list_area, detail_area, app);
+        }
+        crate::app::Service::Backup => {
+            crate::ui::screens::backup::render(frame, list_area, detail_area, app);
+        }
+        crate::app::Service::CloudTrail => {
+            crate::ui::screens::cloudtrail::render(frame, list_area, detail_area, app);
         }
     }
 

@@ -96,11 +96,15 @@ pub enum Focus {
 }
 
 use crate::aws::client::AwsClients;
+use crate::models::backup::BackupVault;
+use crate::models::cloudtrail::Trail;
 use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
+use crate::models::iam::IamRole;
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails};
+use crate::models::vpc::Vpc;
 
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
@@ -136,6 +140,18 @@ pub struct App {
     // Lambda state
     pub lambda_functions: Vec<LambdaFunction>,
     pub lambda_list_state: TableState,
+    // VPC state
+    pub vpcs: Vec<Vpc>,
+    pub vpc_list_state: TableState,
+    // IAM state
+    pub iam_roles: Vec<IamRole>,
+    pub iam_list_state: TableState,
+    // Backup state
+    pub backup_vaults: Vec<BackupVault>,
+    pub backup_list_state: TableState,
+    // CloudTrail state
+    pub cloudtrail_trails: Vec<Trail>,
+    pub cloudtrail_list_state: TableState,
 }
 
 impl App {
@@ -167,6 +183,14 @@ impl App {
             dynamodb_list_state: TableState::default(),
             lambda_functions: Vec::new(),
             lambda_list_state: TableState::default(),
+            vpcs: Vec::new(),
+            vpc_list_state: TableState::default(),
+            iam_roles: Vec::new(),
+            iam_list_state: TableState::default(),
+            backup_vaults: Vec::new(),
+            backup_list_state: TableState::default(),
+            cloudtrail_trails: Vec::new(),
+            cloudtrail_list_state: TableState::default(),
         }
     }
 
@@ -258,9 +282,65 @@ impl App {
                                     }
                                 });
                             }
-                            _ => {
-                                // TODO: Implement other services
-                                self.loading = false;
+                            Service::VPC => {
+                                let client = clients.ec2.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::vpc::VpcService::new(client);
+                                    match service.list_vpcs().await {
+                                        Ok(vpcs) => {
+                                            tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::IAM => {
+                                let client = clients.iam.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::iam::IamService::new(client);
+                                    match service.list_roles().await {
+                                        Ok(roles) => {
+                                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::Backup => {
+                                let client = clients.backup.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::backup::BackupService::new(client);
+                                    match service.list_backup_vaults().await {
+                                        Ok(vaults) => {
+                                            tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::CloudTrail => {
+                                let client = clients.cloudtrail.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::cloudtrail::CloudTrailService::new(client);
+                                    match service.list_trails().await {
+                                        Ok(trails) => {
+                                            tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
                             }
                         }
                     }
@@ -717,7 +797,114 @@ impl App {
                             _ => {}
                         }
                     }
-                    _ => {}
+                    Service::VPC => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.vpcs.is_empty() {
+                                    let i = match self.vpc_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.vpcs.len() - 1 { 0 } else { i + 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.vpc_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.vpcs.is_empty() {
+                                    let i = match self.vpc_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 { self.vpcs.len() - 1 } else { i - 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.vpc_list_state.select(Some(i));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Service::IAM => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.iam_roles.is_empty() {
+                                    let i = match self.iam_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.iam_roles.len() - 1 { 0 } else { i + 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.iam_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.iam_roles.is_empty() {
+                                    let i = match self.iam_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 { self.iam_roles.len() - 1 } else { i - 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.iam_list_state.select(Some(i));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Service::Backup => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.backup_vaults.is_empty() {
+                                    let i = match self.backup_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.backup_vaults.len() - 1 { 0 } else { i + 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.backup_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.backup_vaults.is_empty() {
+                                    let i = match self.backup_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 { self.backup_vaults.len() - 1 } else { i - 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.backup_list_state.select(Some(i));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Service::CloudTrail => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if !self.cloudtrail_trails.is_empty() {
+                                    let i = match self.cloudtrail_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.cloudtrail_trails.len() - 1 { 0 } else { i + 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.cloudtrail_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if !self.cloudtrail_trails.is_empty() {
+                                    let i = match self.cloudtrail_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 { self.cloudtrail_trails.len() - 1 } else { i - 1 }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.cloudtrail_list_state.select(Some(i));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
@@ -776,6 +963,22 @@ impl App {
             }
             AwsEvent::LambdaFunctionsLoaded(functions) => {
                 self.lambda_functions = functions;
+                self.loading = false;
+            }
+            AwsEvent::VpcsLoaded(vpcs) => {
+                self.vpcs = vpcs;
+                self.loading = false;
+            }
+            AwsEvent::IamRolesLoaded(roles) => {
+                self.iam_roles = roles;
+                self.loading = false;
+            }
+            AwsEvent::BackupVaultsLoaded(vaults) => {
+                self.backup_vaults = vaults;
+                self.loading = false;
+            }
+            AwsEvent::CloudTrailTrailsLoaded(trails) => {
+                self.cloudtrail_trails = trails;
                 self.loading = false;
             }
             AwsEvent::ActionCompleted(msg) => {
