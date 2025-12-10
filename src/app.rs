@@ -90,6 +90,7 @@ pub enum Focus {
 
 use crate::aws::client::AwsClients;
 use crate::models::ec2::Ec2Instance;
+use crate::models::s3::S3Bucket;
 
 use ratatui::widgets::TableState;
 
@@ -101,6 +102,8 @@ pub struct App {
     pub aws_clients: Option<AwsClients>,
     pub ec2_instances: Vec<Ec2Instance>,
     pub ec2_list_state: TableState,
+    pub s3_buckets: Vec<S3Bucket>,
+    pub s3_list_state: TableState,
     pub loading: bool,
     pub should_refresh: bool,
 }
@@ -115,6 +118,8 @@ impl App {
             aws_clients,
             ec2_instances: Vec::new(),
             ec2_list_state: TableState::default(),
+            s3_buckets: Vec::new(),
+            s3_list_state: TableState::default(),
             loading: false,
             should_refresh: false,
         }
@@ -141,6 +146,21 @@ impl App {
                                     match service.list_instances().await {
                                         Ok(instances) => {
                                             tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            Service::S3 => {
+                                let client = clients.s3.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::s3::S3Service::new(client);
+                                    match service.list_buckets().await {
+                                        Ok(buckets) => {
+                                            tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).ok();
                                         }
                                         Err(e) => {
                                             tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
@@ -281,6 +301,37 @@ impl App {
                             _ => {}
                         }
                     }
+                    Service::S3 => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                let i = match self.s3_list_state.selected() {
+                                    Some(i) => {
+                                        if i >= self.s3_buckets.len() - 1 {
+                                            0
+                                        } else {
+                                            i + 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                self.s3_list_state.select(Some(i));
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                let i = match self.s3_list_state.selected() {
+                                    Some(i) => {
+                                        if i == 0 {
+                                            self.s3_buckets.len() - 1
+                                        } else {
+                                            i - 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                self.s3_list_state.select(Some(i));
+                            }
+                            _ => {}
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -319,6 +370,10 @@ impl App {
         match event {
             AwsEvent::Ec2InstancesLoaded(instances) => {
                 self.ec2_instances = instances;
+                self.loading = false;
+            }
+            AwsEvent::S3BucketsLoaded(buckets) => {
+                self.s3_buckets = buckets;
                 self.loading = false;
             }
             AwsEvent::ActionCompleted(msg) => {

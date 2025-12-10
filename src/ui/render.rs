@@ -36,6 +36,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         crate::app::Service::EC2 => {
             crate::ui::screens::ec2::render(frame, body_chunks[1], app);
         }
+        crate::app::Service::S3 => {
+            crate::ui::screens::s3::render(frame, body_chunks[1], app);
+        }
         _ => {
             let content = Paragraph::new("Content goes here")
                 .block(Block::default().borders(Borders::ALL).title("Body"));
