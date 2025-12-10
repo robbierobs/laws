@@ -21,7 +21,11 @@ pub struct AwsClients {
 }
 
 impl AwsClients {
-    pub async fn new(profile: Option<&str>, region: Option<&str>) -> anyhow::Result<Self> {
+    pub async fn new(
+        profile: Option<&str>, 
+        region: Option<&str>,
+        endpoint_url: Option<&str>,
+    ) -> anyhow::Result<Self> {
         let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
         
         // Set region: CLI arg > AWS_REGION env > default to us-east-1
@@ -41,11 +45,29 @@ impl AwsClients {
             config_loader = config_loader.profile_name(p);
         }
 
+        // Set custom endpoint URL: CLI arg > AWS_ENDPOINT_URL env
+        let endpoint = endpoint_url
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var("AWS_ENDPOINT_URL").ok());
+        
+        if let Some(ref url) = endpoint {
+            config_loader = config_loader.endpoint_url(url);
+        }
+
         let config = config_loader.load().await;
+
+        // For LocalStack/custom endpoints, we need to use path-style addressing for S3
+        let s3_config = if endpoint.is_some() {
+            aws_sdk_s3::config::Builder::from(&config)
+                .force_path_style(true)
+                .build()
+        } else {
+            aws_sdk_s3::config::Builder::from(&config).build()
+        };
 
         Ok(Self {
             ec2: Ec2Client::new(&config),
-            s3: S3Client::new(&config),
+            s3: S3Client::from_conf(s3_config),
             rds: RdsClient::new(&config),
             dynamodb: DynamoDbClient::new(&config),
             lambda: LambdaClient::new(&config),

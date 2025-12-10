@@ -12,6 +12,11 @@ pub struct Args {
     /// AWS region to use (overrides AWS_REGION env var)
     #[arg(short, long)]
     pub region: Option<String>,
+
+    /// Custom endpoint URL (for LocalStack, MinIO, etc.)
+    /// Overrides AWS_ENDPOINT_URL env var
+    #[arg(short, long)]
+    pub endpoint_url: Option<String>,
 }
 
 impl Args {

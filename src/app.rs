@@ -491,6 +491,11 @@ impl App {
             AwsEvent::Error(e) => {
                 self.loading = false;
                 self.error_message = Some(e);
+                // Reset S3 bucket view on error so user can try again
+                if self.current_bucket.is_some() {
+                    self.current_bucket = None;
+                    self.s3_objects.clear();
+                }
             }
         }
     }

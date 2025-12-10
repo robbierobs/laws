@@ -36,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
     let aws_clients = match AwsClients::new(
         args.profile.as_deref(),
         args.region.as_deref(),
+        args.endpoint_url.as_deref(),
     ).await {
         Ok(clients) => Some(clients),
         Err(e) => {
