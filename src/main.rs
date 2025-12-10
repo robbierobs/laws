@@ -4,7 +4,6 @@ mod event;
 mod ui;
 mod aws;
 mod models;
-mod actions;
 mod utils;
 
 use app::{App, Message};
