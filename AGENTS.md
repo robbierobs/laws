@@ -56,9 +56,56 @@ lazy-aws/
 ├── src/
 │   ├── main.rs                 # Entry point
 │   ├── app.rs                  # State machine
+│   ├── config.rs               # Configuration and CLI args
 │   ├── event.rs                # Event loop
 │   ├── ui/                     # Rendering logic
+│   │   ├── mod.rs
+│   │   ├── render.rs           # Main render dispatcher
+│   │   ├── theme.rs            # Centralized theming
+│   │   ├── components/         # Reusable widgets (sidebar, modal, etc.)
+│   │   └── screens/            # Service-specific views
 │   ├── aws/                    # AWS SDK wrappers
 │   ├── models/                 # Data structures
 │   └── actions/                # Command handlers
 ```
+
+## 6. Recent Features & Patterns
+
+### 6.1 Read-Only Mode
+- **Feature**: Prevent accidental modification of resources.
+- **Implementation**:
+  - `App` struct has a `read_only: bool` field.
+  - CLI argument `--read-only` enables it.
+  - Header displays a yellow "READ-ONLY" warning.
+  - Destructive actions (like `StartInstance`) check this flag in `handle_key` or `request_action` helper.
+  - If `read_only` is true, an error message "Read-only mode: Action not allowed" is shown instead of prompting for confirmation.
+
+### 6.2 Confirmation Modals
+- **Feature**: Require user confirmation for destructive actions.
+- **Implementation**:
+  - `App` has `pending_action: Option<Message>` and `show_confirmation: bool`.
+  - When an action is requested (and not read-only), `pending_action` is set and `show_confirmation` becomes true.
+  - `render_confirmation_modal` draws the dialog overlay.
+  - `handle_key` intercepts keys when `show_confirmation` is true (Enter to confirm, Esc to cancel).
+
+### 6.3 Multi-View Navigation
+- **Feature**: Switch between different lists within a service (e.g., VPCs <-> Subnets <-> Security Groups).
+- **Implementation**:
+  - Service screens use a `view_mode` integer in `App` state.
+  - Keys `v`, `h`/`l` (Vim style), and `Left`/`Right` (Arrow keys) cycle through these views.
+  - `Message::NextView` and `Message::PreviousView` handle the cycling logic in `App::update`.
+  - UI titles reflect the navigation hints (e.g., "(v/h/l to switch view)").
+
+### 6.4 Status Coloring
+- **Feature**: Consistent visual feedback for resource states.
+- **Implementation**:
+  - Models implement `state_color()` or `status_color()` methods.
+  - These methods return `ratatui::style::Color` using `THEME` constants (Success=Green, Warning=Yellow, Error=Red, Muted=Gray).
+  - UI rendering uses these methods instead of hardcoded colors.
+
+### 6.5 LocalStack Support
+- **Feature**: Support for local AWS development.
+- **Implementation**:
+  - `Args` struct supports `--endpoint-url` and `AWS_ENDPOINT_URL`.
+  - `AwsClients::new` configures the SDKs to use this endpoint (force_path_style for S3).
+
