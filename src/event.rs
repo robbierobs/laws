@@ -16,7 +16,7 @@ use crate::models::iam::IamRole;
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
-use crate::models::vpc::Vpc;
+use crate::models::vpc::{Vpc, Subnet, SecurityGroup};
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -28,6 +28,8 @@ pub enum AwsEvent {
     DynamoDbTablesLoaded(Vec<DynamoDbTable>),
     LambdaFunctionsLoaded(Vec<LambdaFunction>),
     VpcsLoaded(Vec<Vpc>),
+    SubnetsLoaded(Vec<Subnet>),
+    SecurityGroupsLoaded(Vec<SecurityGroup>),
     IamRolesLoaded(Vec<IamRole>),
     BackupVaultsLoaded(Vec<BackupVault>),
     BackupPlansLoaded(Vec<BackupPlan>),

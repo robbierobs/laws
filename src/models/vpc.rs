@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use aws_sdk_ec2::types::IpPermission;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vpc {
@@ -83,6 +84,16 @@ pub struct SecurityGroup {
     pub vpc_id: Option<String>,
     pub inbound_rules_count: usize,
     pub outbound_rules_count: usize,
+    pub inbound_rules: Vec<SecurityGroupRule>,
+    pub outbound_rules: Vec<SecurityGroupRule>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityGroupRule {
+    pub protocol: String,
+    pub port_range: String,
+    pub source: String,
+    pub description: Option<String>,
 }
 
 impl SecurityGroup {
@@ -94,6 +105,70 @@ impl SecurityGroup {
             vpc_id: sg.vpc_id().map(|s| s.to_string()),
             inbound_rules_count: sg.ip_permissions().len(),
             outbound_rules_count: sg.ip_permissions_egress().len(),
+            inbound_rules: sg.ip_permissions().iter().flat_map(SecurityGroupRule::from_aws).collect(),
+            outbound_rules: sg.ip_permissions_egress().iter().flat_map(SecurityGroupRule::from_aws).collect(),
         }
+    }
+}
+
+impl SecurityGroupRule {
+    pub fn from_aws(perm: &IpPermission) -> Vec<Self> {
+        let mut rules = Vec::new();
+        let protocol = perm.ip_protocol().unwrap_or("-").to_string();
+        let port_range = if let (Some(from), Some(to)) = (perm.from_port(), perm.to_port()) {
+            if from == to {
+                from.to_string()
+            } else {
+                format!("{}-{}", from, to)
+            }
+        } else {
+            "All".to_string()
+        };
+
+        // IP Ranges
+        for range in perm.ip_ranges() {
+            rules.push(Self {
+                protocol: protocol.clone(),
+                port_range: port_range.clone(),
+                source: range.cidr_ip().unwrap_or("-").to_string(),
+                description: range.description().map(|s| s.to_string()),
+            });
+        }
+
+        // IPv6 Ranges
+        for range in perm.ipv6_ranges() {
+            rules.push(Self {
+                protocol: protocol.clone(),
+                port_range: port_range.clone(),
+                source: range.cidr_ipv6().unwrap_or("-").to_string(),
+                description: range.description().map(|s| s.to_string()),
+            });
+        }
+
+        // User Id Group Pairs (Source SGs)
+        for pair in perm.user_id_group_pairs() {
+            rules.push(Self {
+                protocol: protocol.clone(),
+                port_range: port_range.clone(),
+                source: pair.group_id().unwrap_or("-").to_string(),
+                description: pair.description().map(|s| s.to_string()),
+            });
+        }
+        
+        // Prefix List Ids
+        for prefix in perm.prefix_list_ids() {
+             rules.push(Self {
+                protocol: protocol.clone(),
+                port_range: port_range.clone(),
+                source: prefix.prefix_list_id().unwrap_or("-").to_string(),
+                description: prefix.description().map(|s| s.to_string()),
+            });
+        }
+
+        // If no specific source, but protocol is present (e.g. all traffic allowed implicitly or explicitly without ranges?)
+        // Usually there is at least one range or group. If empty, it might mean no rules?
+        // But IpPermission usually groups by protocol/port.
+        
+        rules
     }
 }

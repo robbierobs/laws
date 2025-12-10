@@ -83,6 +83,10 @@ pub enum Message {
     CycleViewMode,
     ShowHelp,
     Quit,
+
+    // VPC Specific
+    DrillDownSecurityGroup,
+    ExitSecurityGroupRules,
 }
 
 use crate::ui::components::sidebar::Sidebar;
@@ -111,7 +115,7 @@ use crate::models::iam::IamRole;
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails};
-use crate::models::vpc::Vpc;
+use crate::models::vpc::{Vpc, Subnet, SecurityGroup, SecurityGroupRule};
 
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
@@ -151,7 +155,12 @@ pub struct App {
     pub lambda_list_state: TableState,
     // VPC state
     pub vpcs: Vec<Vpc>,
+    pub subnets: Vec<Subnet>,
+    pub security_groups: Vec<SecurityGroup>,
     pub vpc_list_state: TableState,
+    pub vpc_view_mode: u8, // 0=VPCs, 1=Subnets, 2=Security Groups, 3=Rules
+    pub current_sg_rules: Vec<SecurityGroupRule>,
+    pub selected_sg_id: Option<String>,
     // IAM state
     pub iam_roles: Vec<IamRole>,
     pub iam_list_state: TableState,
@@ -200,7 +209,12 @@ impl App {
             lambda_functions: Vec::new(),
             lambda_list_state: TableState::default(),
             vpcs: Vec::new(),
+            subnets: Vec::new(),
+            security_groups: Vec::new(),
             vpc_list_state: TableState::default(),
+            vpc_view_mode: 0,
+            current_sg_rules: Vec::new(),
+            selected_sg_id: None,
             iam_roles: Vec::new(),
             iam_list_state: TableState::default(),
             backup_vaults: Vec::new(),
@@ -308,13 +322,23 @@ impl App {
                                 let tx = event_tx.clone();
                                 tokio::spawn(async move {
                                     let service = crate::aws::vpc::VpcService::new(client);
+                                    
+                                    // Fetch VPCs
                                     match service.list_vpcs().await {
-                                        Ok(vpcs) => {
-                                            tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).ok();
-                                        }
-                                        Err(e) => {
-                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
-                                        }
+                                        Ok(vpcs) => { tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+
+                                    // Fetch Subnets
+                                    match service.list_subnets(None).await {
+                                        Ok(subnets) => { tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+
+                                    // Fetch Security Groups
+                                    match service.list_security_groups(None).await {
+                                        Ok(sgs) => { tx.send(Event::Aws(AwsEvent::SecurityGroupsLoaded(sgs))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                                     }
                                 });
                             }
@@ -491,6 +515,10 @@ impl App {
                             self.cloudtrail_view_mode = (self.cloudtrail_view_mode + 1) % 2;
                             self.cloudtrail_list_state.select(None);
                         }
+                        Service::VPC => {
+                            self.vpc_view_mode = (self.vpc_view_mode + 1) % 3;
+                            self.vpc_list_state.select(None);
+                        }
                         _ => {}
                     }
                 }
@@ -548,6 +576,31 @@ impl App {
                             }
                         });
                     }
+                }
+                Message::DrillDownSecurityGroup => {
+                    if let Some(idx) = self.vpc_list_state.selected() {
+                        if let Some(sg) = self.security_groups.get(idx) {
+                            self.selected_sg_id = Some(sg.group_id.clone());
+                            // Combine inbound and outbound rules for display
+                            // We could add a direction field to SecurityGroupRule for display purposes
+                            // For now, let's just show inbound rules, or maybe we can show both?
+                            // Let's just show inbound for now as they are most common, or maybe we can toggle?
+                            // Or better, let's just list them all.
+                            self.current_sg_rules = sg.inbound_rules.clone();
+                            // TODO: Add outbound rules too?
+                            // For simplicity, let's just show inbound rules first.
+                            // If we want both, we might need a way to distinguish them in the table.
+                            
+                            self.vpc_view_mode = 3;
+                            self.vpc_list_state.select(Some(0));
+                        }
+                    }
+                }
+                Message::ExitSecurityGroupRules => {
+                    self.vpc_view_mode = 2;
+                    self.selected_sg_id = None;
+                    self.current_sg_rules.clear();
+                    self.vpc_list_state.select(Some(0));
                 }
                 _ => {}
             }
@@ -624,6 +677,11 @@ impl App {
                 if key.code == KeyCode::Char('v') {
                     match self.current_service {
                         Service::Backup | Service::CloudTrail => return Some(Message::CycleViewMode),
+                        Service::VPC => {
+                            if self.vpc_view_mode != 3 {
+                                return Some(Message::CycleViewMode);
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -905,10 +963,17 @@ impl App {
                     Service::VPC => {
                         match key.code {
                             KeyCode::Down | KeyCode::Char('j') => {
-                                if !self.vpcs.is_empty() {
+                                let len = match self.vpc_view_mode {
+                                    0 => self.vpcs.len(),
+                                    1 => self.subnets.len(),
+                                    2 => self.security_groups.len(),
+                                    3 => self.current_sg_rules.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.vpc_list_state.selected() {
                                         Some(i) => {
-                                            if i >= self.vpcs.len() - 1 { 0 } else { i + 1 }
+                                            if i >= len - 1 { 0 } else { i + 1 }
                                         }
                                         None => 0,
                                     };
@@ -916,14 +981,31 @@ impl App {
                                 }
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
-                                if !self.vpcs.is_empty() {
+                                let len = match self.vpc_view_mode {
+                                    0 => self.vpcs.len(),
+                                    1 => self.subnets.len(),
+                                    2 => self.security_groups.len(),
+                                    3 => self.current_sg_rules.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.vpc_list_state.selected() {
                                         Some(i) => {
-                                            if i == 0 { self.vpcs.len() - 1 } else { i - 1 }
+                                            if i == 0 { len - 1 } else { i - 1 }
                                         }
                                         None => 0,
                                     };
                                     self.vpc_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Enter => {
+                                if self.vpc_view_mode == 2 {
+                                    return Some(Message::DrillDownSecurityGroup);
+                                }
+                            }
+                            KeyCode::Esc => {
+                                if self.vpc_view_mode == 3 {
+                                    return Some(Message::ExitSecurityGroupRules);
                                 }
                             }
                             _ => {}
@@ -1091,8 +1173,17 @@ impl App {
                         }
                     }
                     Service::VPC => {
-                        if self.vpc_list_state.selected().is_none() && !self.vpcs.is_empty() {
-                            self.vpc_list_state.select(Some(0));
+                        if self.vpc_list_state.selected().is_none() {
+                            let has_items = match self.vpc_view_mode {
+                                0 => !self.vpcs.is_empty(),
+                                1 => !self.subnets.is_empty(),
+                                2 => !self.security_groups.is_empty(),
+                                3 => !self.current_sg_rules.is_empty(),
+                                _ => false,
+                            };
+                            if has_items {
+                                self.vpc_list_state.select(Some(0));
+                            }
                         }
                     }
                     Service::IAM => {
@@ -1162,6 +1253,14 @@ impl App {
             }
             AwsEvent::VpcsLoaded(vpcs) => {
                 self.vpcs = vpcs;
+                self.loading = false;
+            }
+            AwsEvent::SubnetsLoaded(subnets) => {
+                self.subnets = subnets;
+                self.loading = false;
+            }
+            AwsEvent::SecurityGroupsLoaded(sgs) => {
+                self.security_groups = sgs;
                 self.loading = false;
             }
             AwsEvent::IamRolesLoaded(roles) => {
