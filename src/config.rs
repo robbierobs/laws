@@ -17,6 +17,10 @@ pub struct Args {
     /// Overrides AWS_ENDPOINT_URL env var
     #[arg(short, long)]
     pub endpoint_url: Option<String>,
+
+    /// Read-only mode: prevents any actions that modify state
+    #[arg(long, default_value = "false")]
+    pub read_only: bool,
 }
 
 impl Args {

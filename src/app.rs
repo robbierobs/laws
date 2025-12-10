@@ -53,6 +53,8 @@ pub enum Message {
 
     // Actions
     RefreshData,
+    ConfirmAction,
+    CancelAction,
     StartInstance(String),
     StopInstance(String),
     RebootInstance(String),
@@ -177,10 +179,15 @@ pub struct App {
     pub cloudtrail_events: Vec<CloudTrailEvent>,
     pub cloudtrail_list_state: TableState,
     pub cloudtrail_view_mode: u8, // 0=trails, 1=events
+    
+    // Config and State
+    pub read_only: bool,
+    pub pending_action: Option<Message>,
+    pub show_confirmation: bool,
 }
 
 impl App {
-    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String) -> Self {
+    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool) -> Self {
         Self {
             should_quit: false,
             current_service: Service::EC2,
@@ -234,6 +241,9 @@ impl App {
             cloudtrail_events: Vec::new(),
             cloudtrail_list_state: TableState::default(),
             cloudtrail_view_mode: 0,
+            read_only,
+            pending_action: None,
+            show_confirmation: false,
         }
     }
 
@@ -245,6 +255,16 @@ impl App {
                     self.current_service = service;
                     // Trigger data refresh when switching services
                     self.update(Message::RefreshData, event_tx).await;
+                }
+                Message::ConfirmAction => {
+                    if let Some(action) = self.pending_action.take() {
+                        self.show_confirmation = false;
+                        self.update(action, event_tx).await;
+                    }
+                }
+                Message::CancelAction => {
+                    self.pending_action = None;
+                    self.show_confirmation = false;
                 }
                 Message::RefreshData => {
                     if let Some(clients) = &self.aws_clients {
@@ -745,6 +765,15 @@ impl App {
         // Clear any error message on keypress
         self.error_message = None;
 
+        // Handle confirmation modal
+        if self.show_confirmation {
+            match key.code {
+                KeyCode::Enter | KeyCode::Char('y') => return Some(Message::ConfirmAction),
+                KeyCode::Esc | KeyCode::Char('n') => return Some(Message::CancelAction),
+                _ => return None,
+            }
+        }
+
         if self.input_mode == InputMode::Filtering {
             match key.code {
                 KeyCode::Enter => {
@@ -772,6 +801,18 @@ impl App {
             self.toggle_focus();
             return None;
         }
+
+        // Helper to handle action request
+        let mut request_action = |action: Message| -> Option<Message> {
+            if self.read_only {
+                self.error_message = Some("Read-only mode: Action not allowed".to_string());
+                None
+            } else {
+                self.pending_action = Some(action);
+                self.show_confirmation = true;
+                None // Wait for confirmation
+            }
+        };
 
         // Route to focused component
         match self.focus {
@@ -841,21 +882,21 @@ impl App {
                             KeyCode::Char('s') => {
                                 if let Some(i) = self.ec2_list_state.selected() {
                                     if let Some(instance) = self.ec2_instances.get(i) {
-                                        return Some(Message::StartInstance(instance.instance_id.clone()));
+                                        return request_action(Message::StartInstance(instance.instance_id.clone()));
                                     }
                                 }
                             }
                             KeyCode::Char('S') => {
                                 if let Some(i) = self.ec2_list_state.selected() {
                                     if let Some(instance) = self.ec2_instances.get(i) {
-                                        return Some(Message::StopInstance(instance.instance_id.clone()));
+                                        return request_action(Message::StopInstance(instance.instance_id.clone()));
                                     }
                                 }
                             }
                             KeyCode::Char('R') => {
                                 if let Some(i) = self.ec2_list_state.selected() {
                                     if let Some(instance) = self.ec2_instances.get(i) {
-                                        return Some(Message::RebootInstance(instance.instance_id.clone()));
+                                        return request_action(Message::RebootInstance(instance.instance_id.clone()));
                                     }
                                 }
                             }
@@ -988,21 +1029,21 @@ impl App {
                             KeyCode::Char('s') => {
                                 if let Some(i) = self.rds_list_state.selected() {
                                     if let Some(instance) = self.rds_instances.get(i) {
-                                        return Some(Message::StartRdsInstance(instance.db_instance_identifier.clone()));
+                                        return request_action(Message::StartRdsInstance(instance.db_instance_identifier.clone()));
                                     }
                                 }
                             }
                             KeyCode::Char('S') => {
                                 if let Some(i) = self.rds_list_state.selected() {
                                     if let Some(instance) = self.rds_instances.get(i) {
-                                        return Some(Message::StopRdsInstance(instance.db_instance_identifier.clone()));
+                                        return request_action(Message::StopRdsInstance(instance.db_instance_identifier.clone()));
                                     }
                                 }
                             }
                             KeyCode::Char('R') => {
                                 if let Some(i) = self.rds_list_state.selected() {
                                     if let Some(instance) = self.rds_instances.get(i) {
-                                        return Some(Message::RebootRdsInstance(instance.db_instance_identifier.clone()));
+                                        return request_action(Message::RebootRdsInstance(instance.db_instance_identifier.clone()));
                                     }
                                 }
                             }
@@ -1509,5 +1550,20 @@ impl App {
 
     pub fn render(&mut self, frame: &mut Frame) {
         crate::ui::render::render(frame, self);
+        
+        if self.show_confirmation {
+            if let Some(action) = &self.pending_action {
+                let description = match action {
+                    Message::StartInstance(id) => format!("Start EC2 Instance {}", id),
+                    Message::StopInstance(id) => format!("Stop EC2 Instance {}", id),
+                    Message::RebootInstance(id) => format!("Reboot EC2 Instance {}", id),
+                    Message::StartRdsInstance(id) => format!("Start RDS Instance {}", id),
+                    Message::StopRdsInstance(id) => format!("Stop RDS Instance {}", id),
+                    Message::RebootRdsInstance(id) => format!("Reboot RDS Instance {}", id),
+                    _ => "Unknown Action".to_string(),
+                };
+                crate::ui::components::modal::render_confirmation_modal(frame, frame.size(), &description);
+            }
+        }
     }
 }

@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| "us-east-1".to_string());
 
     // Create app state
-    let mut app = App::new(aws_clients, profile, region);
+    let mut app = App::new(aws_clients, profile, region, args.read_only);
 
     // Create event handler
     let mut events = EventHandler::new(250); // 250ms tick rate

@@ -41,22 +41,45 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let header_text = if let Some(ref err) = app.error_message {
         format!("LazyAWS - {:?} {} | Error: {}", app.current_service, aws_info, err)
     } else {
-        format!("LazyAWS - {:?} {}{}{}", app.current_service, aws_info, status, filter_status)
+        let read_only_status = if app.read_only { " [READ-ONLY]" } else { "" };
+        format!("LazyAWS - {:?} {}{}{}{}", app.current_service, aws_info, status, filter_status, read_only_status)
     };
     
     let header_style = if app.error_message.is_some() {
         Style::default().fg(THEME.error)
+    } else if app.read_only {
+        Style::default().fg(THEME.warning).bg(THEME.bg) // Use warning color for text, keep bg dark for readability
     } else {
         Style::default().fg(THEME.primary)
+    };
+
+    // If read-only, we want a more prominent warning. 
+    // Let's make the title background yellow if read-only, or just the text?
+    // User asked for "yellow background so it stands out".
+    let (header_style, block_style) = if app.read_only {
+        (
+            Style::default().fg(Color::Black).bg(THEME.warning).add_modifier(ratatui::style::Modifier::BOLD),
+            Style::default().fg(THEME.warning)
+        )
+    } else if app.error_message.is_some() {
+        (
+            Style::default().fg(THEME.error),
+            Style::default().fg(THEME.error)
+        )
+    } else {
+        (
+            Style::default().fg(THEME.primary),
+            Style::default().fg(THEME.border)
+        )
     };
     
     let title = Paragraph::new(header_text)
         .style(header_style)
         .block(Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(THEME.border))
+            .border_style(block_style)
             .title("LazyAWS")
-            .title_style(Style::default().fg(THEME.secondary)));
+            .title_style(Style::default().fg(if app.read_only { Color::Black } else { THEME.secondary })));
     frame.render_widget(title, chunks[0]);
 
     // Body split - sidebar on left, main content on right
