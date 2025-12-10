@@ -4,8 +4,9 @@ use ratatui::{
     Frame,
 };
 use crate::app::App;
+use crate::ui::components::Component;
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -19,11 +20,23 @@ pub fn render(frame: &mut Frame, app: &App) {
         .block(Block::default().borders(Borders::ALL).title("Header"));
     frame.render_widget(title, chunks[0]);
 
-    let body = Paragraph::new("Content goes here")
-        .block(Block::default().borders(Borders::ALL).title("Body"));
-    frame.render_widget(body, chunks[1]);
+    // Body split
+    let body_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(20), // Sidebar width
+            Constraint::Min(1),
+        ])
+        .split(chunks[1]);
 
-    let footer = Paragraph::new("Press 'q' to quit")
+    // Render Sidebar
+    app.sidebar.render(frame, body_chunks[0]);
+
+    let content = Paragraph::new("Content goes here")
+        .block(Block::default().borders(Borders::ALL).title("Body"));
+    frame.render_widget(content, body_chunks[1]);
+
+    let footer = Paragraph::new("Press 'q' to quit, 'j/k' to navigate, 'Enter' to select")
         .block(Block::default().borders(Borders::ALL).title("Footer"));
     frame.render_widget(footer, chunks[2]);
 }

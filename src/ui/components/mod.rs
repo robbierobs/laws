@@ -13,7 +13,7 @@ use crate::app::Message;
 
 pub trait Component {
     /// Render the component to the frame
-    fn render(&self, frame: &mut Frame, area: Rect);
+    fn render(&mut self, frame: &mut Frame, area: Rect);
 
     /// Handle keyboard input, return optional message
     fn handle_key(&mut self, key: KeyEvent) -> Option<Message>;

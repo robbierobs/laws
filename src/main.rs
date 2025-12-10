@@ -41,8 +41,8 @@ async fn main() -> anyhow::Result<()> {
         if let Some(event) = events.next().await {
             match event {
                 Event::Key(key) => {
-                    if key.code == crossterm::event::KeyCode::Char('q') {
-                        app.update(Message::Quit, event_tx.clone()).await;
+                    if let Some(msg) = app.handle_key(key) {
+                        app.update(msg, event_tx.clone()).await;
                     }
                 }
                 Event::Tick => {
