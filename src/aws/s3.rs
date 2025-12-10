@@ -140,5 +140,14 @@ impl S3Service {
 
         details
     }
+    pub async fn delete_object(&self, bucket_name: &str, key: &str) -> anyhow::Result<()> {
+        self.client
+            .delete_object()
+            .bucket(bucket_name)
+            .key(key)
+            .send()
+            .await?;
+        Ok(())
+    }
 }
 

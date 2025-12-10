@@ -206,7 +206,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(format!("Objects in {}", bucket_name))
+        .title(format!("Objects in {} (Esc: Back, D: Delete)", bucket_name))
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)

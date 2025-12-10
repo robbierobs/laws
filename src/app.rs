@@ -60,6 +60,7 @@ pub enum Message {
     RebootInstance(String),
     LoadS3Objects(String),
     LoadBucketDetails(String),
+    DeleteS3Object(String, String), // bucket, key
     LeaveS3Bucket,
     // RDS actions
     StartRdsInstance(String),
@@ -167,6 +168,7 @@ pub struct App {
     pub iam_policies: Vec<IamPolicy>,
     pub iam_list_state: TableState,
     pub iam_view_mode: u8, // 0=Users, 1=Roles, 2=Policies, 3=UserPolicies, 4=RolePolicies, 5=PolicyDocument
+    pub previous_iam_view_mode: u8, // To return correctly from document view
     pub current_iam_policies: Vec<IamPolicy>,
     pub current_policy_document: String,
     pub selected_iam_entity_name: Option<String>,
@@ -231,6 +233,7 @@ impl App {
             iam_policies: Vec::new(),
             iam_list_state: TableState::default(),
             iam_view_mode: 0,
+            previous_iam_view_mode: 0,
             current_iam_policies: Vec::new(),
             current_policy_document: String::new(),
             selected_iam_entity_name: None,
@@ -302,6 +305,23 @@ impl App {
                                         }
                                     }
                                 });
+                                // Also refresh objects if inside a bucket
+                                if let Some(bucket) = &self.current_bucket {
+                                    let bucket_name = bucket.clone();
+                                    let client = clients.s3.clone();
+                                    let tx = event_tx.clone();
+                                    tokio::spawn(async move {
+                                        let service = crate::aws::s3::S3Service::new(client);
+                                        match service.list_objects(&bucket_name).await {
+                                            Ok(objects) => {
+                                                tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).ok();
+                                            }
+                                            Err(e) => {
+                                                tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                            }
+                                        }
+                                    });
+                                }
                             }
                             Service::RDS => {
                                 let client = clients.rds.clone();
@@ -518,6 +538,24 @@ impl App {
                         });
                     }
                 }
+                Message::DeleteS3Object(bucket, key) => {
+                     if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.s3.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::s3::S3Service::new(client);
+                            match service.delete_object(&bucket, &key).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Deleted object {}/{}", bucket, key)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
                 Message::LeaveS3Bucket => {
                     self.current_bucket = None;
                     self.s3_objects.clear();
@@ -716,6 +754,9 @@ impl App {
                         } else {
                             self.current_iam_policies.get(idx)
                         };
+                        
+                        // Capture current mode to return to
+                        self.previous_iam_view_mode = self.iam_view_mode;
 
                         if let Some(p) = policy {
                             if let Some(arn) = &p.arn {
@@ -742,16 +783,7 @@ impl App {
                         3 => self.iam_view_mode = 0, // Back to Users
                         4 => self.iam_view_mode = 1, // Back to Roles
                         5 => {
-                            // If we came from main policy list (2) or attached lists (3/4), we need to know where to go back.
-                            // For simplicity, if we are in 5, we go back to 2 if we were in 2.
-                            // But wait, we can drill down from 3 or 4 too?
-                            // Let's assume for now we only drill down from 2.
-                            // If we want to support drilling down from attached policies, we need a history stack or separate modes.
-                            // Let's stick to simple: 5 goes back to 2.
-                            // If we drilled down from 3 or 4, we might want to go back there.
-                            // Let's just go back to 2 for now, or maybe we can check selected_iam_entity_name?
-                            // Actually, let's just use a simple logic:
-                            self.iam_view_mode = 2; 
+                            self.iam_view_mode = self.previous_iam_view_mode;
                         }
                         _ => {}
                     }
@@ -996,6 +1028,15 @@ impl App {
                                             None => 0,
                                         };
                                         self.s3_object_list_state.select(Some(i));
+                                    }
+                                }
+                                KeyCode::Char('D') => {
+                                    if let Some(i) = self.s3_object_list_state.selected() {
+                                        if let Some(obj) = self.s3_objects.get(i) {
+                                            if let Some(bucket) = &self.current_bucket {
+                                                return request_action(Message::DeleteS3Object(bucket.clone(), obj.key.clone()));
+                                            }
+                                        }
                                     }
                                 }
                                 KeyCode::Esc | KeyCode::Backspace => {
@@ -1276,7 +1317,7 @@ impl App {
                                 match self.iam_view_mode {
                                     0 => return Some(Message::DrillDownIamUser),
                                     1 => return Some(Message::DrillDownIamRole),
-                                    2 => return Some(Message::DrillDownIamPolicy),
+                                    2 | 3 | 4 => return Some(Message::DrillDownIamPolicy),
                                     _ => {}
                                 }
                             }
@@ -1621,6 +1662,7 @@ impl App {
                     Message::StartRdsInstance(id) => format!("Start RDS Instance {}", id),
                     Message::StopRdsInstance(id) => format!("Stop RDS Instance {}", id),
                     Message::RebootRdsInstance(id) => format!("Reboot RDS Instance {}", id),
+                    Message::DeleteS3Object(bucket, key) => format!("Delete S3 Object s3://{}/{}", bucket, key),
                     _ => "Unknown Action".to_string(),
                 };
                 crate::ui::components::modal::render_confirmation_modal(frame, frame.area(), &description);
