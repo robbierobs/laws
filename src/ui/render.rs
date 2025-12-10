@@ -32,9 +32,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Render Sidebar
     app.sidebar.render(frame, body_chunks[0]);
 
-    let content = Paragraph::new("Content goes here")
-        .block(Block::default().borders(Borders::ALL).title("Body"));
-    frame.render_widget(content, body_chunks[1]);
+    match app.current_service {
+        crate::app::Service::EC2 => {
+            crate::ui::screens::ec2::render(frame, body_chunks[1], app);
+        }
+        _ => {
+            let content = Paragraph::new("Content goes here")
+                .block(Block::default().borders(Borders::ALL).title("Body"));
+            frame.render_widget(content, body_chunks[1]);
+        }
+    }
 
     let footer = Paragraph::new("Press 'q' to quit, 'j/k' to navigate, 'Enter' to select")
         .block(Block::default().borders(Borders::ALL).title("Footer"));

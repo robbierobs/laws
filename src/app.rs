@@ -61,6 +61,10 @@ pub enum Message {
     RefreshData,
     ConfirmAction,
     CancelAction,
+    StartInstance(String),
+    StopInstance(String),
+    RebootInstance(String),
+    TerminateInstance(String),
 
     // Async results
     // DataLoaded(ServiceData),
@@ -84,29 +88,128 @@ pub enum Focus {
     Main,
 }
 
+use crate::aws::client::AwsClients;
+use crate::models::ec2::Ec2Instance;
+
+use ratatui::widgets::TableState;
+
 pub struct App {
     pub should_quit: bool,
     pub current_service: Service,
     pub sidebar: Sidebar,
     pub focus: Focus,
+    pub aws_clients: Option<AwsClients>,
+    pub ec2_instances: Vec<Ec2Instance>,
+    pub ec2_list_state: TableState,
+    pub loading: bool,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(aws_clients: Option<AwsClients>) -> Self {
         Self {
             should_quit: false,
             current_service: Service::EC2,
             sidebar: Sidebar::new(),
             focus: Focus::Sidebar,
+            aws_clients,
+            ec2_instances: Vec::new(),
+            ec2_list_state: TableState::default(),
+            loading: false,
         }
     }
 
-    pub async fn update(&mut self, message: Message, _event_tx: mpsc::UnboundedSender<Event>) {
-        match message {
-            Message::Quit => self.should_quit = true,
-            Message::NavigateToService(service) => self.current_service = service,
-            _ => {}
-        }
+    pub fn update<'a>(&'a mut self, message: Message, event_tx: mpsc::UnboundedSender<Event>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            match message {
+                Message::Quit => self.should_quit = true,
+                Message::NavigateToService(service) => {
+                    self.current_service = service;
+                    // Trigger data refresh when switching services
+                    self.update(Message::RefreshData, event_tx).await;
+                }
+                Message::RefreshData => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        match self.current_service {
+                            Service::EC2 => {
+                                let client = clients.ec2.clone();
+                                let tx = event_tx.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::ec2::Ec2Service::new(client);
+                                    match service.list_instances().await {
+                                        Ok(instances) => {
+                                            tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances))).ok();
+                                        }
+                                        Err(e) => {
+                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                        }
+                                    }
+                                });
+                            }
+                            _ => {
+                                // TODO: Implement other services
+                                self.loading = false;
+                            }
+                        }
+                    }
+                }
+                Message::StartInstance(id) => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.ec2.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::ec2::Ec2Service::new(client);
+                            match service.start_instance(&id).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Started instance {}", id)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
+                Message::StopInstance(id) => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.ec2.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::ec2::Ec2Service::new(client);
+                            match service.stop_instance(&id).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Stopped instance {}", id)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
+                Message::RebootInstance(id) => {
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.ec2.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::ec2::Ec2Service::new(client);
+                            match service.reboot_instance(&id).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Rebooted instance {}", id)))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
+                _ => {}
+            }
+        })
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Message> {
@@ -123,7 +226,61 @@ impl App {
                 }
             }
             Focus::Main => {
-                // TODO: Handle main content keys
+                match self.current_service {
+                    Service::EC2 => {
+                        match key.code {
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                let i = match self.ec2_list_state.selected() {
+                                    Some(i) => {
+                                        if i >= self.ec2_instances.len() - 1 {
+                                            0
+                                        } else {
+                                            i + 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                self.ec2_list_state.select(Some(i));
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                let i = match self.ec2_list_state.selected() {
+                                    Some(i) => {
+                                        if i == 0 {
+                                            self.ec2_instances.len() - 1
+                                        } else {
+                                            i - 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                self.ec2_list_state.select(Some(i));
+                            }
+                            KeyCode::Char('s') => {
+                                if let Some(i) = self.ec2_list_state.selected() {
+                                    if let Some(instance) = self.ec2_instances.get(i) {
+                                        return Some(Message::StartInstance(instance.instance_id.clone()));
+                                    }
+                                }
+                            }
+                            KeyCode::Char('S') => {
+                                if let Some(i) = self.ec2_list_state.selected() {
+                                    if let Some(instance) = self.ec2_instances.get(i) {
+                                        return Some(Message::StopInstance(instance.instance_id.clone()));
+                                    }
+                                }
+                            }
+                            KeyCode::Char('R') => {
+                                if let Some(i) = self.ec2_list_state.selected() {
+                                    if let Some(instance) = self.ec2_instances.get(i) {
+                                        return Some(Message::RebootInstance(instance.instance_id.clone()));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
         
@@ -156,8 +313,29 @@ impl App {
         }
     }
 
-    pub fn handle_aws_event(&mut self, _event: AwsEvent) {
-        // Handle AWS events
+    pub fn handle_aws_event(&mut self, event: AwsEvent) {
+        match event {
+            AwsEvent::Ec2InstancesLoaded(instances) => {
+                self.ec2_instances = instances;
+                self.loading = false;
+            }
+            AwsEvent::ActionCompleted(msg) => {
+                self.loading = false;
+                // TODO: Show success message
+                // Refresh data to show new state
+                // We can't call async update here directly, so we need to signal a refresh
+                // For now, we'll just rely on the user manually refreshing or implement a way to trigger it
+                // Actually, we can't easily trigger async update from here without a channel.
+                // But we can set a flag or just let the next tick handle it if we had a tick handler.
+                // Better yet, let's just print for now.
+                eprintln!("Action completed: {}", msg);
+            }
+            AwsEvent::Error(e) => {
+                // TODO: Show error in UI
+                self.loading = false;
+                eprintln!("Error: {}", e);
+            }
+        }
     }
 
     pub fn on_tick(&mut self) {

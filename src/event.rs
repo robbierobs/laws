@@ -8,9 +8,12 @@ pub enum Event {
     Aws(AwsEvent),
 }
 
+use crate::models::ec2::Ec2Instance;
+
 #[derive(Debug)]
 pub enum AwsEvent {
-    // Placeholder for now
+    Ec2InstancesLoaded(Vec<Ec2Instance>),
+    ActionCompleted(String), // Message to display
     Error(String),
 }
 

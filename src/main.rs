@@ -16,6 +16,8 @@ use crossterm::{
 };
 use std::io;
 
+use crate::aws::client::AwsClients;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Setup terminal
@@ -25,12 +27,25 @@ async fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Initialize AWS clients
+    // TODO: Parse CLI args for profile and region
+    let aws_clients = match AwsClients::new(None, None).await {
+        Ok(clients) => Some(clients),
+        Err(e) => {
+            eprintln!("Failed to initialize AWS clients: {}", e);
+            None
+        }
+    };
+
     // Create app state
-    let mut app = App::new();
+    let mut app = App::new(aws_clients);
 
     // Create event handler
     let mut events = EventHandler::new(250); // 250ms tick rate
     let event_tx = events.sender();
+
+    // Initial data load
+    app.update(Message::RefreshData, event_tx.clone()).await;
 
     // Main loop
     while !app.should_quit {
