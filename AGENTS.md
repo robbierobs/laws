@@ -43,6 +43,13 @@ When working on this project, adopt the following persona:
 3.  **Trigger Async Task**: Spawn a tokio task to execute the action and send a result message back.
 4.  **Handle Result**: Update `App::update` to handle success/failure messages (e.g., refresh list, show error).
 
+### 4.3 Implementing Hierarchical Navigation (e.g., S3 Buckets -> Objects)
+1.  **Update App State**: Add state for the child view (e.g., `current_bucket`, `s3_objects`).
+2.  **Add Navigation Messages**: Add messages to enter/leave the child view (e.g., `LoadS3Objects`, `LeaveS3Bucket`).
+3.  **Update Key Handler**: In `handle_key`, check the state (e.g., `current_bucket.is_some()`) to determine which key bindings apply (drill-down vs. back).
+4.  **Update Renderer**: In the screen's `render` function, conditionally render the parent or child view.
+5.  **Update Action Bar**: Ensure the action bar reflects the current context (e.g., "Esc: Back").
+
 ## 5. Directory Structure Reference
 ```
 lazy-aws/
