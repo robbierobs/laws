@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::aws::client::AwsClients;
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
-use crate::models::dynamodb::DynamoDbTable;
+use crate::models::dynamodb::{DynamoDbTable, DynamoDbItem};
 use crate::models::ec2::Ec2Instance;
 use crate::models::iam::{IamRole, IamUser, IamPolicy};
 use crate::models::lambda::LambdaFunction;
@@ -55,6 +55,10 @@ pub struct App {
     // DynamoDB state
     pub dynamodb_tables: Vec<DynamoDbTable>,
     pub dynamodb_list_state: TableState,
+    pub dynamodb_view_mode: u8, // 0 = tables list, 1 = items view
+    pub current_dynamodb_table: Option<String>,
+    pub dynamodb_items: Vec<DynamoDbItem>,
+    pub dynamodb_item_list_state: TableState,
     
     // Lambda state
     pub lambda_functions: Vec<LambdaFunction>,
@@ -68,6 +72,7 @@ pub struct App {
     pub vpc_view_mode: u8,
     pub current_sg_rules: Vec<SecurityGroupRule>,
     pub selected_sg_id: Option<String>,
+    pub sg_rules_inbound: bool, // true = showing inbound, false = showing outbound
     
     // IAM state
     pub iam_roles: Vec<IamRole>,
@@ -132,6 +137,10 @@ impl App {
             rds_list_state: TableState::default(),
             dynamodb_tables: Vec::new(),
             dynamodb_list_state: TableState::default(),
+            dynamodb_view_mode: 0,
+            current_dynamodb_table: None,
+            dynamodb_items: Vec::new(),
+            dynamodb_item_list_state: TableState::default(),
             lambda_functions: Vec::new(),
             lambda_list_state: TableState::default(),
             vpcs: Vec::new(),
@@ -141,6 +150,7 @@ impl App {
             vpc_view_mode: 0,
             current_sg_rules: Vec::new(),
             selected_sg_id: None,
+            sg_rules_inbound: true,
             iam_roles: Vec::new(),
             iam_users: Vec::new(),
             iam_policies: Vec::new(),
@@ -184,6 +194,7 @@ impl App {
                     Message::StopRdsInstance(id) => format!("Stop RDS Instance {}", id),
                     Message::RebootRdsInstance(id) => format!("Reboot RDS Instance {}", id),
                     Message::DeleteS3Object(bucket, key) => format!("Delete S3 Object s3://{}/{}", bucket, key),
+                    Message::DeleteDynamoDbItem(table, _) => format!("Delete item from DynamoDB table {}", table),
                     _ => "Unknown Action".to_string(),
                 };
                 crate::ui::components::modal::render_confirmation_modal(frame, frame.area(), &description);

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamoDbTable {
@@ -31,6 +32,36 @@ pub struct KeyAttribute {
     pub name: String,
     pub key_type: String, // HASH or RANGE
     pub attribute_type: String, // S, N, B
+}
+
+/// Represents a single item (row) in a DynamoDB table
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DynamoDbItem {
+    /// Map of attribute name to string representation of value
+    pub attributes: HashMap<String, String>,
+}
+
+impl DynamoDbItem {
+    /// Get the value of an attribute by name
+    pub fn get(&self, key: &str) -> Option<&String> {
+        self.attributes.get(key)
+    }
+    
+    /// Get the first few attribute values for display
+    pub fn preview(&self, max_attrs: usize) -> String {
+        let mut parts: Vec<String> = self.attributes
+            .iter()
+            .take(max_attrs)
+            .map(|(k, v)| {
+                let truncated = if v.len() > 30 { format!("{}...", &v[..27]) } else { v.clone() };
+                format!("{}={}", k, truncated)
+            })
+            .collect();
+        if self.attributes.len() > max_attrs {
+            parts.push("...".to_string());
+        }
+        parts.join(", ")
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

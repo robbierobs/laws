@@ -33,6 +33,13 @@ impl App {
                 self.dynamodb_tables = tables;
                 self.loading = false;
             }
+            AwsEvent::DynamoDbItemsLoaded(items) => {
+                self.dynamodb_items = items;
+                if !self.dynamodb_items.is_empty() {
+                    self.dynamodb_item_list_state.select(Some(0));
+                }
+                self.loading = false;
+            }
             AwsEvent::LambdaFunctionsLoaded(functions) => {
                 self.lambda_functions = functions;
                 self.loading = false;

@@ -10,7 +10,7 @@ pub enum Event {
 
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
-use crate::models::dynamodb::DynamoDbTable;
+use crate::models::dynamodb::{DynamoDbTable, DynamoDbItem};
 use crate::models::ec2::Ec2Instance;
 use crate::models::iam::{IamRole, IamUser, IamPolicy};
 use crate::models::lambda::LambdaFunction;
@@ -26,6 +26,7 @@ pub enum AwsEvent {
     S3BucketDetailsLoaded { bucket_name: String, details: S3BucketDetails },
     RdsInstancesLoaded(Vec<RdsInstance>),
     DynamoDbTablesLoaded(Vec<DynamoDbTable>),
+    DynamoDbItemsLoaded(Vec<DynamoDbItem>),
     LambdaFunctionsLoaded(Vec<LambdaFunction>),
     VpcsLoaded(Vec<Vpc>),
     SubnetsLoaded(Vec<Subnet>),

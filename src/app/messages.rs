@@ -78,12 +78,19 @@ pub enum Message {
     // VPC Specific
     DrillDownSecurityGroup,
     ExitSecurityGroupRules,
+    ToggleSgRulesDirection, // Switch between inbound and outbound
 
     // IAM Specific
     DrillDownIamUser,
     DrillDownIamRole,
     DrillDownIamPolicy,
     ExitIamDrillDown,
+
+    // DynamoDB Specific
+    DrillDownDynamoDbTable,
+    ExitDynamoDbDrillDown,
+    LoadDynamoDbItems(String), // table_name
+    DeleteDynamoDbItem(String, std::collections::HashMap<String, String>), // table_name, key attributes
 }
 
 /// Which pane has focus

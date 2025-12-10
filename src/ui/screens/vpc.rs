@@ -267,9 +267,11 @@ fn render_sg_rules_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let direction = if app.sg_rules_inbound { "Inbound" } else { "Outbound" };
+    let title = format!("{} Rules (t: toggle direction, Esc: back)", direction);
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Inbound Rules (Press Esc to back)")
+        .title(title)
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)

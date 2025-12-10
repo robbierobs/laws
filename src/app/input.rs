@@ -144,7 +144,7 @@ impl App {
                     Service::EC2 => self.handle_ec2_input(key),
                     Service::S3 => self.handle_s3_input(key),
                     Service::RDS => self.handle_rds_input(key),
-                    Service::DynamoDB => { self.handle_dynamodb_input(key); InputResult::None }
+                    Service::DynamoDB => self.handle_dynamodb_input(key),
                     Service::Lambda => { self.handle_lambda_input(key); InputResult::None }
                     Service::VPC => self.handle_vpc_input(key),
                     Service::IAM => self.handle_iam_input(key),
@@ -424,22 +424,63 @@ impl App {
         InputResult::None
     }
 
-    fn handle_dynamodb_input(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                if !self.dynamodb_tables.is_empty() {
-                    let i = self.dynamodb_list_state.selected().map_or(0, |i| if i >= self.dynamodb_tables.len() - 1 { 0 } else { i + 1 });
-                    self.dynamodb_list_state.select(Some(i));
+    fn handle_dynamodb_input(&mut self, key: KeyEvent) -> InputResult {
+        if self.dynamodb_view_mode == 1 {
+            // In items view
+            let len = self.dynamodb_items.len();
+            match key.code {
+                KeyCode::Esc | KeyCode::Backspace => return InputResult::Message(Message::ExitDynamoDbDrillDown),
+                KeyCode::Down | KeyCode::Char('j') if len > 0 => {
+                    let i = self.dynamodb_item_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+                    self.dynamodb_item_list_state.select(Some(i));
                 }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if !self.dynamodb_tables.is_empty() {
-                    let i = self.dynamodb_list_state.selected().map_or(0, |i| if i == 0 { self.dynamodb_tables.len() - 1 } else { i - 1 });
-                    self.dynamodb_list_state.select(Some(i));
+                KeyCode::Up | KeyCode::Char('k') if len > 0 => {
+                    let i = self.dynamodb_item_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+                    self.dynamodb_item_list_state.select(Some(i));
                 }
+                KeyCode::Char('D') => {
+                    // Delete selected item
+                    if let Some(idx) = self.dynamodb_item_list_state.selected() {
+                        if let Some(item) = self.dynamodb_items.get(idx) {
+                            if let Some(table_name) = &self.current_dynamodb_table {
+                                // Build key attributes from item
+                                let key_attrs: std::collections::HashMap<String, String> = item.attributes.clone();
+                                return InputResult::Action(Message::DeleteDynamoDbItem(
+                                    table_name.clone(),
+                                    key_attrs,
+                                ));
+                            }
+                        }
+                    }
+                }
+                KeyCode::Char('r') => {
+                    // Refresh items
+                    if let Some(table_name) = &self.current_dynamodb_table {
+                        return InputResult::Message(Message::LoadDynamoDbItems(table_name.clone()));
+                    }
+                }
+                _ => {}
             }
-            _ => {}
+        } else {
+            // In tables list view
+            match key.code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !self.dynamodb_tables.is_empty() {
+                        let i = self.dynamodb_list_state.selected().map_or(0, |i| if i >= self.dynamodb_tables.len() - 1 { 0 } else { i + 1 });
+                        self.dynamodb_list_state.select(Some(i));
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if !self.dynamodb_tables.is_empty() {
+                        let i = self.dynamodb_list_state.selected().map_or(0, |i| if i == 0 { self.dynamodb_tables.len() - 1 } else { i - 1 });
+                        self.dynamodb_list_state.select(Some(i));
+                    }
+                }
+                KeyCode::Enter => return InputResult::Message(Message::DrillDownDynamoDbTable),
+                _ => {}
+            }
         }
+        InputResult::None
     }
 
     fn handle_lambda_input(&mut self, key: KeyEvent) {
@@ -479,6 +520,10 @@ impl App {
             }
             KeyCode::Enter if self.vpc_view_mode == 2 => return InputResult::Message(Message::DrillDownSecurityGroup),
             KeyCode::Esc if self.vpc_view_mode == 3 => return InputResult::Message(Message::ExitSecurityGroupRules),
+            // Toggle between inbound and outbound rules with 't' or 'v'
+            KeyCode::Char('t') | KeyCode::Char('v') if self.vpc_view_mode == 3 => {
+                return InputResult::Message(Message::ToggleSgRulesDirection);
+            }
             _ => {}
         }
         InputResult::None

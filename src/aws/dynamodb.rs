@@ -160,5 +160,66 @@ impl DynamoDbService {
         })
     }
 
+    /// Scan items from a table (limited to first N items)
+    pub async fn scan_items(&self, table_name: &str, limit: i32) -> anyhow::Result<Vec<crate::models::dynamodb::DynamoDbItem>> {
+        use crate::models::dynamodb::DynamoDbItem;
+        
+        let response = self.client
+            .scan()
+            .table_name(table_name)
+            .limit(limit)
+            .send()
+            .await
+            .map_err(|e| format_dynamodb_error(e, "scan", table_name))?;
 
+        let items: Vec<DynamoDbItem> = response.items()
+            .iter()
+            .map(|item| {
+                let attributes: std::collections::HashMap<String, String> = item
+                    .iter()
+                    .map(|(k, v)| (k.clone(), format_attribute_value(v)))
+                    .collect();
+                DynamoDbItem { attributes }
+            })
+            .collect();
+
+        Ok(items)
+    }
+
+    /// Delete an item from a table
+    pub async fn delete_item(&self, table_name: &str, key: std::collections::HashMap<String, aws_sdk_dynamodb::types::AttributeValue>) -> anyhow::Result<()> {
+        self.client
+            .delete_item()
+            .table_name(table_name)
+            .set_key(Some(key))
+            .send()
+            .await
+            .map_err(|e| format_dynamodb_error(e, "delete_item", table_name))?;
+        
+        Ok(())
+    }
+}
+
+/// Format an AttributeValue to a displayable string
+fn format_attribute_value(av: &aws_sdk_dynamodb::types::AttributeValue) -> String {
+    match av {
+        aws_sdk_dynamodb::types::AttributeValue::S(s) => s.clone(),
+        aws_sdk_dynamodb::types::AttributeValue::N(n) => n.clone(),
+        aws_sdk_dynamodb::types::AttributeValue::B(b) => format!("<binary {} bytes>", b.as_ref().len()),
+        aws_sdk_dynamodb::types::AttributeValue::Bool(b) => b.to_string(),
+        aws_sdk_dynamodb::types::AttributeValue::Null(_) => "NULL".to_string(),
+        aws_sdk_dynamodb::types::AttributeValue::L(list) => {
+            format!("[{}]", list.iter().map(format_attribute_value).collect::<Vec<_>>().join(", "))
+        }
+        aws_sdk_dynamodb::types::AttributeValue::M(map) => {
+            let entries: Vec<String> = map.iter()
+                .map(|(k, v)| format!("{}: {}", k, format_attribute_value(v)))
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        }
+        aws_sdk_dynamodb::types::AttributeValue::Ss(ss) => format!("[{}]", ss.join(", ")),
+        aws_sdk_dynamodb::types::AttributeValue::Ns(ns) => format!("[{}]", ns.join(", ")),
+        aws_sdk_dynamodb::types::AttributeValue::Bs(_) => "<binary set>".to_string(),
+        _ => "<unknown>".to_string(),
+    }
 }

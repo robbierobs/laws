@@ -82,6 +82,9 @@ impl App {
                     self.current_sg_rules.clear();
                     self.vpc_list_state.select(Some(0));
                 }
+                Message::ToggleSgRulesDirection => {
+                    self.handle_toggle_sg_rules_direction();
+                }
                 Message::DrillDownIamUser => {
                     self.handle_drill_down_iam_user(event_tx.clone());
                 }
@@ -93,6 +96,21 @@ impl App {
                 }
                 Message::ExitIamDrillDown => {
                     self.handle_exit_iam_drill_down();
+                }
+                Message::DrillDownDynamoDbTable => {
+                    self.handle_drill_down_dynamodb_table(event_tx.clone());
+                }
+                Message::ExitDynamoDbDrillDown => {
+                    self.dynamodb_view_mode = 0;
+                    self.current_dynamodb_table = None;
+                    self.dynamodb_items.clear();
+                    self.dynamodb_list_state.select(Some(0));
+                }
+                Message::LoadDynamoDbItems(table_name) => {
+                    self.handle_load_dynamodb_items(table_name, event_tx.clone());
+                }
+                Message::DeleteDynamoDbItem(table_name, key_attrs) => {
+                    self.handle_delete_dynamodb_item(table_name, key_attrs, event_tx.clone());
                 }
             }
         })
@@ -391,9 +409,117 @@ impl App {
         if let Some(idx) = self.vpc_list_state.selected() {
             if let Some(sg) = self.security_groups.get(idx) {
                 self.selected_sg_id = Some(sg.group_id.clone());
+                self.sg_rules_inbound = true;
                 self.current_sg_rules = sg.inbound_rules.clone();
                 self.vpc_view_mode = 3;
                 self.vpc_list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn handle_toggle_sg_rules_direction(&mut self) {
+        if let Some(sg_id) = &self.selected_sg_id {
+            if let Some(sg) = self.security_groups.iter().find(|s| &s.group_id == sg_id) {
+                self.sg_rules_inbound = !self.sg_rules_inbound;
+                self.current_sg_rules = if self.sg_rules_inbound {
+                    sg.inbound_rules.clone()
+                } else {
+                    sg.outbound_rules.clone()
+                };
+                self.vpc_list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn handle_drill_down_dynamodb_table(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
+        if let Some(idx) = self.dynamodb_list_state.selected() {
+            if let Some(table) = self.dynamodb_tables.get(idx) {
+                let table_name = table.table_name.clone();
+                self.current_dynamodb_table = Some(table_name.clone());
+                self.dynamodb_view_mode = 1;
+                self.dynamodb_items.clear();
+                self.dynamodb_item_list_state.select(None);
+                
+                // Load items
+                if let Some(clients) = &self.aws_clients {
+                    self.loading = true;
+                    let client = clients.dynamodb.clone();
+                    let tx = event_tx;
+                    tokio::spawn(async move {
+                        let service = crate::aws::dynamodb::DynamoDbService::new(client);
+                        match service.scan_items(&table_name, 100).await {
+                            Ok(items) => { tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items))).ok(); }
+                            Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    fn handle_load_dynamodb_items(&mut self, table_name: String, event_tx: mpsc::UnboundedSender<Event>) {
+        if let Some(clients) = &self.aws_clients {
+            self.loading = true;
+            let client = clients.dynamodb.clone();
+            let tx = event_tx;
+            tokio::spawn(async move {
+                let service = crate::aws::dynamodb::DynamoDbService::new(client);
+                match service.scan_items(&table_name, 100).await {
+                    Ok(items) => { tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items))).ok(); }
+                    Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                }
+            });
+        }
+    }
+
+    fn handle_delete_dynamodb_item(&mut self, table_name: String, key_attrs: std::collections::HashMap<String, String>, event_tx: mpsc::UnboundedSender<Event>) {
+        if let Some(clients) = &self.aws_clients {
+            // Get key schema from current table to figure out which attributes are keys
+            let table = self.dynamodb_tables.iter().find(|t| t.table_name == table_name);
+            if let Some(t) = table {
+                let pk_name = t.partition_key.as_ref().map(|k| k.name.clone());
+                let sk_name = t.sort_key.as_ref().map(|k| k.name.clone());
+                let pk_type = t.partition_key.as_ref().map(|k| k.attribute_type.clone());
+                let sk_type = t.sort_key.as_ref().map(|k| k.attribute_type.clone());
+                
+                self.loading = true;
+                let client = clients.dynamodb.clone();
+                let tx = event_tx;
+                let tbl = table_name.clone();
+                
+                tokio::spawn(async move {
+                    use aws_sdk_dynamodb::types::AttributeValue;
+                    
+                    let mut key = std::collections::HashMap::new();
+                    
+                    // Build key from attributes
+                    if let Some(pk) = pk_name {
+                        if let Some(val) = key_attrs.get(&pk) {
+                            let av = match pk_type.as_deref() {
+                                Some("N") => AttributeValue::N(val.clone()),
+                                _ => AttributeValue::S(val.clone()),
+                            };
+                            key.insert(pk, av);
+                        }
+                    }
+                    if let Some(sk) = sk_name {
+                        if let Some(val) = key_attrs.get(&sk) {
+                            let av = match sk_type.as_deref() {
+                                Some("N") => AttributeValue::N(val.clone()),
+                                _ => AttributeValue::S(val.clone()),
+                            };
+                            key.insert(sk, av);
+                        }
+                    }
+                    
+                    let service = crate::aws::dynamodb::DynamoDbService::new(client);
+                    match service.delete_item(&tbl, key).await {
+                        Ok(_) => { 
+                            tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Deleted item from {}", tbl)))).ok();
+                        }
+                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                    }
+                });
             }
         }
     }
