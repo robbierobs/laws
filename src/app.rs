@@ -80,6 +80,7 @@ pub enum Message {
 
     // UI
     ToggleDetailPanel,
+    CycleViewMode,
     ShowHelp,
     Quit,
 }
@@ -96,8 +97,8 @@ pub enum Focus {
 }
 
 use crate::aws::client::AwsClients;
-use crate::models::backup::BackupVault;
-use crate::models::cloudtrail::Trail;
+use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
+use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
 use crate::models::iam::IamRole;
@@ -148,10 +149,15 @@ pub struct App {
     pub iam_list_state: TableState,
     // Backup state
     pub backup_vaults: Vec<BackupVault>,
+    pub backup_plans: Vec<BackupPlan>,
+    pub backup_jobs: Vec<BackupJob>,
     pub backup_list_state: TableState,
+    pub backup_view_mode: u8, // 0=vaults, 1=plans, 2=jobs
     // CloudTrail state
     pub cloudtrail_trails: Vec<Trail>,
+    pub cloudtrail_events: Vec<CloudTrailEvent>,
     pub cloudtrail_list_state: TableState,
+    pub cloudtrail_view_mode: u8, // 0=trails, 1=events
 }
 
 impl App {
@@ -188,9 +194,14 @@ impl App {
             iam_roles: Vec::new(),
             iam_list_state: TableState::default(),
             backup_vaults: Vec::new(),
+            backup_plans: Vec::new(),
+            backup_jobs: Vec::new(),
             backup_list_state: TableState::default(),
+            backup_view_mode: 0,
             cloudtrail_trails: Vec::new(),
+            cloudtrail_events: Vec::new(),
             cloudtrail_list_state: TableState::default(),
+            cloudtrail_view_mode: 0,
         }
     }
 
@@ -317,13 +328,23 @@ impl App {
                                 let tx = event_tx.clone();
                                 tokio::spawn(async move {
                                     let service = crate::aws::backup::BackupService::new(client);
+                                    
+                                    // Fetch Vaults
                                     match service.list_backup_vaults().await {
-                                        Ok(vaults) => {
-                                            tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults))).ok();
-                                        }
-                                        Err(e) => {
-                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
-                                        }
+                                        Ok(vaults) => { tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+                                    
+                                    // Fetch Plans
+                                    match service.list_backup_plans().await {
+                                        Ok(plans) => { tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+
+                                    // Fetch Jobs
+                                    match service.list_backup_jobs().await {
+                                        Ok(jobs) => { tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                                     }
                                 });
                             }
@@ -332,13 +353,17 @@ impl App {
                                 let tx = event_tx.clone();
                                 tokio::spawn(async move {
                                     let service = crate::aws::cloudtrail::CloudTrailService::new(client);
+                                    
+                                    // Fetch Trails
                                     match service.list_trails().await {
-                                        Ok(trails) => {
-                                            tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails))).ok();
-                                        }
-                                        Err(e) => {
-                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
-                                        }
+                                        Ok(trails) => { tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+
+                                    // Fetch Events (limit to 50 for now)
+                                    match service.lookup_events(50).await {
+                                        Ok(events) => { tx.send(Event::Aws(AwsEvent::CloudTrailEventsLoaded(events))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                                     }
                                 });
                             }
@@ -446,6 +471,19 @@ impl App {
                 Message::ToggleDetailPanel => {
                     self.detail_panel_visible = !self.detail_panel_visible;
                 }
+                Message::CycleViewMode => {
+                    match self.current_service {
+                        Service::Backup => {
+                            self.backup_view_mode = (self.backup_view_mode + 1) % 3;
+                            self.backup_list_state.select(None);
+                        }
+                        Service::CloudTrail => {
+                            self.cloudtrail_view_mode = (self.cloudtrail_view_mode + 1) % 2;
+                            self.cloudtrail_list_state.select(None);
+                        }
+                        _ => {}
+                    }
+                }
                 // RDS actions
                 Message::StartRdsInstance(id) => {
                     if let Some(clients) = &self.aws_clients {
@@ -523,6 +561,13 @@ impl App {
                 }
             }
             Focus::Main => {
+                if key.code == KeyCode::Char('v') {
+                    match self.current_service {
+                        Service::Backup | Service::CloudTrail => return Some(Message::CycleViewMode),
+                        _ => {}
+                    }
+                }
+
                 match self.current_service {
                     Service::EC2 => {
                         match key.code {
@@ -854,10 +899,16 @@ impl App {
                     Service::Backup => {
                         match key.code {
                             KeyCode::Down | KeyCode::Char('j') => {
-                                if !self.backup_vaults.is_empty() {
+                                let len = match self.backup_view_mode {
+                                    0 => self.backup_vaults.len(),
+                                    1 => self.backup_plans.len(),
+                                    2 => self.backup_jobs.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.backup_list_state.selected() {
                                         Some(i) => {
-                                            if i >= self.backup_vaults.len() - 1 { 0 } else { i + 1 }
+                                            if i >= len - 1 { 0 } else { i + 1 }
                                         }
                                         None => 0,
                                     };
@@ -865,10 +916,16 @@ impl App {
                                 }
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
-                                if !self.backup_vaults.is_empty() {
+                                let len = match self.backup_view_mode {
+                                    0 => self.backup_vaults.len(),
+                                    1 => self.backup_plans.len(),
+                                    2 => self.backup_jobs.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.backup_list_state.selected() {
                                         Some(i) => {
-                                            if i == 0 { self.backup_vaults.len() - 1 } else { i - 1 }
+                                            if i == 0 { len - 1 } else { i - 1 }
                                         }
                                         None => 0,
                                     };
@@ -881,10 +938,15 @@ impl App {
                     Service::CloudTrail => {
                         match key.code {
                             KeyCode::Down | KeyCode::Char('j') => {
-                                if !self.cloudtrail_trails.is_empty() {
+                                let len = match self.cloudtrail_view_mode {
+                                    0 => self.cloudtrail_trails.len(),
+                                    1 => self.cloudtrail_events.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.cloudtrail_list_state.selected() {
                                         Some(i) => {
-                                            if i >= self.cloudtrail_trails.len() - 1 { 0 } else { i + 1 }
+                                            if i >= len - 1 { 0 } else { i + 1 }
                                         }
                                         None => 0,
                                     };
@@ -892,10 +954,15 @@ impl App {
                                 }
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
-                                if !self.cloudtrail_trails.is_empty() {
+                                let len = match self.cloudtrail_view_mode {
+                                    0 => self.cloudtrail_trails.len(),
+                                    1 => self.cloudtrail_events.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.cloudtrail_list_state.selected() {
                                         Some(i) => {
-                                            if i == 0 { self.cloudtrail_trails.len() - 1 } else { i - 1 }
+                                            if i == 0 { len - 1 } else { i - 1 }
                                         }
                                         None => 0,
                                     };
@@ -977,8 +1044,20 @@ impl App {
                 self.backup_vaults = vaults;
                 self.loading = false;
             }
+            AwsEvent::BackupPlansLoaded(plans) => {
+                self.backup_plans = plans;
+                self.loading = false;
+            }
+            AwsEvent::BackupJobsLoaded(jobs) => {
+                self.backup_jobs = jobs;
+                self.loading = false;
+            }
             AwsEvent::CloudTrailTrailsLoaded(trails) => {
                 self.cloudtrail_trails = trails;
+                self.loading = false;
+            }
+            AwsEvent::CloudTrailEventsLoaded(events) => {
+                self.cloudtrail_events = events;
                 self.loading = false;
             }
             AwsEvent::ActionCompleted(msg) => {

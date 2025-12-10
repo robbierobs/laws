@@ -8,8 +8,8 @@ pub enum Event {
     Aws(AwsEvent),
 }
 
-use crate::models::backup::BackupVault;
-use crate::models::cloudtrail::Trail;
+use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
+use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
 use crate::models::iam::IamRole;
@@ -30,7 +30,10 @@ pub enum AwsEvent {
     VpcsLoaded(Vec<Vpc>),
     IamRolesLoaded(Vec<IamRole>),
     BackupVaultsLoaded(Vec<BackupVault>),
+    BackupPlansLoaded(Vec<BackupPlan>),
+    BackupJobsLoaded(Vec<BackupJob>),
     CloudTrailTrailsLoaded(Vec<Trail>),
+    CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
     ActionCompleted(String), // Message to display
     Error(String),
 }

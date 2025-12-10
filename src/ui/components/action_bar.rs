@@ -69,11 +69,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Service::Backup => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("v", "View"),
             ]);
         }
         Service::CloudTrail => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("v", "View"),
             ]);
         }
     }
