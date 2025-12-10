@@ -17,9 +17,13 @@ use crossterm::{
 use std::io;
 
 use crate::aws::client::AwsClients;
+use crate::config::Args;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Parse CLI arguments
+    let args = Args::parse_args();
+    
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -28,8 +32,11 @@ async fn main() -> anyhow::Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // Initialize AWS clients
-    // TODO: Parse CLI args for profile and region
-    let aws_clients = match AwsClients::new(None, None).await {
+    // Priority: CLI args > environment variables > defaults
+    let aws_clients = match AwsClients::new(
+        args.profile.as_deref(),
+        args.region.as_deref(),
+    ).await {
         Ok(clients) => Some(clients),
         Err(e) => {
             eprintln!("Failed to initialize AWS clients: {}", e);

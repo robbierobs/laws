@@ -1,5 +1,6 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
@@ -16,7 +17,27 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ])
         .split(frame.area());
 
-    let title = Paragraph::new(format!("LazyAWS - {:?}", app.current_service))
+    // Build header text with status
+    let status = if app.loading {
+        " [Loading...]"
+    } else {
+        ""
+    };
+    
+    let header_text = if let Some(ref err) = app.error_message {
+        format!("LazyAWS - {:?} | Error: {}", app.current_service, err)
+    } else {
+        format!("LazyAWS - {:?}{}", app.current_service, status)
+    };
+    
+    let header_style = if app.error_message.is_some() {
+        Style::default().fg(Color::Red)
+    } else {
+        Style::default()
+    };
+    
+    let title = Paragraph::new(header_text)
+        .style(header_style)
         .block(Block::default().borders(Borders::ALL).title("Header"));
     frame.render_widget(title, chunks[0]);
 

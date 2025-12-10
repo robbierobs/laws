@@ -24,12 +24,21 @@ impl AwsClients {
     pub async fn new(profile: Option<&str>, region: Option<&str>) -> anyhow::Result<Self> {
         let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
         
-        if let Some(r) = region {
-            config_loader = config_loader.region(Region::new(r.to_string()));
-        }
+        // Set region: CLI arg > AWS_REGION env > default to us-east-1
+        let region_str = region
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var("AWS_REGION").ok())
+            .or_else(|| std::env::var("AWS_DEFAULT_REGION").ok())
+            .unwrap_or_else(|| "us-east-1".to_string());
+        config_loader = config_loader.region(Region::new(region_str));
 
-        if let Some(profile_name) = profile {
-            config_loader = config_loader.profile_name(profile_name);
+        // Set profile: CLI arg > AWS_PROFILE env
+        let profile_name = profile
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var("AWS_PROFILE").ok());
+        
+        if let Some(p) = profile_name {
+            config_loader = config_loader.profile_name(p);
         }
 
         let config = config_loader.load().await;

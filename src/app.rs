@@ -111,6 +111,7 @@ pub struct App {
     pub s3_object_list_state: TableState,
     pub loading: bool,
     pub should_refresh: bool,
+    pub error_message: Option<String>,
 }
 
 impl App {
@@ -130,6 +131,7 @@ impl App {
             s3_object_list_state: TableState::default(),
             loading: false,
             should_refresh: false,
+            error_message: None,
         }
     }
 
@@ -266,6 +268,9 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Message> {
+        // Clear any error message on keypress
+        self.error_message = None;
+        
         if key.code == KeyCode::Tab {
             self.toggle_focus();
             return None;
@@ -283,30 +288,34 @@ impl App {
                     Service::EC2 => {
                         match key.code {
                             KeyCode::Down | KeyCode::Char('j') => {
-                                let i = match self.ec2_list_state.selected() {
-                                    Some(i) => {
-                                        if i >= self.ec2_instances.len() - 1 {
-                                            0
-                                        } else {
-                                            i + 1
+                                if !self.ec2_instances.is_empty() {
+                                    let i = match self.ec2_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.ec2_instances.len() - 1 {
+                                                0
+                                            } else {
+                                                i + 1
+                                            }
                                         }
-                                    }
-                                    None => 0,
-                                };
-                                self.ec2_list_state.select(Some(i));
+                                        None => 0,
+                                    };
+                                    self.ec2_list_state.select(Some(i));
+                                }
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
-                                let i = match self.ec2_list_state.selected() {
-                                    Some(i) => {
-                                        if i == 0 {
-                                            self.ec2_instances.len() - 1
-                                        } else {
-                                            i - 1
+                                if !self.ec2_instances.is_empty() {
+                                    let i = match self.ec2_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 {
+                                                self.ec2_instances.len() - 1
+                                            } else {
+                                                i - 1
+                                            }
                                         }
-                                    }
-                                    None => 0,
-                                };
-                                self.ec2_list_state.select(Some(i));
+                                        None => 0,
+                                    };
+                                    self.ec2_list_state.select(Some(i));
+                                }
                             }
                             KeyCode::Char('s') => {
                                 if let Some(i) = self.ec2_list_state.selected() {
@@ -337,30 +346,34 @@ impl App {
                             // Object list navigation
                             match key.code {
                                 KeyCode::Down | KeyCode::Char('j') => {
-                                    let i = match self.s3_object_list_state.selected() {
-                                        Some(i) => {
-                                            if i >= self.s3_objects.len() - 1 {
-                                                0
-                                            } else {
-                                                i + 1
+                                    if !self.s3_objects.is_empty() {
+                                        let i = match self.s3_object_list_state.selected() {
+                                            Some(i) => {
+                                                if i >= self.s3_objects.len() - 1 {
+                                                    0
+                                                } else {
+                                                    i + 1
+                                                }
                                             }
-                                        }
-                                        None => 0,
-                                    };
-                                    self.s3_object_list_state.select(Some(i));
+                                            None => 0,
+                                        };
+                                        self.s3_object_list_state.select(Some(i));
+                                    }
                                 }
                                 KeyCode::Up | KeyCode::Char('k') => {
-                                    let i = match self.s3_object_list_state.selected() {
-                                        Some(i) => {
-                                            if i == 0 {
-                                                self.s3_objects.len() - 1
-                                            } else {
-                                                i - 1
+                                    if !self.s3_objects.is_empty() {
+                                        let i = match self.s3_object_list_state.selected() {
+                                            Some(i) => {
+                                                if i == 0 {
+                                                    self.s3_objects.len() - 1
+                                                } else {
+                                                    i - 1
+                                                }
                                             }
-                                        }
-                                        None => 0,
-                                    };
-                                    self.s3_object_list_state.select(Some(i));
+                                            None => 0,
+                                        };
+                                        self.s3_object_list_state.select(Some(i));
+                                    }
                                 }
                                 KeyCode::Esc | KeyCode::Backspace => {
                                     return Some(Message::LeaveS3Bucket);
@@ -371,30 +384,34 @@ impl App {
                             // Bucket list navigation
                             match key.code {
                                 KeyCode::Down | KeyCode::Char('j') => {
-                                    let i = match self.s3_list_state.selected() {
-                                        Some(i) => {
-                                            if i >= self.s3_buckets.len() - 1 {
-                                                0
-                                            } else {
-                                                i + 1
+                                    if !self.s3_buckets.is_empty() {
+                                        let i = match self.s3_list_state.selected() {
+                                            Some(i) => {
+                                                if i >= self.s3_buckets.len() - 1 {
+                                                    0
+                                                } else {
+                                                    i + 1
+                                                }
                                             }
-                                        }
-                                        None => 0,
-                                    };
-                                    self.s3_list_state.select(Some(i));
+                                            None => 0,
+                                        };
+                                        self.s3_list_state.select(Some(i));
+                                    }
                                 }
                                 KeyCode::Up | KeyCode::Char('k') => {
-                                    let i = match self.s3_list_state.selected() {
-                                        Some(i) => {
-                                            if i == 0 {
-                                                self.s3_buckets.len() - 1
-                                            } else {
-                                                i - 1
+                                    if !self.s3_buckets.is_empty() {
+                                        let i = match self.s3_list_state.selected() {
+                                            Some(i) => {
+                                                if i == 0 {
+                                                    self.s3_buckets.len() - 1
+                                                } else {
+                                                    i - 1
+                                                }
                                             }
-                                        }
-                                        None => 0,
-                                    };
-                                    self.s3_list_state.select(Some(i));
+                                            None => 0,
+                                        };
+                                        self.s3_list_state.select(Some(i));
+                                    }
                                 }
                                 KeyCode::Enter => {
                                     if let Some(i) = self.s3_list_state.selected() {
@@ -472,9 +489,8 @@ impl App {
                 self.should_refresh = true;
             }
             AwsEvent::Error(e) => {
-                // TODO: Show error in UI
                 self.loading = false;
-                eprintln!("Error: {}", e);
+                self.error_message = Some(e);
             }
         }
     }
