@@ -102,6 +102,7 @@ pub struct App {
     pub ec2_instances: Vec<Ec2Instance>,
     pub ec2_list_state: TableState,
     pub loading: bool,
+    pub should_refresh: bool,
 }
 
 impl App {
@@ -115,6 +116,7 @@ impl App {
             ec2_instances: Vec::new(),
             ec2_list_state: TableState::default(),
             loading: false,
+            should_refresh: false,
         }
     }
 
@@ -321,14 +323,19 @@ impl App {
             }
             AwsEvent::ActionCompleted(msg) => {
                 self.loading = false;
-                // TODO: Show success message
-                // Refresh data to show new state
-                // We can't call async update here directly, so we need to signal a refresh
-                // For now, we'll just rely on the user manually refreshing or implement a way to trigger it
-                // Actually, we can't easily trigger async update from here without a channel.
-                // But we can set a flag or just let the next tick handle it if we had a tick handler.
-                // Better yet, let's just print for now.
+                // TODO: Show success message via a notification system
                 eprintln!("Action completed: {}", msg);
+                
+                // Trigger refresh
+                // Since we are in a synchronous method, we can't await. 
+                // But we can spawn a task if we had a handle, or just set a flag.
+                // For now, let's assume the next tick or user interaction will pick it up? 
+                // No, we need to actively trigger it.
+                // A common pattern is to have an `Action` queue or similar.
+                // Or, we can just send a message to the event loop if we had the sender here.
+                // But we don't have the sender in `handle_aws_event`.
+                // Let's add a `should_refresh` flag to App and check it in `on_tick` or `update`.
+                self.should_refresh = true;
             }
             AwsEvent::Error(e) => {
                 // TODO: Show error in UI

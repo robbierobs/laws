@@ -62,6 +62,10 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Event::Tick => {
                     app.on_tick();
+                    if app.should_refresh {
+                        app.should_refresh = false;
+                        app.update(Message::RefreshData, event_tx.clone()).await;
+                    }
                 }
                 Event::Aws(aws_event) => {
                     app.handle_aws_event(aws_event);

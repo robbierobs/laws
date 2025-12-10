@@ -43,7 +43,6 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         }
     }
 
-    let footer = Paragraph::new("Press 'q' to quit, 'j/k' to navigate, 'Enter' to select")
-        .block(Block::default().borders(Borders::ALL).title("Footer"));
-    frame.render_widget(footer, chunks[2]);
+    // Footer / Action Bar
+    crate::ui::components::action_bar::render(frame, chunks[2], app);
 }
