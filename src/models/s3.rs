@@ -16,3 +16,20 @@ impl S3Bucket {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct S3Object {
+    pub key: String,
+    pub size: i64,
+    pub last_modified: Option<String>,
+}
+
+impl S3Object {
+    pub fn from_aws(object: aws_sdk_s3::types::Object) -> Self {
+        Self {
+            key: object.key().unwrap_or_default().to_string(),
+            size: object.size().unwrap_or(0),
+            last_modified: object.last_modified().map(|d| d.to_string()),
+        }
+    }
+}

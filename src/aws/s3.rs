@@ -24,4 +24,20 @@ impl S3Service {
 
         Ok(buckets)
     }
+
+    pub async fn list_objects(&self, bucket_name: &str) -> anyhow::Result<Vec<crate::models::s3::S3Object>> {
+        let response = self.client
+            .list_objects_v2()
+            .bucket(bucket_name)
+            .send()
+            .await?;
+
+        let objects = response
+            .contents()
+            .iter()
+            .map(|o| crate::models::s3::S3Object::from_aws(o.clone()))
+            .collect();
+
+        Ok(objects)
+    }
 }

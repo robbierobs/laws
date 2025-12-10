@@ -23,6 +23,19 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("R", "Reboot"),
             ]);
         }
+        Service::S3 => {
+            if app.current_bucket.is_some() {
+                actions.extend_from_slice(&[
+                    ("j/k", "Navigate"),
+                    ("Esc", "Back to Buckets"),
+                ]);
+            } else {
+                actions.extend_from_slice(&[
+                    ("j/k", "Navigate"),
+                    ("Enter", "Browse Objects"),
+                ]);
+            }
+        }
         _ => {
             actions.push(("j/k", "Navigate"));
         }

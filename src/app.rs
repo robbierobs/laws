@@ -65,6 +65,8 @@ pub enum Message {
     StopInstance(String),
     RebootInstance(String),
     TerminateInstance(String),
+    LoadS3Objects(String),
+    LeaveS3Bucket,
 
     // Async results
     // DataLoaded(ServiceData),
@@ -104,6 +106,9 @@ pub struct App {
     pub ec2_list_state: TableState,
     pub s3_buckets: Vec<S3Bucket>,
     pub s3_list_state: TableState,
+    pub current_bucket: Option<String>,
+    pub s3_objects: Vec<crate::models::s3::S3Object>,
+    pub s3_object_list_state: TableState,
     pub loading: bool,
     pub should_refresh: bool,
 }
@@ -120,6 +125,9 @@ impl App {
             ec2_list_state: TableState::default(),
             s3_buckets: Vec::new(),
             s3_list_state: TableState::default(),
+            current_bucket: None,
+            s3_objects: Vec::new(),
+            s3_object_list_state: TableState::default(),
             loading: false,
             should_refresh: false,
         }
@@ -229,6 +237,29 @@ impl App {
                         });
                     }
                 }
+                Message::LoadS3Objects(bucket) => {
+                    self.current_bucket = Some(bucket.clone());
+                    if let Some(clients) = &self.aws_clients {
+                        self.loading = true;
+                        let client = clients.s3.clone();
+                        let tx = event_tx.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::s3::S3Service::new(client);
+                            match service.list_objects(&bucket).await {
+                                Ok(objects) => {
+                                    tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                                }
+                            }
+                        });
+                    }
+                }
+                Message::LeaveS3Bucket => {
+                    self.current_bucket = None;
+                    self.s3_objects.clear();
+                }
                 _ => {}
             }
         })
@@ -302,34 +333,78 @@ impl App {
                         }
                     }
                     Service::S3 => {
-                        match key.code {
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                let i = match self.s3_list_state.selected() {
-                                    Some(i) => {
-                                        if i >= self.s3_buckets.len() - 1 {
-                                            0
-                                        } else {
-                                            i + 1
+                        if self.current_bucket.is_some() {
+                            // Object list navigation
+                            match key.code {
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    let i = match self.s3_object_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.s3_objects.len() - 1 {
+                                                0
+                                            } else {
+                                                i + 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.s3_object_list_state.select(Some(i));
+                                }
+                                KeyCode::Up | KeyCode::Char('k') => {
+                                    let i = match self.s3_object_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 {
+                                                self.s3_objects.len() - 1
+                                            } else {
+                                                i - 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.s3_object_list_state.select(Some(i));
+                                }
+                                KeyCode::Esc | KeyCode::Backspace => {
+                                    return Some(Message::LeaveS3Bucket);
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            // Bucket list navigation
+                            match key.code {
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    let i = match self.s3_list_state.selected() {
+                                        Some(i) => {
+                                            if i >= self.s3_buckets.len() - 1 {
+                                                0
+                                            } else {
+                                                i + 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.s3_list_state.select(Some(i));
+                                }
+                                KeyCode::Up | KeyCode::Char('k') => {
+                                    let i = match self.s3_list_state.selected() {
+                                        Some(i) => {
+                                            if i == 0 {
+                                                self.s3_buckets.len() - 1
+                                            } else {
+                                                i - 1
+                                            }
+                                        }
+                                        None => 0,
+                                    };
+                                    self.s3_list_state.select(Some(i));
+                                }
+                                KeyCode::Enter => {
+                                    if let Some(i) = self.s3_list_state.selected() {
+                                        if let Some(bucket) = self.s3_buckets.get(i) {
+                                            return Some(Message::LoadS3Objects(bucket.name.clone()));
                                         }
                                     }
-                                    None => 0,
-                                };
-                                self.s3_list_state.select(Some(i));
+                                }
+                                _ => {}
                             }
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                let i = match self.s3_list_state.selected() {
-                                    Some(i) => {
-                                        if i == 0 {
-                                            self.s3_buckets.len() - 1
-                                        } else {
-                                            i - 1
-                                        }
-                                    }
-                                    None => 0,
-                                };
-                                self.s3_list_state.select(Some(i));
-                            }
-                            _ => {}
                         }
                     }
                     _ => {}
@@ -374,6 +449,10 @@ impl App {
             }
             AwsEvent::S3BucketsLoaded(buckets) => {
                 self.s3_buckets = buckets;
+                self.loading = false;
+            }
+            AwsEvent::S3ObjectsLoaded(objects) => {
+                self.s3_objects = objects;
                 self.loading = false;
             }
             AwsEvent::ActionCompleted(msg) => {
