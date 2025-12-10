@@ -317,12 +317,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || resource.contains(&filter)
         })
         .map(|job| {
-        let state_color = match job.state.as_str() {
-            "COMPLETED" => THEME.success,
-            "FAILED" => THEME.error,
-            "RUNNING" => THEME.warning,
-            _ => THEME.muted,
-        };
+        let state_color = job.state_color();
         let created = job.creation_date.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
             .unwrap_or_else(|| "-".to_string());
@@ -389,12 +384,7 @@ fn render_job_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_job_detail_lines(job: &BackupJob) -> Vec<Line<'_>> {
-    let state_color = match job.state.as_str() {
-        "COMPLETED" => THEME.success,
-        "FAILED" => THEME.error,
-        "RUNNING" => THEME.warning,
-        _ => THEME.muted,
-    };
+    let state_color = job.state_color();
     let created = job.creation_date.clone().unwrap_or_else(|| "-".to_string());
     let completed = job.completion_date.clone().unwrap_or_else(|| "-".to_string());
     let resource_arn = job.resource_arn.clone().unwrap_or_else(|| "-".to_string());

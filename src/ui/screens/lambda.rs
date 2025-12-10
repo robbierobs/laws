@@ -37,12 +37,7 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
             name.contains(&filter) || runtime.contains(&filter)
         })
         .map(|func| {
-        let state_color = match func.state.as_deref() {
-            Some("Active") => THEME.success,
-            Some("Inactive") => THEME.muted,
-            Some("Failed") => THEME.error,
-            _ => THEME.warning,
-        };
+        let state_color = func.state_color();
         let runtime = func.runtime.clone().unwrap_or_else(|| "-".to_string());
         let memory = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
         let timeout = func.timeout.map(|t| format!("{}s", t)).unwrap_or_else(|| "-".to_string());
@@ -112,12 +107,7 @@ fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
-    let state_color = match func.state.as_deref() {
-        Some("Active") => THEME.success,
-        Some("Inactive") => THEME.muted,
-        Some("Failed") => THEME.error,
-        _ => THEME.warning,
-    };
+        let state_color = func.state_color();
     
     let runtime_str = func.runtime.clone().unwrap_or_else(|| "-".to_string());
     let handler_str = func.handler.clone().unwrap_or_else(|| "-".to_string());

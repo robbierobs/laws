@@ -74,10 +74,7 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || name.contains(&filter) || cidr.contains(&filter)
         })
         .map(|vpc| {
-        let state_color = match vpc.state.as_str() {
-            "available" => THEME.success,
-            _ => THEME.warning,
-        };
+        let state_color = vpc.state_color();
         let name = vpc.name.clone().unwrap_or_else(|| "-".to_string());
         let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
         let tenancy = vpc.instance_tenancy.clone().unwrap_or_else(|| "default".to_string());
@@ -389,10 +386,7 @@ fn render_sg_rule_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_vpc_detail_lines<'a>(vpc: &Vpc, app: &App) -> Vec<Line<'a>> {
-    let state_color = match vpc.state.as_str() {
-        "available" => THEME.success,
-        _ => THEME.warning,
-    };
+    let state_color = vpc.state_color();
     let name = vpc.name.clone().unwrap_or_else(|| "(unnamed)".to_string());
     let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
     let owner = vpc.owner_id.clone().unwrap_or_else(|| "-".to_string());

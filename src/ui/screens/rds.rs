@@ -37,12 +37,7 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || engine.contains(&filter)
         })
         .map(|instance| {
-        let status_color = match instance.status.as_str() {
-            "available" => THEME.success,
-            "stopped" => THEME.error,
-            "creating" | "modifying" | "rebooting" => THEME.warning,
-            _ => THEME.muted,
-        };
+        let status_color = instance.status_color();
         
         let cells = vec![
             Cell::from(instance.db_instance_identifier.clone()),
@@ -111,12 +106,7 @@ fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
-    let status_color = match instance.status.as_str() {
-        "available" => THEME.success,
-        "stopped" => THEME.error,
-        "creating" | "modifying" | "rebooting" => THEME.warning,
-        _ => THEME.muted,
-    };
+    let status_color = instance.status_color();
     
     let engine_str = format!("{} {}", 
         instance.engine.clone(),

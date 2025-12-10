@@ -45,13 +45,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         format!("LazyAWS - {:?} {}{}{}{}", app.current_service, aws_info, status, filter_status, read_only_status)
     };
     
-    let header_style = if app.error_message.is_some() {
-        Style::default().fg(THEME.error)
-    } else if app.read_only {
-        Style::default().fg(THEME.warning).bg(THEME.bg) // Use warning color for text, keep bg dark for readability
-    } else {
-        Style::default().fg(THEME.primary)
-    };
+
 
     // If read-only, we want a more prominent warning. 
     // Let's make the title background yellow if read-only, or just the text?

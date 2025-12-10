@@ -35,11 +35,7 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
             t.table_name.to_lowercase().contains(&filter)
         })
         .map(|table| {
-        let status_color = match table.table_status.as_str() {
-            "ACTIVE" => THEME.success,
-            "CREATING" | "UPDATING" | "DELETING" => THEME.warning,
-            _ => THEME.muted,
-        };
+        let status_color = table.status_color();
         let pk_str = table.partition_key.as_ref()
             .map(|pk| format!("{} ({})", pk.name, pk.attribute_type))
             .unwrap_or_else(|| "-".to_string());
@@ -110,11 +106,7 @@ fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
-    let status_color = match table.table_status.as_str() {
-        "ACTIVE" => THEME.success,
-        "CREATING" | "UPDATING" | "DELETING" => THEME.warning,
-        _ => THEME.muted,
-    };
+    let status_color = table.status_color();
     
     let item_count_str = table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
     let created_str = table.creation_date_time.clone().unwrap_or_else(|| "-".to_string());

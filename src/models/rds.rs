@@ -78,13 +78,13 @@ impl RdsInstance {
     
     /// Get a status color based on the instance status
     pub fn status_color(&self) -> ratatui::style::Color {
-        use ratatui::style::Color;
+        use crate::ui::theme::THEME;
         match self.status.to_lowercase().as_str() {
-            "available" => Color::Green,
-            "stopped" | "stopping" => Color::Red,
-            "starting" | "creating" | "modifying" | "backing-up" | "rebooting" => Color::Yellow,
-            "deleting" | "failed" => Color::LightRed,
-            _ => Color::Gray,
+            "available" => THEME.success,
+            "stopped" | "stopping" => THEME.error,
+            "starting" | "creating" | "modifying" | "backing-up" | "rebooting" => THEME.warning,
+            "deleting" | "failed" => THEME.error,
+            _ => THEME.muted,
         }
     }
 }

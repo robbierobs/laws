@@ -69,7 +69,7 @@ pub enum Message {
     // Async results
     // DataLoaded(ServiceData),
     // ActionCompleted(ActionResult),
-    Error(String),
+
 
     // UI
     ToggleDetailPanel,
@@ -736,7 +736,7 @@ impl App {
                     self.selected_iam_entity_name = None;
                     self.iam_list_state.select(Some(0));
                 }
-                _ => {}
+
             }
         })
     }
@@ -1562,7 +1562,7 @@ impl App {
                     Message::RebootRdsInstance(id) => format!("Reboot RDS Instance {}", id),
                     _ => "Unknown Action".to_string(),
                 };
-                crate::ui::components::modal::render_confirmation_modal(frame, frame.size(), &description);
+                crate::ui::components::modal::render_confirmation_modal(frame, frame.area(), &description);
             }
         }
     }

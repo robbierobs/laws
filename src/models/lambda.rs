@@ -80,13 +80,13 @@ impl LambdaFunction {
     }
     
     pub fn state_color(&self) -> ratatui::style::Color {
-        use ratatui::style::Color;
+        use crate::ui::theme::THEME;
         match self.state.as_deref().unwrap_or("Unknown").to_uppercase().as_str() {
-            "ACTIVE" => Color::Green,
-            "PENDING" => Color::Yellow,
-            "INACTIVE" => Color::Gray,
-            "FAILED" => Color::Red,
-            _ => Color::Gray,
+            "ACTIVE" => THEME.success,
+            "PENDING" => THEME.warning,
+            "INACTIVE" => THEME.muted,
+            "FAILED" => THEME.error,
+            _ => THEME.muted,
         }
     }
 

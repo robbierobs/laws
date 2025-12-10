@@ -34,11 +34,11 @@ impl Vpc {
     }
 
     pub fn state_color(&self) -> ratatui::style::Color {
-        use ratatui::style::Color;
+        use crate::ui::theme::THEME;
         match self.state.to_lowercase().as_str() {
-            "available" => Color::Green,
-            "pending" => Color::Yellow,
-            _ => Color::Gray,
+            "available" => THEME.success,
+            "pending" => THEME.warning,
+            _ => THEME.muted,
         }
     }
 }

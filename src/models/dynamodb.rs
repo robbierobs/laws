@@ -52,13 +52,13 @@ pub struct LocalSecondaryIndex {
 
 impl DynamoDbTable {
     pub fn status_color(&self) -> ratatui::style::Color {
-        use ratatui::style::Color;
+        use crate::ui::theme::THEME;
         match self.table_status.to_uppercase().as_str() {
-            "ACTIVE" => Color::Green,
-            "CREATING" | "UPDATING" => Color::Yellow,
-            "DELETING" => Color::Red,
-            "INACCESSIBLE_ENCRYPTION_CREDENTIALS" | "ARCHIVING" | "ARCHIVED" => Color::LightRed,
-            _ => Color::Gray,
+            "ACTIVE" => THEME.success,
+            "CREATING" | "UPDATING" => THEME.warning,
+            "DELETING" => THEME.error,
+            "INACCESSIBLE_ENCRYPTION_CREDENTIALS" | "ARCHIVING" | "ARCHIVED" => THEME.error,
+            _ => THEME.muted,
         }
     }
 

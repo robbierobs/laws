@@ -73,12 +73,12 @@ impl BackupJob {
     }
 
     pub fn state_color(&self) -> ratatui::style::Color {
-        use ratatui::style::Color;
+        use crate::ui::theme::THEME;
         match self.state.to_uppercase().as_str() {
-            "COMPLETED" => Color::Green,
-            "RUNNING" | "PENDING" | "CREATED" => Color::Yellow,
-            "FAILED" | "ABORTED" | "EXPIRED" => Color::Red,
-            _ => Color::Gray,
+            "COMPLETED" => THEME.success,
+            "RUNNING" | "PENDING" | "CREATED" => THEME.warning,
+            "FAILED" | "ABORTED" | "EXPIRED" => THEME.error,
+            _ => THEME.muted,
         }
     }
 }
