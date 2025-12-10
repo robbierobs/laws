@@ -76,7 +76,7 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("CloudTrail Trails (Tab to switch view)")
+        .title("CloudTrail Trails (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -256,7 +256,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("CloudTrail Events (Tab to switch view)")
+        .title("CloudTrail Events (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)

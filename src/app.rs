@@ -74,6 +74,8 @@ pub enum Message {
     // UI
     ToggleDetailPanel,
     CycleViewMode,
+    NextView,
+    PreviousView,
     Quit,
 
     // VPC Specific
@@ -543,7 +545,7 @@ impl App {
                 Message::ToggleDetailPanel => {
                     self.detail_panel_visible = !self.detail_panel_visible;
                 }
-                Message::CycleViewMode => {
+                Message::CycleViewMode | Message::NextView => {
                     match self.current_service {
                         Service::Backup => {
                             self.backup_view_mode = (self.backup_view_mode + 1) % 3;
@@ -559,6 +561,27 @@ impl App {
                         }
                         Service::IAM => {
                             self.iam_view_mode = (self.iam_view_mode + 1) % 3;
+                            self.iam_list_state.select(None);
+                        }
+                        _ => {}
+                    }
+                }
+                Message::PreviousView => {
+                    match self.current_service {
+                        Service::Backup => {
+                            self.backup_view_mode = (self.backup_view_mode + 3 - 1) % 3;
+                            self.backup_list_state.select(None);
+                        }
+                        Service::CloudTrail => {
+                            self.cloudtrail_view_mode = (self.cloudtrail_view_mode + 2 - 1) % 2;
+                            self.cloudtrail_list_state.select(None);
+                        }
+                        Service::VPC => {
+                            self.vpc_view_mode = (self.vpc_view_mode + 3 - 1) % 3;
+                            self.vpc_list_state.select(None);
+                        }
+                        Service::IAM => {
+                            self.iam_view_mode = (self.iam_view_mode + 3 - 1) % 3;
                             self.iam_list_state.select(None);
                         }
                         _ => {}
@@ -844,6 +867,43 @@ impl App {
                         }
                         _ => {}
                     }
+                }
+
+                // Handle Left/Right or h/l for view navigation
+                match key.code {
+                    KeyCode::Right | KeyCode::Char('l') => {
+                         match self.current_service {
+                            Service::Backup | Service::CloudTrail => return Some(Message::NextView),
+                            Service::VPC => {
+                                if self.vpc_view_mode != 3 {
+                                    return Some(Message::NextView);
+                                }
+                            }
+                            Service::IAM => {
+                                if self.iam_view_mode < 3 {
+                                    return Some(Message::NextView);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Left | KeyCode::Char('h') => {
+                         match self.current_service {
+                            Service::Backup | Service::CloudTrail => return Some(Message::PreviousView),
+                            Service::VPC => {
+                                if self.vpc_view_mode != 3 {
+                                    return Some(Message::PreviousView);
+                                }
+                            }
+                            Service::IAM => {
+                                if self.iam_view_mode < 3 {
+                                    return Some(Message::PreviousView);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
                 }
 
                 match self.current_service {

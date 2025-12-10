@@ -80,7 +80,7 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Backup Vaults (Tab to switch view)")
+        .title("Backup Vaults (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -210,7 +210,7 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Backup Plans (Tab to switch view)")
+        .title("Backup Plans (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -335,7 +335,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Backup Jobs (Tab to switch view)")
+        .title("Backup Jobs (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)

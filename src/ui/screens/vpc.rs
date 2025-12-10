@@ -93,7 +93,7 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("VPCs (Press 'v' to switch view)")
+        .title("VPCs (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -159,7 +159,7 @@ fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Subnets (Press 'v' to switch view)")
+        .title("Subnets (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -220,7 +220,7 @@ fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("Security Groups (Press 'v' to switch view)")
+        .title("Security Groups (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)

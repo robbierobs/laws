@@ -101,7 +101,7 @@ fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("IAM Users (Tab to switch view)")
+        .title("IAM Users (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -230,7 +230,7 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("IAM Roles (Tab to switch view)")
+        .title("IAM Roles (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
@@ -366,7 +366,7 @@ fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .title("IAM Policies (Tab to switch view)")
+        .title("IAM Policies (v/h/l to switch view)")
         .title_style(Style::default().fg(THEME.primary))
         .border_style(if matches!(app.focus, crate::app::Focus::Main) {
             Style::default().fg(THEME.secondary)
