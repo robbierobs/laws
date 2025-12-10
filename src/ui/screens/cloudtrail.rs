@@ -50,7 +50,15 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.cloudtrail_trails.iter().map(|trail| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.cloudtrail_trails.iter()
+        .filter(|t| {
+            if filter.is_empty() { return true; }
+            let name = t.name.to_lowercase();
+            let bucket = t.s3_bucket_name.as_deref().unwrap_or("").to_lowercase();
+            name.contains(&filter) || bucket.contains(&filter)
+        })
+        .map(|trail| {
         let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
         let region = trail.home_region.clone().unwrap_or_else(|| "-".to_string());
         
@@ -65,6 +73,15 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("CloudTrail Trails (Tab to switch view)")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -76,7 +93,7 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("CloudTrail Trails (Tab to switch view)"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.cloudtrail_list_state);
@@ -207,7 +224,16 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.cloudtrail_events.iter().map(|event| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.cloudtrail_events.iter()
+        .filter(|e| {
+            if filter.is_empty() { return true; }
+            let name = e.event_name.as_deref().unwrap_or("").to_lowercase();
+            let source = e.event_source.as_deref().unwrap_or("").to_lowercase();
+            let user = e.username.as_deref().unwrap_or("").to_lowercase();
+            name.contains(&filter) || source.contains(&filter) || user.contains(&filter)
+        })
+        .map(|event| {
         let time = event.event_time.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
             .unwrap_or_else(|| "-".to_string());
@@ -223,6 +249,15 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("CloudTrail Events (Tab to switch view)")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -234,7 +269,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("CloudTrail Events (Tab to switch view)"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.cloudtrail_list_state);

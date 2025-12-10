@@ -26,7 +26,16 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.vpcs.iter().map(|vpc| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.vpcs.iter()
+        .filter(|v| {
+            if filter.is_empty() { return true; }
+            let id = v.vpc_id.to_lowercase();
+            let name = v.name.as_deref().unwrap_or("").to_lowercase();
+            let cidr = v.cidr_block.as_deref().unwrap_or("").to_lowercase();
+            id.contains(&filter) || name.contains(&filter) || cidr.contains(&filter)
+        })
+        .map(|vpc| {
         let state_color = vpc.state_color();
         let name = vpc.name.clone().unwrap_or_else(|| "-".to_string());
         let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
@@ -44,6 +53,15 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("VPCs")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -56,7 +74,7 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("VPCs"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.vpc_list_state);

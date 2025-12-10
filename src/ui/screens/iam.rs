@@ -26,7 +26,15 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.iam_roles.iter().map(|role| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.iam_roles.iter()
+        .filter(|r| {
+            if filter.is_empty() { return true; }
+            let name = r.role_name.to_lowercase();
+            let id = r.role_id.to_lowercase();
+            name.contains(&filter) || id.contains(&filter)
+        })
+        .map(|role| {
         let path = role.path.clone().unwrap_or_else(|| "/".to_string());
         let created = role.create_date.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
@@ -46,6 +54,15 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("IAM Roles")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -57,7 +74,7 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("IAM Roles"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.iam_list_state);

@@ -26,7 +26,15 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.rds_instances.iter().map(|instance| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.rds_instances.iter()
+        .filter(|i| {
+            if filter.is_empty() { return true; }
+            let id = i.db_instance_identifier.to_lowercase();
+            let engine = i.engine.to_lowercase();
+            id.contains(&filter) || engine.contains(&filter)
+        })
+        .map(|instance| {
         let status_color = instance.status_color();
         
         let cells = vec![
@@ -44,6 +52,15 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("RDS Instances")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -56,7 +73,7 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("RDS Instances"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.rds_list_state);

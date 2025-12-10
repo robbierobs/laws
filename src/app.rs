@@ -96,6 +96,12 @@ pub enum Focus {
     Main,
 }
 
+#[derive(PartialEq)]
+pub enum InputMode {
+    Normal,
+    Filtering,
+}
+
 use crate::aws::client::AwsClients;
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
@@ -115,6 +121,8 @@ pub struct App {
     pub current_service: Service,
     pub sidebar: Sidebar,
     pub focus: Focus,
+    pub input_mode: InputMode,
+    pub filter_input: String,
     pub aws_clients: Option<AwsClients>,
     pub profile: Option<String>,
     pub region: String,
@@ -167,6 +175,8 @@ impl App {
             current_service: Service::EC2,
             sidebar: Sidebar::new(),
             focus: Focus::Sidebar,
+            input_mode: InputMode::Normal,
+            filter_input: String::new(),
             aws_clients,
             profile,
             region,
@@ -544,9 +554,52 @@ impl App {
         })
     }
 
+    fn reset_selection(&mut self) {
+        match self.current_service {
+            Service::EC2 => self.ec2_list_state.select(Some(0)),
+            Service::S3 => {
+                if self.current_bucket.is_some() {
+                    self.s3_object_list_state.select(Some(0));
+                } else {
+                    self.s3_list_state.select(Some(0));
+                }
+            }
+            Service::RDS => self.rds_list_state.select(Some(0)),
+            Service::DynamoDB => self.dynamodb_list_state.select(Some(0)),
+            Service::Lambda => self.lambda_list_state.select(Some(0)),
+            Service::VPC => self.vpc_list_state.select(Some(0)),
+            Service::IAM => self.iam_list_state.select(Some(0)),
+            Service::Backup => self.backup_list_state.select(Some(0)),
+            Service::CloudTrail => self.cloudtrail_list_state.select(Some(0)),
+        }
+    }
+
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Message> {
         // Clear any error message on keypress
         self.error_message = None;
+
+        if self.input_mode == InputMode::Filtering {
+            match key.code {
+                KeyCode::Enter => {
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.filter_input.clear();
+                    self.reset_selection();
+                }
+                KeyCode::Backspace => {
+                    self.filter_input.pop();
+                    self.reset_selection();
+                }
+                KeyCode::Char(c) => {
+                    self.filter_input.push(c);
+                    self.reset_selection();
+                }
+                _ => {}
+            }
+            return None;
+        }
         
         if key.code == KeyCode::Tab {
             self.toggle_focus();
@@ -561,6 +614,13 @@ impl App {
                 }
             }
             Focus::Main => {
+                if key.code == KeyCode::Char('/') {
+                    self.input_mode = InputMode::Filtering;
+                    self.filter_input.clear();
+                    self.reset_selection();
+                    return None;
+                }
+
                 if key.code == KeyCode::Char('v') {
                     match self.current_service {
                         Service::Backup | Service::CloudTrail => return Some(Message::CycleViewMode),
@@ -998,6 +1058,74 @@ impl App {
             Focus::Sidebar => {
                 self.focus = Focus::Main;
                 self.sidebar.is_focused = false;
+                
+                // Auto-select first item if nothing selected
+                match self.current_service {
+                    Service::EC2 => {
+                        if self.ec2_list_state.selected().is_none() && !self.ec2_instances.is_empty() {
+                            self.ec2_list_state.select(Some(0));
+                        }
+                    }
+                    Service::S3 => {
+                        if self.current_bucket.is_some() {
+                            if self.s3_object_list_state.selected().is_none() && !self.s3_objects.is_empty() {
+                                self.s3_object_list_state.select(Some(0));
+                            }
+                        } else if self.s3_list_state.selected().is_none() && !self.s3_buckets.is_empty() {
+                            self.s3_list_state.select(Some(0));
+                        }
+                    }
+                    Service::RDS => {
+                        if self.rds_list_state.selected().is_none() && !self.rds_instances.is_empty() {
+                            self.rds_list_state.select(Some(0));
+                        }
+                    }
+                    Service::DynamoDB => {
+                        if self.dynamodb_list_state.selected().is_none() && !self.dynamodb_tables.is_empty() {
+                            self.dynamodb_list_state.select(Some(0));
+                        }
+                    }
+                    Service::Lambda => {
+                        if self.lambda_list_state.selected().is_none() && !self.lambda_functions.is_empty() {
+                            self.lambda_list_state.select(Some(0));
+                        }
+                    }
+                    Service::VPC => {
+                        if self.vpc_list_state.selected().is_none() && !self.vpcs.is_empty() {
+                            self.vpc_list_state.select(Some(0));
+                        }
+                    }
+                    Service::IAM => {
+                        if self.iam_list_state.selected().is_none() && !self.iam_roles.is_empty() {
+                            self.iam_list_state.select(Some(0));
+                        }
+                    }
+                    Service::Backup => {
+                        if self.backup_list_state.selected().is_none() {
+                            let has_items = match self.backup_view_mode {
+                                0 => !self.backup_vaults.is_empty(),
+                                1 => !self.backup_plans.is_empty(),
+                                2 => !self.backup_jobs.is_empty(),
+                                _ => false,
+                            };
+                            if has_items {
+                                self.backup_list_state.select(Some(0));
+                            }
+                        }
+                    }
+                    Service::CloudTrail => {
+                        if self.cloudtrail_list_state.selected().is_none() {
+                            let has_items = match self.cloudtrail_view_mode {
+                                0 => !self.cloudtrail_trails.is_empty(),
+                                1 => !self.cloudtrail_events.is_empty(),
+                                _ => false,
+                            };
+                            if has_items {
+                                self.cloudtrail_list_state.select(Some(0));
+                            }
+                        }
+                    }
+                }
             }
             Focus::Main => {
                 self.focus = Focus::Sidebar;

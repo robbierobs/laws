@@ -56,7 +56,13 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.backup_vaults.iter().map(|vault| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.backup_vaults.iter()
+        .filter(|v| {
+            if filter.is_empty() { return true; }
+            v.backup_vault_name.to_lowercase().contains(&filter)
+        })
+        .map(|vault| {
         let created = vault.creation_date.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
             .unwrap_or_else(|| "-".to_string());
@@ -71,6 +77,15 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Backup Vaults (Tab to switch view)")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -81,7 +96,7 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("Backup Vaults (Tab to switch view)"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.backup_list_state);
@@ -164,7 +179,15 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.backup_plans.iter().map(|plan| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.backup_plans.iter()
+        .filter(|p| {
+            if filter.is_empty() { return true; }
+            let name = p.backup_plan_name.to_lowercase();
+            let id = p.backup_plan_id.to_lowercase();
+            name.contains(&filter) || id.contains(&filter)
+        })
+        .map(|plan| {
         let last_exec = plan.last_execution_date.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
             .unwrap_or_else(|| "-".to_string());
@@ -179,6 +202,15 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Backup Plans (Tab to switch view)")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -189,7 +221,7 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("Backup Plans (Tab to switch view)"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.backup_list_state);
@@ -265,7 +297,15 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.backup_jobs.iter().map(|job| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.backup_jobs.iter()
+        .filter(|j| {
+            if filter.is_empty() { return true; }
+            let id = j.backup_job_id.to_lowercase();
+            let resource = j.resource_type.as_deref().unwrap_or("").to_lowercase();
+            id.contains(&filter) || resource.contains(&filter)
+        })
+        .map(|job| {
         let state_color = job.state_color();
         let created = job.creation_date.clone()
             .map(|d| d.split('T').next().unwrap_or(&d).to_string())
@@ -282,6 +322,15 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Backup Jobs (Tab to switch view)")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -293,7 +342,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("Backup Jobs (Tab to switch view)"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.backup_list_state);

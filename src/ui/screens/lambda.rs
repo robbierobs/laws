@@ -26,7 +26,15 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.lambda_functions.iter().map(|func| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.lambda_functions.iter()
+        .filter(|f| {
+            if filter.is_empty() { return true; }
+            let name = f.function_name.to_lowercase();
+            let runtime = f.runtime.as_deref().unwrap_or("").to_lowercase();
+            name.contains(&filter) || runtime.contains(&filter)
+        })
+        .map(|func| {
         let state_color = func.state_color();
         let runtime = func.runtime.clone().unwrap_or_else(|| "-".to_string());
         let memory = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
@@ -45,6 +53,15 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Lambda Functions")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -57,7 +74,7 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("Lambda Functions"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.lambda_list_state);

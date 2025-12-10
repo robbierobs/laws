@@ -31,7 +31,13 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.s3_buckets.iter().map(|bucket| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.s3_buckets.iter()
+        .filter(|b| {
+            if filter.is_empty() { return true; }
+            b.name.to_lowercase().contains(&filter)
+        })
+        .map(|bucket| {
         let cells = vec![
             Cell::from(bucket.name.clone()),
             Cell::from(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
@@ -40,6 +46,15 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
         
         Row::new(cells).height(1)
     });
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("S3 Buckets")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
 
     let t = Table::new(
         rows,
@@ -50,7 +65,7 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("S3 Buckets"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.s3_list_state);
@@ -165,7 +180,13 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.s3_objects.iter().map(|obj| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.s3_objects.iter()
+        .filter(|o| {
+            if filter.is_empty() { return true; }
+            o.key.to_lowercase().contains(&filter)
+        })
+        .map(|obj| {
         let cells = vec![
             Cell::from(obj.key.clone()),
             Cell::from(format_size(obj.size)),
@@ -175,6 +196,15 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
         
         Row::new(cells).height(1)
     });
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!("Objects in {}", bucket_name))
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
 
     let t = Table::new(
         rows,
@@ -186,7 +216,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(format!("Objects in {}", bucket_name)))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.s3_object_list_state);

@@ -30,10 +30,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let profile_str = app.profile.as_deref().unwrap_or("default");
     let aws_info = format!("[{}@{}]", profile_str, app.region);
     
+    let filter_status = if !app.filter_input.is_empty() {
+        format!(" [Filter: {}]", app.filter_input)
+    } else {
+        String::new()
+    };
+
     let header_text = if let Some(ref err) = app.error_message {
         format!("LazyAWS - {:?} {} | Error: {}", app.current_service, aws_info, err)
     } else {
-        format!("LazyAWS - {:?} {}{}", app.current_service, aws_info, status)
+        format!("LazyAWS - {:?} {}{}{}", app.current_service, aws_info, status, filter_status)
     };
     
     let header_style = if app.error_message.is_some() {
@@ -104,7 +110,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         }
     }
 
-    // Footer / Action Bar
-    crate::ui::components::action_bar::render(frame, chunks[2], app);
+    // Footer / Action Bar / Filter Input
+    if app.input_mode == crate::app::InputMode::Filtering {
+        let input = Paragraph::new(format!("/{}", app.filter_input))
+            .style(Style::default().fg(Color::Yellow))
+            .block(Block::default().borders(Borders::ALL).title("Filter"));
+        frame.render_widget(input, chunks[2]);
+    } else {
+        crate::ui::components::action_bar::render(frame, chunks[2], app);
+    }
 }
 

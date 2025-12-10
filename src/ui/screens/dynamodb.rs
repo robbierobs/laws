@@ -26,7 +26,13 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.dynamodb_tables.iter().map(|table| {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.dynamodb_tables.iter()
+        .filter(|t| {
+            if filter.is_empty() { return true; }
+            t.table_name.to_lowercase().contains(&filter)
+        })
+        .map(|table| {
         let status_color = table.status_color();
         let pk_str = table.partition_key.as_ref()
             .map(|pk| format!("{} ({})", pk.name, pk.attribute_type))
@@ -46,6 +52,15 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("DynamoDB Tables")
+        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default()
+        });
+
     let t = Table::new(
         rows,
         [
@@ -58,7 +73,7 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
         ]
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title("DynamoDB Tables"))
+    .block(block)
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.dynamodb_list_state);
