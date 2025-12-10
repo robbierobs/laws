@@ -87,6 +87,12 @@ pub enum Message {
     // VPC Specific
     DrillDownSecurityGroup,
     ExitSecurityGroupRules,
+
+    // IAM Specific
+    DrillDownIamUser,
+    DrillDownIamRole,
+    DrillDownIamPolicy,
+    ExitIamDrillDown,
 }
 
 use crate::ui::components::sidebar::Sidebar;
@@ -111,7 +117,7 @@ use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
-use crate::models::iam::IamRole;
+use crate::models::iam::{IamRole, IamUser, IamPolicy};
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails};
@@ -163,7 +169,13 @@ pub struct App {
     pub selected_sg_id: Option<String>,
     // IAM state
     pub iam_roles: Vec<IamRole>,
+    pub iam_users: Vec<IamUser>,
+    pub iam_policies: Vec<IamPolicy>,
     pub iam_list_state: TableState,
+    pub iam_view_mode: u8, // 0=Users, 1=Roles, 2=Policies, 3=UserPolicies, 4=RolePolicies, 5=PolicyDocument
+    pub current_iam_policies: Vec<IamPolicy>,
+    pub current_policy_document: String,
+    pub selected_iam_entity_name: Option<String>,
     // Backup state
     pub backup_vaults: Vec<BackupVault>,
     pub backup_plans: Vec<BackupPlan>,
@@ -216,7 +228,13 @@ impl App {
             current_sg_rules: Vec::new(),
             selected_sg_id: None,
             iam_roles: Vec::new(),
+            iam_users: Vec::new(),
+            iam_policies: Vec::new(),
             iam_list_state: TableState::default(),
+            iam_view_mode: 0,
+            current_iam_policies: Vec::new(),
+            current_policy_document: String::new(),
+            selected_iam_entity_name: None,
             backup_vaults: Vec::new(),
             backup_plans: Vec::new(),
             backup_jobs: Vec::new(),
@@ -347,13 +365,23 @@ impl App {
                                 let tx = event_tx.clone();
                                 tokio::spawn(async move {
                                     let service = crate::aws::iam::IamService::new(client);
+                                    
+                                    // Fetch Users
+                                    match service.list_users().await {
+                                        Ok(users) => { tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+
+                                    // Fetch Roles
                                     match service.list_roles().await {
-                                        Ok(roles) => {
-                                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles))).ok();
-                                        }
-                                        Err(e) => {
-                                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
-                                        }
+                                        Ok(roles) => { tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+
+                                    // Fetch Policies
+                                    match service.list_policies().await {
+                                        Ok(policies) => { tx.send(Event::Aws(AwsEvent::IamPoliciesLoaded(policies))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                                     }
                                 });
                             }
@@ -519,6 +547,10 @@ impl App {
                             self.vpc_view_mode = (self.vpc_view_mode + 1) % 3;
                             self.vpc_list_state.select(None);
                         }
+                        Service::IAM => {
+                            self.iam_view_mode = (self.iam_view_mode + 1) % 3;
+                            self.iam_list_state.select(None);
+                        }
                         _ => {}
                     }
                 }
@@ -602,6 +634,98 @@ impl App {
                     self.current_sg_rules.clear();
                     self.vpc_list_state.select(Some(0));
                 }
+                Message::DrillDownIamUser => {
+                    if let Some(idx) = self.iam_list_state.selected() {
+                        if let Some(user) = self.iam_users.get(idx) {
+                            if let Some(clients) = &self.aws_clients {
+                                self.selected_iam_entity_name = Some(user.user_name.clone());
+                                self.loading = true;
+                                let client = clients.iam.clone();
+                                let tx = event_tx.clone();
+                                let name = user.user_name.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::iam::IamService::new(client);
+                                    match service.list_attached_user_policies(&name).await {
+                                        Ok(policies) => { tx.send(Event::Aws(AwsEvent::IamUserPoliciesLoaded(policies))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                Message::DrillDownIamRole => {
+                    if let Some(idx) = self.iam_list_state.selected() {
+                        if let Some(role) = self.iam_roles.get(idx) {
+                            if let Some(clients) = &self.aws_clients {
+                                self.selected_iam_entity_name = Some(role.role_name.clone());
+                                self.loading = true;
+                                let client = clients.iam.clone();
+                                let tx = event_tx.clone();
+                                let name = role.role_name.clone();
+                                tokio::spawn(async move {
+                                    let service = crate::aws::iam::IamService::new(client);
+                                    match service.list_attached_role_policies(&name).await {
+                                        Ok(policies) => { tx.send(Event::Aws(AwsEvent::IamRolePoliciesLoaded(policies))).ok(); }
+                                        Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                Message::DrillDownIamPolicy => {
+                    if let Some(idx) = self.iam_list_state.selected() {
+                        // Check if we are in main policy list or attached policy list
+                        let policy = if self.iam_view_mode == 2 {
+                            self.iam_policies.get(idx)
+                        } else {
+                            self.current_iam_policies.get(idx)
+                        };
+
+                        if let Some(p) = policy {
+                            if let Some(arn) = &p.arn {
+                                if let Some(clients) = &self.aws_clients {
+                                    self.selected_iam_entity_name = Some(p.policy_name.clone());
+                                    self.loading = true;
+                                    let client = clients.iam.clone();
+                                    let tx = event_tx.clone();
+                                    let arn = arn.clone();
+                                    tokio::spawn(async move {
+                                        let service = crate::aws::iam::IamService::new(client);
+                                        match service.get_policy_version(&arn).await {
+                                            Ok(doc) => { tx.send(Event::Aws(AwsEvent::IamPolicyDocumentLoaded(doc))).ok(); }
+                                            Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                Message::ExitIamDrillDown => {
+                    match self.iam_view_mode {
+                        3 => self.iam_view_mode = 0, // Back to Users
+                        4 => self.iam_view_mode = 1, // Back to Roles
+                        5 => {
+                            // If we came from main policy list (2) or attached lists (3/4), we need to know where to go back.
+                            // For simplicity, if we are in 5, we go back to 2 if we were in 2.
+                            // But wait, we can drill down from 3 or 4 too?
+                            // Let's assume for now we only drill down from 2.
+                            // If we want to support drilling down from attached policies, we need a history stack or separate modes.
+                            // Let's stick to simple: 5 goes back to 2.
+                            // If we drilled down from 3 or 4, we might want to go back there.
+                            // Let's just go back to 2 for now, or maybe we can check selected_iam_entity_name?
+                            // Actually, let's just use a simple logic:
+                            self.iam_view_mode = 2; 
+                        }
+                        _ => {}
+                    }
+                    self.current_iam_policies.clear();
+                    self.current_policy_document.clear();
+                    self.selected_iam_entity_name = None;
+                    self.iam_list_state.select(Some(0));
+                }
                 _ => {}
             }
         })
@@ -679,6 +803,11 @@ impl App {
                         Service::Backup | Service::CloudTrail => return Some(Message::CycleViewMode),
                         Service::VPC => {
                             if self.vpc_view_mode != 3 {
+                                return Some(Message::CycleViewMode);
+                            }
+                        }
+                        Service::IAM => {
+                            if self.iam_view_mode < 3 {
                                 return Some(Message::CycleViewMode);
                             }
                         }
@@ -1014,10 +1143,18 @@ impl App {
                     Service::IAM => {
                         match key.code {
                             KeyCode::Down | KeyCode::Char('j') => {
-                                if !self.iam_roles.is_empty() {
+                                let len = match self.iam_view_mode {
+                                    0 => self.iam_users.len(),
+                                    1 => self.iam_roles.len(),
+                                    2 => self.iam_policies.len(),
+                                    3 => self.current_iam_policies.len(),
+                                    4 => self.current_iam_policies.len(),
+                                    _ => 0, // 5 is document view, no list nav
+                                };
+                                if len > 0 {
                                     let i = match self.iam_list_state.selected() {
                                         Some(i) => {
-                                            if i >= self.iam_roles.len() - 1 { 0 } else { i + 1 }
+                                            if i >= len - 1 { 0 } else { i + 1 }
                                         }
                                         None => 0,
                                     };
@@ -1025,14 +1162,35 @@ impl App {
                                 }
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
-                                if !self.iam_roles.is_empty() {
+                                let len = match self.iam_view_mode {
+                                    0 => self.iam_users.len(),
+                                    1 => self.iam_roles.len(),
+                                    2 => self.iam_policies.len(),
+                                    3 => self.current_iam_policies.len(),
+                                    4 => self.current_iam_policies.len(),
+                                    _ => 0,
+                                };
+                                if len > 0 {
                                     let i = match self.iam_list_state.selected() {
                                         Some(i) => {
-                                            if i == 0 { self.iam_roles.len() - 1 } else { i - 1 }
+                                            if i == 0 { len - 1 } else { i - 1 }
                                         }
                                         None => 0,
                                     };
                                     self.iam_list_state.select(Some(i));
+                                }
+                            }
+                            KeyCode::Enter => {
+                                match self.iam_view_mode {
+                                    0 => return Some(Message::DrillDownIamUser),
+                                    1 => return Some(Message::DrillDownIamRole),
+                                    2 => return Some(Message::DrillDownIamPolicy),
+                                    _ => {}
+                                }
+                            }
+                            KeyCode::Esc => {
+                                if self.iam_view_mode >= 3 {
+                                    return Some(Message::ExitIamDrillDown);
                                 }
                             }
                             _ => {}
@@ -1187,8 +1345,18 @@ impl App {
                         }
                     }
                     Service::IAM => {
-                        if self.iam_list_state.selected().is_none() && !self.iam_roles.is_empty() {
-                            self.iam_list_state.select(Some(0));
+                        if self.iam_list_state.selected().is_none() {
+                            let has_items = match self.iam_view_mode {
+                                0 => !self.iam_users.is_empty(),
+                                1 => !self.iam_roles.is_empty(),
+                                2 => !self.iam_policies.is_empty(),
+                                3 => !self.current_iam_policies.is_empty(),
+                                4 => !self.current_iam_policies.is_empty(),
+                                _ => false,
+                            };
+                            if has_items {
+                                self.iam_list_state.select(Some(0));
+                            }
                         }
                     }
                     Service::Backup => {
@@ -1265,6 +1433,31 @@ impl App {
             }
             AwsEvent::IamRolesLoaded(roles) => {
                 self.iam_roles = roles;
+                self.loading = false;
+            }
+            AwsEvent::IamUsersLoaded(users) => {
+                self.iam_users = users;
+                self.loading = false;
+            }
+            AwsEvent::IamPoliciesLoaded(policies) => {
+                self.iam_policies = policies;
+                self.loading = false;
+            }
+            AwsEvent::IamUserPoliciesLoaded(policies) => {
+                self.current_iam_policies = policies;
+                self.iam_view_mode = 3;
+                self.iam_list_state.select(Some(0));
+                self.loading = false;
+            }
+            AwsEvent::IamRolePoliciesLoaded(policies) => {
+                self.current_iam_policies = policies;
+                self.iam_view_mode = 4;
+                self.iam_list_state.select(Some(0));
+                self.loading = false;
+            }
+            AwsEvent::IamPolicyDocumentLoaded(doc) => {
+                self.current_policy_document = doc;
+                self.iam_view_mode = 5;
                 self.loading = false;
             }
             AwsEvent::BackupVaultsLoaded(vaults) => {

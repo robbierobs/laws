@@ -12,7 +12,7 @@ use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 use crate::models::dynamodb::DynamoDbTable;
 use crate::models::ec2::Ec2Instance;
-use crate::models::iam::IamRole;
+use crate::models::iam::{IamRole, IamUser, IamPolicy};
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
@@ -31,6 +31,11 @@ pub enum AwsEvent {
     SubnetsLoaded(Vec<Subnet>),
     SecurityGroupsLoaded(Vec<SecurityGroup>),
     IamRolesLoaded(Vec<IamRole>),
+    IamUsersLoaded(Vec<IamUser>),
+    IamPoliciesLoaded(Vec<IamPolicy>),
+    IamUserPoliciesLoaded(Vec<IamPolicy>),
+    IamRolePoliciesLoaded(Vec<IamPolicy>),
+    IamPolicyDocumentLoaded(String),
     BackupVaultsLoaded(Vec<BackupVault>),
     BackupPlansLoaded(Vec<BackupPlan>),
     BackupJobsLoaded(Vec<BackupJob>),
