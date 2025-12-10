@@ -9,15 +9,29 @@ use crate::app::App;
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    use ratatui::layout::{Layout, Direction};
+    
+    // Split list area for tabs
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Tabs
+            Constraint::Min(0),    // List
+        ])
+        .split(list_area);
+
+    let tabs = ["Trails", "Events"];
+    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.cloudtrail_view_mode as usize);
+
     match app.cloudtrail_view_mode {
         0 => {
-            render_trail_list(frame, list_area, app);
+            render_trail_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_trail_details(frame, area, app);
             }
         }
         1 => {
-            render_event_list(frame, list_area, app);
+            render_event_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_event_details(frame, area, app);
             }

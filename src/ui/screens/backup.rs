@@ -9,21 +9,35 @@ use crate::app::App;
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    use ratatui::layout::{Layout, Direction};
+    
+    // Split list area for tabs
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Tabs
+            Constraint::Min(0),    // List
+        ])
+        .split(list_area);
+
+    let tabs = ["Vaults", "Plans", "Jobs"];
+    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.backup_view_mode as usize);
+
     match app.backup_view_mode {
         0 => {
-            render_vault_list(frame, list_area, app);
+            render_vault_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_vault_details(frame, area, app);
             }
         }
         1 => {
-            render_plan_list(frame, list_area, app);
+            render_plan_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_plan_details(frame, area, app);
             }
         }
         2 => {
-            render_job_list(frame, list_area, app);
+            render_job_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_job_details(frame, area, app);
             }
