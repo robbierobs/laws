@@ -25,9 +25,9 @@ pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_descripti
         Line::from(""),
         Line::from(vec![
             Span::styled("Press ", Style::default().fg(THEME.muted)),
-            Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+            Span::styled("y", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
             Span::styled(" to confirm or ", Style::default().fg(THEME.muted)),
-            Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+            Span::styled("n/Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
             Span::styled(" to cancel.", Style::default().fg(THEME.muted)),
         ]),
     ];

@@ -860,8 +860,8 @@ impl App {
         // Handle confirmation modal
         if self.show_confirmation {
             match key.code {
-                KeyCode::Enter | KeyCode::Char('y') => return Some(Message::ConfirmAction),
-                KeyCode::Esc | KeyCode::Char('n') => return Some(Message::CancelAction),
+                KeyCode::Char('y') | KeyCode::Char('Y') => return Some(Message::ConfirmAction),
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => return Some(Message::CancelAction),
                 _ => return None,
             }
         }
