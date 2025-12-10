@@ -45,8 +45,16 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Determine the actual profile and region being used
+    let profile = args.profile.clone()
+        .or_else(|| std::env::var("AWS_PROFILE").ok());
+    let region = args.region.clone()
+        .or_else(|| std::env::var("AWS_REGION").ok())
+        .or_else(|| std::env::var("AWS_DEFAULT_REGION").ok())
+        .unwrap_or_else(|| "us-east-1".to_string());
+
     // Create app state
-    let mut app = App::new(aws_clients);
+    let mut app = App::new(aws_clients, profile, region);
 
     // Create event handler
     let mut events = EventHandler::new(250); // 250ms tick rate
@@ -64,6 +72,12 @@ async fn main() -> anyhow::Result<()> {
         if let Some(event) = events.next().await {
             match event {
                 Event::Key(key) => {
+                    // Handle Ctrl-C to quit
+                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) 
+                        && key.code == crossterm::event::KeyCode::Char('c') 
+                    {
+                        break;
+                    }
                     if let Some(msg) = app.handle_key(key) {
                         app.update(msg, event_tx.clone()).await;
                     }

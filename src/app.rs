@@ -102,6 +102,8 @@ pub struct App {
     pub sidebar: Sidebar,
     pub focus: Focus,
     pub aws_clients: Option<AwsClients>,
+    pub profile: Option<String>,
+    pub region: String,
     pub ec2_instances: Vec<Ec2Instance>,
     pub ec2_list_state: TableState,
     pub s3_buckets: Vec<S3Bucket>,
@@ -115,13 +117,15 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(aws_clients: Option<AwsClients>) -> Self {
+    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String) -> Self {
         Self {
             should_quit: false,
             current_service: Service::EC2,
             sidebar: Sidebar::new(),
             focus: Focus::Sidebar,
             aws_clients,
+            profile,
+            region,
             ec2_instances: Vec::new(),
             ec2_list_state: TableState::default(),
             s3_buckets: Vec::new(),
@@ -431,7 +435,7 @@ impl App {
         
         // Global keys
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => Some(Message::Quit),
+            KeyCode::Char('q') => Some(Message::Quit),
             KeyCode::Char('1') => Some(Message::NavigateToService(Service::EC2)),
             KeyCode::Char('2') => Some(Message::NavigateToService(Service::S3)),
             KeyCode::Char('3') => Some(Message::NavigateToService(Service::RDS)),

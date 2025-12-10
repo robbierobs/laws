@@ -24,10 +24,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ""
     };
     
+    // Build profile/region info
+    let profile_str = app.profile.as_deref().unwrap_or("default");
+    let aws_info = format!("[{}@{}]", profile_str, app.region);
+    
     let header_text = if let Some(ref err) = app.error_message {
-        format!("LazyAWS - {:?} | Error: {}", app.current_service, err)
+        format!("LazyAWS - {:?} {} | Error: {}", app.current_service, aws_info, err)
     } else {
-        format!("LazyAWS - {:?}{}", app.current_service, status)
+        format!("LazyAWS - {:?} {}{}", app.current_service, aws_info, status)
     };
     
     let header_style = if app.error_message.is_some() {
@@ -38,7 +42,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     
     let title = Paragraph::new(header_text)
         .style(header_style)
-        .block(Block::default().borders(Borders::ALL).title("Header"));
+        .block(Block::default().borders(Borders::ALL).title("LazyAWS"));
     frame.render_widget(title, chunks[0]);
 
     // Body split
