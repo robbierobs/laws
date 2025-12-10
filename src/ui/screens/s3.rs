@@ -1,16 +1,23 @@
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table},
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
 use crate::app::App;
 
-pub fn render(frame: &mut Frame, area: Rect, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
     if let Some(bucket_name) = app.current_bucket.clone() {
-        render_objects(frame, area, app, &bucket_name);
+        render_objects(frame, list_area, app, &bucket_name);
+        if let Some(area) = detail_area {
+            render_object_details(frame, area, app);
+        }
     } else {
-        render_buckets(frame, area, app);
+        render_buckets(frame, list_area, app);
+        if let Some(area) = detail_area {
+            render_bucket_details(frame, area, app);
+        }
     }
 }
 
@@ -44,13 +51,112 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     )
     .header(header)
     .block(Block::default().borders(Borders::ALL).title("S3 Buckets"))
-    .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.s3_list_state);
 }
 
+fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
+    let selected = app.s3_list_state.selected();
+    
+    let content = if let Some(idx) = selected {
+        if let Some(bucket) = app.s3_buckets.get(idx) {
+            build_bucket_detail_lines(bucket, app)
+        } else {
+            vec![Line::from("No bucket selected")]
+        }
+    } else {
+        vec![Line::from("Select a bucket to view details (use j/k to navigate)")]
+    };
+
+    let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL).title("Bucket Details"));
+    
+    frame.render_widget(paragraph, area);
+}
+
+fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) -> Vec<Line<'static>> {
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("Bucket Name: ", Style::default().fg(Color::Cyan)),
+            Span::raw(bucket.name.clone()),
+        ]),
+        Line::from(vec![
+            Span::styled("Creation Date: ", Style::default().fg(Color::Cyan)),
+            Span::raw(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
+        ]),
+        Line::from(vec![
+            Span::styled("Region: ", Style::default().fg(Color::Cyan)),
+            Span::raw(bucket.region.clone().unwrap_or_else(|| "-".to_string())),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("─── Configuration ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+        ]),
+    ];
+
+    // Check if we have cached details for this bucket
+    if let Some(details) = app.s3_bucket_details.get(&bucket.name) {
+        if details.loading {
+            lines.push(Line::from(vec![
+                Span::styled("⏳ ", Style::default().fg(Color::Yellow)),
+                Span::raw("Loading bucket details..."),
+            ]));
+        } else {
+            // Versioning
+            let versioning_text = match details.versioning_enabled {
+                Some(true) => Span::styled("Enabled", Style::default().fg(Color::Green)),
+                Some(false) => Span::styled("Disabled", Style::default().fg(Color::Red)),
+                None => Span::styled("Unknown", Style::default().fg(Color::Gray)),
+            };
+            lines.push(Line::from(vec![
+                Span::styled("Versioning: ", Style::default().fg(Color::Cyan)),
+                versioning_text,
+            ]));
+
+            // Encryption
+            let encryption_text = details.encryption.clone()
+                .unwrap_or_else(|| "None/Unknown".to_string());
+            lines.push(Line::from(vec![
+                Span::styled("Encryption: ", Style::default().fg(Color::Cyan)),
+                Span::raw(encryption_text),
+            ]));
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled("─── Statistics ───", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            ]));
+
+            // Object count
+            let object_count_text = details.object_count
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            lines.push(Line::from(vec![
+                Span::styled("Object Count: ", Style::default().fg(Color::Cyan)),
+                Span::raw(object_count_text),
+            ]));
+
+            // Total size
+            let total_size_text = details.total_size
+                .map(|s| format_size(s))
+                .unwrap_or_else(|| "-".to_string());
+            lines.push(Line::from(vec![
+                Span::styled("Total Size: ", Style::default().fg(Color::Cyan)),
+                Span::raw(total_size_text),
+            ]));
+        }
+    } else {
+        lines.push(Line::from(vec![
+            Span::styled("ℹ ", Style::default().fg(Color::Blue)),
+            Span::raw("Press 'i' to load detailed bucket info"),
+        ]));
+    }
+
+    lines
+}
+
 fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &str) {
-    let header_cells = ["Key", "Size", "Last Modified"]
+    let header_cells = ["Key", "Size", "Last Modified", "Storage Class"]
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
     
@@ -64,6 +170,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
             Cell::from(obj.key.clone()),
             Cell::from(format_size(obj.size)),
             Cell::from(obj.last_modified.clone().unwrap_or_else(|| "-".to_string())),
+            Cell::from(obj.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
         ];
         
         Row::new(cells).height(1)
@@ -74,14 +181,73 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
         [
             Constraint::Length(50), // Key
             Constraint::Length(15), // Size
-            Constraint::Min(20),    // Last Modified
+            Constraint::Length(25), // Last Modified
+            Constraint::Min(15),    // Storage Class
         ]
     )
     .header(header)
     .block(Block::default().borders(Borders::ALL).title(format!("Objects in {}", bucket_name)))
-    .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     frame.render_stateful_widget(t, area, &mut app.s3_object_list_state);
+}
+
+fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
+    let selected = app.s3_object_list_state.selected();
+    
+    let content = if let Some(idx) = selected {
+        if let Some(object) = app.s3_objects.get(idx) {
+            build_object_detail_lines(object, app.current_bucket.as_deref())
+        } else {
+            vec![Line::from("No object selected")]
+        }
+    } else {
+        vec![Line::from("Select an object to view details (use j/k to navigate)")]
+    };
+
+    let paragraph = Paragraph::new(content)
+        .block(Block::default().borders(Borders::ALL).title("Object Details"));
+    
+    frame.render_widget(paragraph, area);
+}
+
+fn build_object_detail_lines(object: &crate::models::s3::S3Object, bucket_name: Option<&str>) -> Vec<Line<'static>> {
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("Key: ", Style::default().fg(Color::Cyan)),
+            Span::raw(object.key.clone()),
+        ]),
+    ];
+
+    if let Some(bucket) = bucket_name {
+        lines.push(Line::from(vec![
+            Span::styled("S3 URI: ", Style::default().fg(Color::Cyan)),
+            Span::styled(format!("s3://{}/{}", bucket, object.key), Style::default().fg(Color::Blue)),
+        ]));
+    }
+
+    lines.push(Line::from(vec![
+        Span::styled("Size: ", Style::default().fg(Color::Cyan)),
+        Span::raw(format_size(object.size)),
+        Span::raw(format!(" ({} bytes)", object.size)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Last Modified: ", Style::default().fg(Color::Cyan)),
+        Span::raw(object.last_modified.clone().unwrap_or_else(|| "-".to_string())),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("Storage Class: ", Style::default().fg(Color::Cyan)),
+        Span::raw(object.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
+    ]));
+    
+    if let Some(etag) = &object.etag {
+        lines.push(Line::from(vec![
+            Span::styled("ETag: ", Style::default().fg(Color::Cyan)),
+            Span::raw(etag.clone()),
+        ]));
+    }
+
+    lines
 }
 
 fn format_size(size: i64) -> String {

@@ -17,11 +17,23 @@ impl S3Bucket {
     }
 }
 
+/// Extended bucket details fetched asynchronously
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct S3BucketDetails {
+    pub versioning_enabled: Option<bool>,
+    pub encryption: Option<String>,
+    pub object_count: Option<i64>,
+    pub total_size: Option<i64>,
+    pub loading: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct S3Object {
     pub key: String,
     pub size: i64,
     pub last_modified: Option<String>,
+    pub storage_class: Option<String>,
+    pub etag: Option<String>,
 }
 
 impl S3Object {
@@ -30,6 +42,9 @@ impl S3Object {
             key: object.key().unwrap_or_default().to_string(),
             size: object.size().unwrap_or(0),
             last_modified: object.last_modified().map(|d| d.to_string()),
+            storage_class: object.storage_class().map(|s| s.as_str().to_string()),
+            etag: object.e_tag().map(|s| s.to_string()),
         }
     }
 }
+

@@ -1,5 +1,5 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -20,6 +20,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Build header text with status
     let status = if app.loading {
         " [Loading...]"
+    } else if app.detail_loading {
+        " [Fetching details...]"
     } else {
         ""
     };
@@ -45,7 +47,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .block(Block::default().borders(Borders::ALL).title("LazyAWS"));
     frame.render_widget(title, chunks[0]);
 
-    // Body split
+    // Body split - sidebar on left, main content on right
     let body_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -57,20 +59,42 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Render Sidebar
     app.sidebar.render(frame, body_chunks[0]);
 
+    // Split main content area for list and details if panel is visible
+    let (list_area, detail_area): (Rect, Option<Rect>) = if app.detail_panel_visible {
+        let content_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(60),  // List takes 60%
+                Constraint::Percentage(40),  // Detail panel takes 40%
+            ])
+            .split(body_chunks[1]);
+        (content_chunks[0], Some(content_chunks[1]))
+    } else {
+        (body_chunks[1], None)
+    };
+
+    // Render the current service screen
     match app.current_service {
         crate::app::Service::EC2 => {
-            crate::ui::screens::ec2::render(frame, body_chunks[1], app);
+            crate::ui::screens::ec2::render(frame, list_area, detail_area, app);
         }
         crate::app::Service::S3 => {
-            crate::ui::screens::s3::render(frame, body_chunks[1], app);
+            crate::ui::screens::s3::render(frame, list_area, detail_area, app);
         }
         _ => {
             let content = Paragraph::new("Content goes here")
                 .block(Block::default().borders(Borders::ALL).title("Body"));
-            frame.render_widget(content, body_chunks[1]);
+            frame.render_widget(content, list_area);
+            
+            if let Some(area) = detail_area {
+                let detail = Paragraph::new("Select an item to view details")
+                    .block(Block::default().borders(Borders::ALL).title("Details"));
+                frame.render_widget(detail, area);
+            }
         }
     }
 
     // Footer / Action Bar
     crate::ui::components::action_bar::render(frame, chunks[2], app);
 }
+

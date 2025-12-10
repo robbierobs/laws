@@ -9,6 +9,22 @@ pub struct Ec2Instance {
     pub public_ip: Option<String>,
     pub private_ip: Option<String>,
     pub launch_time: Option<String>,
+    // Additional detail fields
+    pub subnet_id: Option<String>,
+    pub vpc_id: Option<String>,
+    pub security_groups: Vec<SecurityGroupInfo>,
+    pub availability_zone: Option<String>,
+    pub platform: Option<String>,
+    pub architecture: Option<String>,
+    pub ami_id: Option<String>,
+    pub key_name: Option<String>,
+    pub monitoring_state: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityGroupInfo {
+    pub group_id: String,
+    pub group_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,6 +61,14 @@ impl Ec2Instance {
             .map(|n| InstanceState::from(n.clone()))
             .unwrap_or(InstanceState::Unknown("unknown".to_string()));
 
+        let security_groups = instance.security_groups()
+            .iter()
+            .map(|sg| SecurityGroupInfo {
+                group_id: sg.group_id().unwrap_or_default().to_string(),
+                group_name: sg.group_name().unwrap_or_default().to_string(),
+            })
+            .collect();
+
         Self {
             instance_id: instance.instance_id().unwrap_or_default().to_string(),
             name,
@@ -53,6 +77,15 @@ impl Ec2Instance {
             public_ip: instance.public_ip_address().map(|s| s.to_string()),
             private_ip: instance.private_ip_address().map(|s| s.to_string()),
             launch_time: instance.launch_time().map(|t| t.to_string()),
+            subnet_id: instance.subnet_id().map(|s| s.to_string()),
+            vpc_id: instance.vpc_id().map(|s| s.to_string()),
+            security_groups,
+            availability_zone: instance.placement().and_then(|p| p.availability_zone().map(|s| s.to_string())),
+            platform: instance.platform().map(|p| p.as_str().to_string()),
+            architecture: instance.architecture().map(|a| a.as_str().to_string()),
+            ami_id: instance.image_id().map(|s| s.to_string()),
+            key_name: instance.key_name().map(|s| s.to_string()),
+            monitoring_state: instance.monitoring().and_then(|m| m.state()).map(|s| s.as_str().to_string()),
         }
     }
 }

@@ -11,7 +11,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let mut actions = vec![
         ("q", "Quit"),
         ("Tab", "Focus"),
-        ("1-9", "Switch Service"),
+        ("d", "Details"),
+        ("1-9", "Service"),
     ];
 
     match app.current_service {
@@ -27,12 +28,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             if app.current_bucket.is_some() {
                 actions.extend_from_slice(&[
                     ("j/k", "Navigate"),
-                    ("Esc", "Back to Buckets"),
+                    ("Esc", "Back"),
                 ]);
             } else {
                 actions.extend_from_slice(&[
                     ("j/k", "Navigate"),
-                    ("Enter", "Browse Objects"),
+                    ("Enter", "Browse"),
+                    ("i", "Info"),
                 ]);
             }
         }

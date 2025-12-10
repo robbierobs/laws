@@ -9,13 +9,14 @@ pub enum Event {
 }
 
 use crate::models::ec2::Ec2Instance;
-use crate::models::s3::{S3Bucket, S3Object};
+use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 
 #[derive(Debug)]
 pub enum AwsEvent {
     Ec2InstancesLoaded(Vec<Ec2Instance>),
     S3BucketsLoaded(Vec<S3Bucket>),
     S3ObjectsLoaded(Vec<S3Object>),
+    S3BucketDetailsLoaded { bucket_name: String, details: S3BucketDetails },
     ActionCompleted(String), // Message to display
     Error(String),
 }

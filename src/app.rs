@@ -66,6 +66,7 @@ pub enum Message {
     RebootInstance(String),
     TerminateInstance(String),
     LoadS3Objects(String),
+    LoadBucketDetails(String),
     LeaveS3Bucket,
 
     // Async results
@@ -92,9 +93,10 @@ pub enum Focus {
 
 use crate::aws::client::AwsClients;
 use crate::models::ec2::Ec2Instance;
-use crate::models::s3::S3Bucket;
+use crate::models::s3::{S3Bucket, S3BucketDetails};
 
 use ratatui::widgets::TableState;
+use std::collections::HashMap;
 
 pub struct App {
     pub should_quit: bool,
@@ -114,6 +116,10 @@ pub struct App {
     pub loading: bool,
     pub should_refresh: bool,
     pub error_message: Option<String>,
+    // Detail panel state
+    pub detail_panel_visible: bool,
+    pub s3_bucket_details: HashMap<String, S3BucketDetails>,
+    pub detail_loading: bool,
 }
 
 impl App {
@@ -136,6 +142,9 @@ impl App {
             loading: false,
             should_refresh: false,
             error_message: None,
+            detail_panel_visible: true,
+            s3_bucket_details: HashMap::new(),
+            detail_loading: false,
         }
     }
 
@@ -265,6 +274,30 @@ impl App {
                 Message::LeaveS3Bucket => {
                     self.current_bucket = None;
                     self.s3_objects.clear();
+                }
+                Message::LoadBucketDetails(bucket_name) => {
+                    if let Some(clients) = &self.aws_clients {
+                        // Mark bucket details as loading
+                        let mut loading_details = crate::models::s3::S3BucketDetails::default();
+                        loading_details.loading = true;
+                        self.s3_bucket_details.insert(bucket_name.clone(), loading_details);
+                        self.detail_loading = true;
+                        
+                        let client = clients.s3.clone();
+                        let tx = event_tx.clone();
+                        let bucket = bucket_name.clone();
+                        tokio::spawn(async move {
+                            let service = crate::aws::s3::S3Service::new(client);
+                            let details = service.get_bucket_details(&bucket).await;
+                            tx.send(Event::Aws(AwsEvent::S3BucketDetailsLoaded { 
+                                bucket_name: bucket, 
+                                details 
+                            })).ok();
+                        });
+                    }
+                }
+                Message::ToggleDetailPanel => {
+                    self.detail_panel_visible = !self.detail_panel_visible;
                 }
                 _ => {}
             }
@@ -424,6 +457,14 @@ impl App {
                                         }
                                     }
                                 }
+                                KeyCode::Char('i') => {
+                                    // Load detailed bucket info
+                                    if let Some(i) = self.s3_list_state.selected() {
+                                        if let Some(bucket) = self.s3_buckets.get(i) {
+                                            return Some(Message::LoadBucketDetails(bucket.name.clone()));
+                                        }
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -445,6 +486,7 @@ impl App {
             KeyCode::Char('7') => Some(Message::NavigateToService(Service::IAM)),
             KeyCode::Char('8') => Some(Message::NavigateToService(Service::Backup)),
             KeyCode::Char('9') => Some(Message::NavigateToService(Service::CloudTrail)),
+            KeyCode::Char('d') => Some(Message::ToggleDetailPanel),
             _ => None,
         }
     }
@@ -494,12 +536,17 @@ impl App {
             }
             AwsEvent::Error(e) => {
                 self.loading = false;
+                self.detail_loading = false;
                 self.error_message = Some(e);
                 // Reset S3 bucket view on error so user can try again
                 if self.current_bucket.is_some() {
                     self.current_bucket = None;
                     self.s3_objects.clear();
                 }
+            }
+            AwsEvent::S3BucketDetailsLoaded { bucket_name, details } => {
+                self.s3_bucket_details.insert(bucket_name, details);
+                self.detail_loading = false;
             }
         }
     }
