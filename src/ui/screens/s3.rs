@@ -169,8 +169,8 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
         }
     } else {
         lines.push(Line::from(vec![
-            Span::styled("ℹ ", Style::default().fg(THEME.primary)),
-            Span::raw("Press 'i' to load detailed bucket info"),
+            Span::styled("⏳ ", Style::default().fg(THEME.warning)),
+            Span::raw("Loading bucket details..."),
         ]));
     }
 

@@ -7,6 +7,7 @@ pub mod modal;
 pub mod input;
 pub mod loading;
 pub mod tabs;
+pub mod action_log;
 
 use ratatui::{Frame, layout::Rect};
 use crossterm::event::KeyEvent;

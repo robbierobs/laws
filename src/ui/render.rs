@@ -13,9 +13,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(3),
+            Constraint::Length(3),  // Header
+            Constraint::Min(1),     // Body
+            Constraint::Length(3),  // Action Log / Action Bar
         ])
         .split(frame.area());
 
@@ -133,14 +133,19 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         }
     }
 
-    // Footer / Action Bar / Filter Input
+    // Footer / Action Bar with last action hint
     if app.input_mode == crate::app::InputMode::Filtering {
         let input = Paragraph::new(format!("/{}", app.filter_input))
             .style(Style::default().fg(Color::Yellow))
             .block(Block::default().borders(Borders::ALL).title("Filter"));
         frame.render_widget(input, chunks[2]);
     } else {
+        // Show action bar with last action embedded
         crate::ui::components::action_bar::render(frame, chunks[2], app);
     }
-}
 
+    // Render action log popup if expanded
+    if app.action_log_expanded {
+        crate::ui::components::action_log::render_popup(frame, frame.area(), app);
+    }
+}

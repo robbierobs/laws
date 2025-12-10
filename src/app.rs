@@ -77,6 +77,7 @@ pub enum Message {
     CycleViewMode,
     NextView,
     PreviousView,
+    ToggleActionLog,
     Quit,
 
     // VPC Specific
@@ -188,6 +189,9 @@ pub struct App {
     pub read_only: bool,
     pub pending_action: Option<Message>,
     pub show_confirmation: bool,
+    // Action Log
+    pub action_log: Vec<String>,
+    pub action_log_expanded: bool,
 }
 
 impl App {
@@ -249,6 +253,8 @@ impl App {
             read_only,
             pending_action: None,
             show_confirmation: false,
+            action_log: Vec::new(),
+            action_log_expanded: false,
         }
     }
 
@@ -295,10 +301,37 @@ impl App {
                                 let client = clients.s3.clone();
                                 let tx = event_tx.clone();
                                 tokio::spawn(async move {
-                                    let service = crate::aws::s3::S3Service::new(client);
+                                    let service = crate::aws::s3::S3Service::new(client.clone());
                                     match service.list_buckets().await {
                                         Ok(buckets) => {
+                                            // Send bucket list first
+                                            let bucket_names: Vec<String> = buckets.iter().map(|b| b.name.clone()).collect();
                                             tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).ok();
+                                            
+                                            // Then load details for each bucket with rate limiting
+                                            // Limit to 5 concurrent requests and add delays
+                                            let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(3));
+                                            for bucket_name in bucket_names.into_iter().take(20) { // Limit to first 20 buckets
+                                                let permit = semaphore.clone().acquire_owned().await;
+                                                if permit.is_err() { break; }
+                                                
+                                                let client_clone = client.clone();
+                                                let tx_clone = tx.clone();
+                                                let name = bucket_name.clone();
+                                                
+                                                tokio::spawn(async move {
+                                                    let _permit = permit;
+                                                    // Small delay to avoid rate limiting
+                                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                                    
+                                                    let service = crate::aws::s3::S3Service::new(client_clone);
+                                                    let details = service.get_bucket_details(&name).await;
+                                                    tx_clone.send(Event::Aws(AwsEvent::S3BucketDetailsLoaded {
+                                                        bucket_name: name,
+                                                        details,
+                                                    })).ok();
+                                                });
+                                            }
                                         }
                                         Err(e) => {
                                             tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
@@ -583,6 +616,9 @@ impl App {
                 }
                 Message::ToggleDetailPanel => {
                     self.detail_panel_visible = !self.detail_panel_visible;
+                }
+                Message::ToggleActionLog => {
+                    self.action_log_expanded = !self.action_log_expanded;
                 }
                 Message::CycleViewMode | Message::NextView => {
                     match self.current_service {
@@ -902,7 +938,10 @@ impl App {
                     }
                 }
 
-                // Handle Left/Right or h/l for view navigation
+                if key.code == KeyCode::Char('A') {
+                    return Some(Message::ToggleActionLog);
+                }
+
                 match key.code {
                     KeyCode::Right | KeyCode::Char('l') => {
                          match self.current_service {
@@ -1615,24 +1654,15 @@ impl App {
             }
             AwsEvent::ActionCompleted(msg) => {
                 self.loading = false;
-                // TODO: Show success message via a notification system
-                eprintln!("Action completed: {}", msg);
-                
+                self.action_log.push(format!("[SUCCESS] {}", msg));
                 // Trigger refresh
-                // Since we are in a synchronous method, we can't await. 
-                // But we can spawn a task if we had a handle, or just set a flag.
-                // For now, let's assume the next tick or user interaction will pick it up? 
-                // No, we need to actively trigger it.
-                // A common pattern is to have an `Action` queue or similar.
-                // Or, we can just send a message to the event loop if we had the sender here.
-                // But we don't have the sender in `handle_aws_event`.
-                // Let's add a `should_refresh` flag to App and check it in `on_tick` or `update`.
                 self.should_refresh = true;
             }
             AwsEvent::Error(e) => {
                 self.loading = false;
                 self.detail_loading = false;
-                self.error_message = Some(e);
+                self.error_message = Some(e.clone());
+                self.action_log.push(format!("[ERROR] {}", e));
                 // Reset S3 bucket view on error so user can try again
                 if self.current_bucket.is_some() {
                     self.current_bucket = None;

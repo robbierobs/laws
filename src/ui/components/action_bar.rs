@@ -36,7 +36,6 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 actions.extend_from_slice(&[
                     ("j/k", "Navigate"),
                     ("Enter", "Browse"),
-                    ("i", "Info"),
                 ]);
             }
         }
@@ -98,12 +97,34 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
+    // Build title with last action
+    let title = if let Some(last_action) = app.action_log.last() {
+        // Truncate long messages
+        let truncated = if last_action.len() > 50 {
+            format!("{}...", &last_action[..47])
+        } else {
+            last_action.clone()
+        };
+        format!("Actions | {} | A: Log", truncated)
+    } else {
+        "Actions | A: Log".to_string()
+    };
+
+    // Color the title based on last action type
+    let title_style = if app.action_log.last().map(|s| s.contains("[ERROR]")).unwrap_or(false) {
+        Style::default().fg(THEME.error)
+    } else if app.action_log.last().map(|s| s.contains("[SUCCESS]")).unwrap_or(false) {
+        Style::default().fg(THEME.success)
+    } else {
+        Style::default().fg(THEME.secondary)
+    };
+
     let p = Paragraph::new(Line::from(spans))
         .block(Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(THEME.border))
-            .title("Actions")
-            .title_style(Style::default().fg(THEME.secondary)));
+            .title(title)
+            .title_style(title_style));
 
     frame.render_widget(p, area);
 }
