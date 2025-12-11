@@ -10,14 +10,16 @@ pub enum Event {
     Key(KeyEvent),
     Tick,
     Aws(AwsEvent),
+    Message(crate::app::Message),
 }
 
 use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
+use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
-use crate::models::lambda::LambdaFunction;
+use crate::models::lambda::{LambdaFunction, LambdaFunctionDetails};
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
@@ -36,6 +38,10 @@ pub enum AwsEvent {
     DynamoDbTablesLoaded(Vec<DynamoDbTable>),
     DynamoDbItemsLoaded(Vec<DynamoDbItem>),
     LambdaFunctionsLoaded(Vec<LambdaFunction>),
+    LambdaFunctionDetailsLoaded {
+        function_name: String,
+        details: LambdaFunctionDetails,
+    },
     VpcsLoaded(Vec<Vpc>),
     SubnetsLoaded(Vec<Subnet>),
     SecurityGroupsLoaded(Vec<SecurityGroup>),
@@ -52,6 +58,10 @@ pub enum AwsEvent {
     CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
     SecretsManagerSecretsLoaded(Vec<Secret>),
     SecretsManagerSecretValueLoaded(String),
+    EcsClustersLoaded(Vec<EcsCluster>),
+    EcsServicesLoaded(Vec<EcsService>),
+    EcsTasksLoaded(Vec<EcsTask>),
+    EcsTaskDefinitionLoaded(EcsTaskDefinition),
     /// S3 object was downloaded to a file path
     S3ObjectDownloaded {
         key: String,

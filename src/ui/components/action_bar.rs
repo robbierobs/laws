@@ -24,6 +24,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("s", "Start"),
                 ("S", "Stop"),
                 ("R", "Reboot"),
+                ("X", "Terminate"),
             ]);
         }
         Service::S3 => {
@@ -32,6 +33,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                     ("j/k", "Navigate"),
                     ("o", "Open"),
                     ("w", "Download"),
+                    ("X", "Delete"),
                     ("Esc", "Back"),
                 ]);
             } else {
@@ -47,16 +49,26 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("s", "Start"),
                 ("S", "Stop"),
                 ("R", "Reboot"),
+                ("X", "Delete"),
             ]);
         }
         Service::DynamoDB => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("Enter", "Drill Down"),
             ]);
+            if app.services.dynamodb.is_viewing_items() {
+                actions.extend_from_slice(&[
+                    ("X", "Delete"),
+                    ("Esc", "Back"),
+                ]);
+            }
         }
         Service::Lambda => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("I", "Invoke"),
+                ("X", "Delete"),
             ]);
         }
         Service::VPC => {
@@ -64,16 +76,22 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("j/k", "Navigate"),
                 ("v", "View"),
                 ("Enter", "Drill Down"),
-                ("Esc", "Back"),
             ]);
+            if app.services.vpc.view_mode == crate::app::VpcViewMode::SecurityGroups {
+                 actions.extend_from_slice(&[("X", "Delete")]);
+            }
+            actions.extend_from_slice(&[("Esc", "Back")]);
         }
         Service::IAM => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
                 ("v", "View"),
                 ("Enter", "Drill Down"),
-                ("Esc", "Back"),
             ]);
+            if app.services.iam.view_mode.is_main_tab() {
+                 actions.extend_from_slice(&[("X", "Delete")]);
+            }
+            actions.extend_from_slice(&[("Esc", "Back")]);
         }
         Service::Backup => {
             actions.extend_from_slice(&[
@@ -90,6 +108,15 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         Service::SecretsManager => {
             actions.extend_from_slice(&[
                 ("j/k", "Navigate"),
+                ("s", "Get Value"),
+                ("X", "Delete"),
+            ]);
+        }
+        Service::ECS => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+                ("Enter", "Services"),
+                ("Esc", "Back"),
             ]);
         }
     }

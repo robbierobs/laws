@@ -195,6 +195,37 @@ impl IamService {
         } else {
             Ok(decoded)
         }
+
+    }
+
+    pub async fn delete_user(&self, user_name: &str) -> AppResult<()> {
+        self.client
+            .delete_user()
+            .user_name(user_name)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("IAM", "delete_user", user_name, e))?;
+        Ok(())
+    }
+
+    pub async fn delete_role(&self, role_name: &str) -> AppResult<()> {
+        self.client
+            .delete_role()
+            .role_name(role_name)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("IAM", "delete_role", role_name, e))?;
+        Ok(())
+    }
+
+    pub async fn delete_policy(&self, policy_arn: &str) -> AppResult<()> {
+        self.client
+            .delete_policy()
+            .policy_arn(policy_arn)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("IAM", "delete_policy", policy_arn, e))?;
+        Ok(())
     }
 }
 

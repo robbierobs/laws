@@ -77,6 +77,24 @@ impl App {
                 self.handle_switch_profile_region(profile, region, read_only, event_tx)
                     .await;
             }
+            GlobalMessage::CopyToClipboard(text) => {
+                match arboard::Clipboard::new() {
+                    Ok(mut clipboard) => {
+                        if let Err(e) = clipboard.set_text(text.clone()) {
+                            self.action_log
+                                .push(format!("Failed to copy to clipboard: {}", e));
+                        } else {
+                            self.action_log
+                                .push(format!("Copied to clipboard: {}", text));
+                            // Also send a notification event if we want a popup, but action log is fine for now
+                        }
+                    }
+                    Err(e) => {
+                        self.action_log
+                            .push(format!("Failed to access clipboard: {}", e));
+                    }
+                }
+            }
         }
     }
 
@@ -204,10 +222,13 @@ impl App {
                     match service.list().await {
                         Ok(instances) => {
                             tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -225,10 +246,13 @@ impl App {
                     match service.list_instances().await {
                         Ok(instances) => {
                             tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -242,10 +266,13 @@ impl App {
                     match service.list_tables().await {
                         Ok(tables) => {
                             tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -259,10 +286,13 @@ impl App {
                     match service.list_functions().await {
                         Ok(functions) => {
                             tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -278,24 +308,33 @@ impl App {
                             tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.list_subnets(None).await {
                         Ok(subnets) => {
-                            tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets)))
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.list_security_groups(None).await {
                         Ok(sgs) => {
                             tx.send(Event::Aws(AwsEvent::SecurityGroupsLoaded(sgs)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -308,27 +347,38 @@ impl App {
                     let service = crate::aws::iam::IamService::new(client);
                     match service.list_users().await {
                         Ok(users) => {
-                            tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users)))
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.list_roles().await {
                         Ok(roles) => {
-                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles)))
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.list_policies().await {
                         Ok(policies) => {
                             tx.send(Event::Aws(AwsEvent::IamPoliciesLoaded(policies)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -342,26 +392,37 @@ impl App {
                     match service.list_backup_vaults().await {
                         Ok(vaults) => {
                             tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.list_backup_plans().await {
                         Ok(plans) => {
-                            tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans)))
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.list_backup_jobs().await {
                         Ok(jobs) => {
-                            tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs)))
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -376,19 +437,25 @@ impl App {
                     match service.list_trails().await {
                         Ok(trails) => {
                             tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                     match service.lookup_events(limit).await {
                         Ok(events) => {
                             tx.send(Event::Aws(AwsEvent::CloudTrailEventsLoaded(events)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
@@ -402,14 +469,37 @@ impl App {
                     match service.list_secrets().await {
                         Ok(secrets) => {
                             tx.send(Event::Aws(AwsEvent::SecretsManagerSecretsLoaded(secrets)))
-                                .await.ok();
+                                .await
+                                .ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
                         }
                     }
                 });
                 self.tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
+            }
+            Service::ECS => {
+                let client = clients.ecs.clone();
+                let tx = event_tx.clone();
+                let handle = tokio::spawn(async move {
+                    let ecs_client = crate::aws::ecs::EcsClient::new(client);
+                    match ecs_client.list_clusters().await {
+                        Ok(clusters) => {
+                            tx.send(Event::Aws(AwsEvent::EcsClustersLoaded(clusters)))
+                                .await
+                                .ok();
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
+                        }
+                    }
+                });
+                self.tasks.spawn(task_keys::ECS_REFRESH, handle);
             }
         }
     }
@@ -430,7 +520,9 @@ impl App {
                 Ok(buckets) => {
                     let bucket_names: Vec<String> =
                         buckets.iter().map(|b| b.name.clone()).collect();
-                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).await.ok();
+                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets)))
+                        .await
+                        .ok();
 
                     // Load details with rate limiting
                     let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
@@ -454,12 +546,15 @@ impl App {
                                     bucket_name: name,
                                     details,
                                 }))
-                                .await.ok();
+                                .await
+                                .ok();
                         });
                     }
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
                 }
             }
         });
@@ -473,10 +568,14 @@ impl App {
                 let service = crate::aws::s3::S3Service::new(client);
                 match service.list_objects(&bucket_name).await {
                     Ok(objects) => {
-                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).await.ok();
+                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects)))
+                            .await
+                            .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                            .await
+                            .ok();
                     }
                 }
             });

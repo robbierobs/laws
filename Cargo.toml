@@ -50,4 +50,6 @@ urlencoding = "2.1.3"
 dirs = "5"
 toml = "0.8"
 aws-sdk-secretsmanager = "1.28.0"
+arboard = "3"
+aws-sdk-ecs = "1.26.0"
 

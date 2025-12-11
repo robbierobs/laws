@@ -83,6 +83,15 @@ impl VpcService {
 
         Ok(sgs)
     }
+    pub async fn delete_security_group(&self, group_id: &str) -> AppResult<()> {
+        self.client
+            .delete_security_group()
+            .group_id(group_id)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("VPC", "delete_security_group", group_id, e))?;
+        Ok(())
+    }
 }
 
 impl crate::aws::traits::AwsService<Vpc> for VpcService {

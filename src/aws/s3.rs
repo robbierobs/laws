@@ -93,6 +93,21 @@ impl S3Service {
             }
         }
 
+        // Get bucket tagging
+        if let Ok(resp) = self
+            .client
+            .get_bucket_tagging()
+            .bucket(bucket_name)
+            .send()
+            .await
+        {
+            details.tags = resp.tag_set()
+                .iter()
+                .map(|t| (t.key().to_string(), t.value().to_string()))
+                .collect();
+            details.tags.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+
         // Get object count and total size
         let mut object_count: i64 = 0;
         let mut total_size: i64 = 0;

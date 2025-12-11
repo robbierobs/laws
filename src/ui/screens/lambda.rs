@@ -74,7 +74,7 @@ fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
         frame,
         area,
         app.services.lambda.selected_function(),
-        build_function_detail_lines,
+        |f| build_function_detail_lines(f, &app.services.lambda.function_details),
         "Function Details",
         "Select a Lambda function to view details (use j/k to navigate)",
         app.detail_panel_fullscreen,
@@ -82,8 +82,10 @@ fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
-        let state_color = func.state_color();
+
+
+fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collections::HashMap<String, crate::models::lambda::LambdaFunctionDetails>) -> Vec<Line<'static>> {
+    let state_color = func.state_color();
     
     let runtime_str = func.runtime.clone().unwrap_or_else(|| "-".to_string());
     let handler_str = func.handler.clone().unwrap_or_else(|| "-".to_string());
@@ -202,12 +204,69 @@ fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {
         }
     }
 
+    // Cached details
+    if let Some(details) = details_map.get(&func.function_name) {
+        if details.loading {
+             lines.push(Line::from(""));
+             lines.push(Line::from(vec![
+                Span::styled("⏳ ", Style::default().fg(THEME.warning)),
+                Span::raw("Loading extended details..."),
+            ]));
+        } else {
+            // Concurrency
+            if let Some(concurrency) = details.concurrency {
+                lines.push(Line::from(""));
+                lines.push(Line::from(vec![
+                    Span::styled("Reserved Concurrency: ", Style::default().fg(THEME.primary)),
+                    Span::raw(concurrency.to_string()),
+                ]));
+            }
+            
+            // Tags
+            if !details.tags.is_empty() {
+                lines.push(Line::from(""));
+                lines.push(Line::from(vec![
+                    Span::styled("─── Tags ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+                ]));
+                for (key, value) in &details.tags {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{}: ", key), Style::default().fg(THEME.primary)),
+                        Span::raw(value.clone()),
+                    ]));
+                }
+            }
+        }
+    } else {
+        // Not loaded yet
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("ℹ️ ", Style::default().fg(THEME.primary)),
+            Span::raw("Select to load extended details"),
+        ]));
+    }
+
     // Last modified and Role
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
         Span::styled("Last Modified: ", Style::default().fg(THEME.primary)),
         Span::raw(last_modified_str),
     ]));
+
+    // Cached details - Update Status
+    if let Some(details) = details_map.get(&func.function_name) {
+        if let Some(status) = &details.last_update_status {
+             lines.push(Line::from(vec![
+                Span::styled("Last Update Status: ", Style::default().fg(THEME.primary)),
+                Span::raw(status.clone()),
+            ]));
+        }
+        if let Some(reason) = &details.last_update_status_reason {
+             lines.push(Line::from(vec![
+                Span::styled("Last Update Reason: ", Style::default().fg(THEME.primary)),
+                Span::raw(reason.clone()),
+            ]));
+        }
+    }
 
     if let Some(role) = &func.role {
         // Extract role name from ARN

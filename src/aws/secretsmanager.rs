@@ -54,6 +54,18 @@ impl SecretsManagerService {
             // Binary secrets are not supported for now, return placeholder
             Ok("[Binary secret value not supported]".to_string())
         }
+
+    }
+
+    pub async fn delete_secret(&self, arn: &str) -> AppResult<()> {
+        self.client
+            .delete_secret()
+            .secret_id(arn)
+            .force_delete_without_recovery(true)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("SecretsManager", "delete_secret", arn, e))?;
+        Ok(())
     }
 }
 

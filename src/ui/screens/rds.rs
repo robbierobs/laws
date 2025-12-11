@@ -234,5 +234,19 @@ fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
         Span::raw(created_str),
     ]));
 
+    // Tags
+    if !instance.tags.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("─── Tags ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        ]));
+        for (key, value) in &instance.tags {
+            lines.push(Line::from(vec![
+                Span::styled(format!("{}: ", key), Style::default().fg(THEME.primary)),
+                Span::raw(value),
+            ]));
+        }
+    }
+
     lines
 }

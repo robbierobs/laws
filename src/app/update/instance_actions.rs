@@ -21,6 +21,9 @@ pub trait InstanceActionService: Send + Sync + 'static {
     
     /// Reboot an instance
     fn reboot<'a>(&'a self, id: &'a str) -> Pin<Box<dyn Future<Output = AppResult<()>> + Send + 'a>>;
+
+    /// Terminate/Delete an instance
+    fn terminate<'a>(&'a self, id: &'a str) -> Pin<Box<dyn Future<Output = AppResult<()>> + Send + 'a>>;
 }
 
 /// Execute an instance action (start/stop/reboot) and send appropriate events
@@ -33,7 +36,9 @@ pub async fn execute_instance_action<S: InstanceActionService>(
     let result = match action {
         "start" => service.start(&id).await,
         "stop" => service.stop(&id).await,
+
         "reboot" => service.reboot(&id).await,
+        "terminate" => service.terminate(&id).await,
         _ => return,
     };
 
@@ -70,6 +75,10 @@ impl InstanceActionService for crate::aws::ec2::Ec2Service {
     fn reboot<'a>(&'a self, id: &'a str) -> Pin<Box<dyn Future<Output = AppResult<()>> + Send + 'a>> {
         Box::pin(self.reboot_instance(id))
     }
+
+    fn terminate<'a>(&'a self, id: &'a str) -> Pin<Box<dyn Future<Output = AppResult<()>> + Send + 'a>> {
+        Box::pin(self.terminate_instance(id))
+    }
 }
 
 impl InstanceActionService for crate::aws::rds::RdsService {
@@ -87,5 +96,9 @@ impl InstanceActionService for crate::aws::rds::RdsService {
     
     fn reboot<'a>(&'a self, id: &'a str) -> Pin<Box<dyn Future<Output = AppResult<()>> + Send + 'a>> {
         Box::pin(self.reboot_instance(id))
+    }
+
+    fn terminate<'a>(&'a self, id: &'a str) -> Pin<Box<dyn Future<Output = AppResult<()>> + Send + 'a>> {
+        Box::pin(self.delete_instance(id))
     }
 }

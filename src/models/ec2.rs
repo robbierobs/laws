@@ -21,6 +21,7 @@ pub struct Ec2Instance {
     pub ami_id: Option<String>,
     pub key_name: Option<String>,
     pub monitoring_state: Option<String>,
+    pub tags: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +82,19 @@ impl Ec2Instance {
     pub fn from_aws(instance: aws_sdk_ec2::types::Instance) -> Self {
         let name = instance.tags().iter().find(|t| t.key() == Some("Name")).and_then(|t| t.value().map(|v| v.to_string()));
         
+        let mut tags: Vec<(String, String)> = instance.tags()
+            .iter()
+            .filter_map(|t| {
+                if let (Some(k), Some(v)) = (t.key(), t.value()) {
+                    Some((k.to_string(), v.to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        // Sort tags by key for consistent display
+        tags.sort_by(|a, b| a.0.cmp(&b.0));
+
         let state = instance.state()
             .and_then(|s| s.name())
             .map(|n| InstanceState::from(n.clone()))
@@ -111,6 +125,7 @@ impl Ec2Instance {
             ami_id: instance.image_id().map(|s| s.to_string()),
             key_name: instance.key_name().map(|s| s.to_string()),
             monitoring_state: instance.monitoring().and_then(|m| m.state()).map(|s| s.as_str().to_string()),
+            tags,
         }
     }
 }
@@ -192,6 +207,7 @@ mod tests {
             ami_id: None,
             key_name: None,
             monitoring_state: None,
+            tags: vec![],
         };
 
         assert!(instance.matches_filter("12345"));
@@ -217,7 +233,9 @@ mod tests {
             ami_id: None,
             key_name: None,
             monitoring_state: None,
+            tags: vec![],
         };
+
 
         assert!(instance.matches_filter("production"));
         assert!(instance.matches_filter("web"));

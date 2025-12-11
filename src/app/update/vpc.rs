@@ -51,4 +51,29 @@ impl App {
         };
         self.services.vpc.list_state.select(Some(0));
     }
+    pub(super) fn handle_delete_security_group(&mut self, group_id: String, event_tx: crate::app::EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.action_log.push(format!("Deleting Security Group: {}", group_id));
+        
+        let client = clients.ec2.clone();
+        
+        tokio::spawn(async move {
+             let service = crate::aws::vpc::VpcService::new(client);
+             match service.delete_security_group(&group_id).await {
+                 Ok(_) => {
+                     event_tx.send(crate::event::Event::Aws(crate::event::AwsEvent::ActionCompleted(
+                         format!("Security Group {} deleted", group_id)
+                     ))).await.ok();
+                     // Trigger refresh
+                     event_tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
+                 }
+                 Err(e) => {
+                     event_tx.send(crate::event::Event::Aws(crate::event::AwsEvent::Error(e.to_string()))).await.ok();
+                 }
+             }
+        });
+    }
 }

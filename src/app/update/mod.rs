@@ -4,15 +4,21 @@
 //! Split into submodules by domain for maintainability.
 
 mod dynamodb;
+mod cloudtrail;
 mod ec2;
 mod global;
 mod iam;
 pub mod instance_actions;
+
+mod lambda;
 mod rds;
+
+
 mod s3;
 mod secretsmanager;
 mod view_mode;
 mod vpc;
+mod ecs;
 
 use super::messages::{
     DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
@@ -51,6 +57,9 @@ impl App {
             ServiceAction::Ec2(Ec2Action::Reboot(id)) => {
                 self.handle_ec2_action("reboot", id, event_tx);
             }
+            ServiceAction::Ec2(Ec2Action::Terminate(id)) => {
+                self.handle_ec2_action("terminate", id, event_tx);
+            }
 
             // S3 actions
             ServiceAction::S3(S3Action::LoadObjects(bucket)) => {
@@ -83,6 +92,9 @@ impl App {
             ServiceAction::Rds(RdsAction::Reboot(id)) => {
                 self.handle_rds_action("reboot", id, event_tx);
             }
+            ServiceAction::Rds(RdsAction::Delete(id)) => {
+                self.handle_rds_action("terminate", id, event_tx);
+            }
 
             // DynamoDB actions
             ServiceAction::DynamoDb(DynamoDbAction::DrillDownTable) => {
@@ -111,6 +123,9 @@ impl App {
             ServiceAction::Vpc(VpcAction::ToggleSgRulesDirection) => {
                 self.handle_toggle_sg_rules_direction();
             }
+            ServiceAction::Vpc(VpcAction::DeleteSecurityGroup(id)) => {
+                self.handle_delete_security_group(id, event_tx);
+            }
 
             // IAM actions
             ServiceAction::Iam(IamAction::DrillDownUser) => {
@@ -125,6 +140,15 @@ impl App {
             ServiceAction::Iam(IamAction::ExitDrillDown) => {
                 self.handle_exit_iam_drill_down();
             }
+            ServiceAction::Iam(IamAction::DeleteUser(name)) => {
+                self.handle_delete_iam_user(name, event_tx);
+            }
+            ServiceAction::Iam(IamAction::DeleteRole(name)) => {
+                self.handle_delete_iam_role(name, event_tx);
+            }
+            ServiceAction::Iam(IamAction::DeletePolicy(arn)) => {
+                self.handle_delete_iam_policy(arn, event_tx);
+            }
 
             // SecretsManager actions
             ServiceAction::SecretsManager(SecretsManagerAction::GetSecretValue(arn)) => {
@@ -134,11 +158,40 @@ impl App {
                 self.services.secretsmanager.show_secret_modal = false;
                 self.services.secretsmanager.secret_value = None;
             }
+            ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn)) => {
+                self.handle_delete_secret(arn, event_tx);
+            }
 
             // No-op actions for services without mutations
-            ServiceAction::Lambda(_) => {}
+            // Lambda actions
+            ServiceAction::Lambda(crate::app::messages::LambdaAction::InvokeFunction(name)) => {
+                self.handle_invoke_lambda(name, event_tx).await;
+            }
+            ServiceAction::Lambda(crate::app::messages::LambdaAction::DeleteFunction(name)) => {
+                self.handle_delete_lambda(name, event_tx).await;
+            }
+            ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(name)) => {
+                self.handle_load_function_details(name, event_tx).await;
+            }
             ServiceAction::Backup(_) => {}
-            ServiceAction::CloudTrail(_) => {}
+            ServiceAction::CloudTrail(action) => {
+                match action {
+                    crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {
+                        self.services.cloudtrail.selected_event_detail = Some(json);
+                        self.services.cloudtrail.show_detail_modal = true;
+                    }
+                    crate::app::messages::CloudTrailAction::CloseEventDetails => {
+                        self.services.cloudtrail.show_detail_modal = false;
+                        self.services.cloudtrail.selected_event_detail = None;
+                    }
+                    crate::app::messages::CloudTrailAction::DeleteTrail(name) => {
+                        self.handle_delete_trail(name, event_tx);
+                    }
+                }
+            }
+            ServiceAction::Ecs(action) => {
+                self.handle_ecs_action(action, event_tx).await;
+            }
         }
     }
 }

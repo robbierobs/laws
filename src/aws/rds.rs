@@ -59,6 +59,17 @@ impl RdsService {
     }
 
 
+    pub async fn delete_instance(&self, db_instance_identifier: &str) -> AppResult<()> {
+        self.client
+            .delete_db_instance()
+            .db_instance_identifier(db_instance_identifier)
+            .skip_final_snapshot(true)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("RDS", "delete", db_instance_identifier, e))?;
+        Ok(())
+    }
+
 }
 
 impl crate::aws::traits::AwsService<RdsInstance> for RdsService {

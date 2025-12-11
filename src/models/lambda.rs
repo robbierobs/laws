@@ -29,6 +29,15 @@ pub struct LambdaFunction {
     pub ephemeral_storage_size: Option<i32>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct LambdaFunctionDetails {
+    pub tags: Vec<(String, String)>,
+    pub concurrency: Option<i32>,
+    pub last_update_status: Option<String>,
+    pub last_update_status_reason: Option<String>,
+    pub loading: bool,
+}
+
 impl LambdaFunction {
     pub fn from_aws(func: &aws_sdk_lambda::types::FunctionConfiguration) -> Self {
         let architectures: Vec<String> = func.architectures()

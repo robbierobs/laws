@@ -41,6 +41,58 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             CloudTrailViewMode::Events => render_event_details(frame, area, app),
         }
     }
+
+    if app.services.cloudtrail.show_detail_modal {
+        if let Some(json) = &app.services.cloudtrail.selected_event_detail {
+            let title = app.services.cloudtrail.selected_event()
+                .and_then(|e| e.event_name.as_ref())
+                .map(|s| s.as_str())
+                .unwrap_or("Event Details");
+            render_event_detail_modal(frame, frame.area(), title, json);
+        }
+    }
+}
+
+fn render_event_detail_modal(frame: &mut Frame, area: Rect, title: &str, content: &str) {
+    use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+
+    
+    let popup_area = centered_rect(area, 80, 80); 
+    
+    let block = Block::default()
+        .title(format!(" {} ", title))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.secondary));
+        
+    let paragraph = Paragraph::new(content)
+        .block(block) // No wrap for JSON to keep formatting? Or wrap? JSON is usually wide. 
+                      // Wrap is better than cutting off.
+        .wrap(Wrap { trim: false }) 
+        .style(Style::default().fg(THEME.fg));
+        
+    frame.render_widget(ratatui::widgets::Clear, popup_area);
+    frame.render_widget(paragraph, popup_area);
+}
+
+fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    use ratatui::layout::{Layout, Direction, Constraint};
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
 
 use crate::models::Filterable;
