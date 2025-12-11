@@ -176,3 +176,9 @@ impl IamService {
         }
     }
 }
+
+impl crate::aws::traits::AwsService<IamUser> for IamService {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<IamUser>>> + Send + 'a>> {
+        Box::pin(self.list_users())
+    }
+}

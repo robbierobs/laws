@@ -59,3 +59,9 @@ impl RdsService {
 
 
 }
+
+impl crate::aws::traits::AwsService<RdsInstance> for RdsService {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<RdsInstance>>> + Send + 'a>> {
+        Box::pin(self.list_instances())
+    }
+}

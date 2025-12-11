@@ -209,3 +209,9 @@ fn format_attribute_value(av: &aws_sdk_dynamodb::types::AttributeValue) -> Strin
         _ => "<unknown>".to_string(),
     }
 }
+
+impl crate::aws::traits::AwsService<DynamoDbTable> for DynamoDbService {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<DynamoDbTable>>> + Send + 'a>> {
+        Box::pin(self.list_tables())
+    }
+}
