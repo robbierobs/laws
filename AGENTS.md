@@ -2,172 +2,488 @@
 
 This document defines the personas, workflows, and standards for AI agents working on the **LazyAWS** project.
 
+---
+
 ## 1. Project Context
+
 **LazyAWS** is a terminal user interface (TUI) for managing AWS resources, built with **Rust** and **Ratatui**. It aims to be a keyboard-driven, fast, and responsive alternative to the AWS Console, inspired by `lazygit`.
 
-## 2. Agent Persona
+### 1.1 Project Statistics
+- **~11,000 lines** of Rust code
+- **9 AWS services** supported
+- **65 source files** across 5 major modules
+- **30+ unit tests**
+
+### 1.2 Technology Stack
+| Component | Crate | Purpose |
+|-----------|-------|---------|
+| TUI Framework | `ratatui` 0.29 | Terminal UI rendering |
+| Terminal Backend | `crossterm` 0.28 | Cross-platform terminal control |
+| Async Runtime | `tokio` 1.x | Async execution |
+| AWS SDK | `aws-sdk-*` 1.x | AWS service clients |
+| CLI Parsing | `clap` 4.x | Command-line arguments |
+| Error Handling | `anyhow`, `thiserror` | Error management |
+
+---
+
+## 2. Architecture Deep-Dive
+
+### 2.1 Core Architecture Pattern: Hybrid TEA + Component
+
+The application uses a **hybrid pattern** combining:
+- **The Elm Architecture (TEA)**: Centralized state, message-based updates
+- **Component Pattern**: UI split into reusable, focused components
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         main.rs                             │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                     Event Loop                          ││
+│  │  ┌──────────┐   ┌──────────┐   ┌──────────────────────┐ ││
+│  │  │ Keyboard │-->│ App::    │-->│ App::update(Message) │ ││
+│  │  │  Event   │   │ handle_  │   │  (State Mutation)    │ ││
+│  │  └──────────┘   │ key()    │   └──────────────────────┘ ││
+│  │                 └──────────┘            │               ││
+│  │       │                                 │               ││
+│  │       ▼                                 ▼               ││
+│  │  ┌──────────┐                   ┌──────────────────┐    ││
+│  │  │  Event:: │                   │ tokio::spawn()   │    ││
+│  │  │  Aws()   │<------------------│ (AWS Operations) │    ││
+│  │  └──────────┘                   └──────────────────┘    ││
+│  │       │                                                 ││
+│  │       ▼                                                 ││
+│  │  ┌──────────────────┐     ┌───────────────────────────┐ ││
+│  │  │ App::handle_     │     │     App::render()         │ ││
+│  │  │ aws_event()      │     │  (Pure, no side effects)  │ ││
+│  │  └──────────────────┘     └───────────────────────────┘ ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Data Flow
+
+1. **Input**: Keyboard event received via `crossterm`
+2. **Handle**: `App::handle_key()` returns `Option<Message>`
+3. **Update**: `App::update(msg)` mutates state and/or spawns async tasks
+4. **Async Result**: AWS operations complete, send `AwsEvent` via channel
+5. **Event Handle**: `App::handle_aws_event()` updates state with results
+6. **Render**: `App::render()` draws current state to terminal
+
+### 2.3 Message Hierarchy
+
+```rust
+enum Message {
+    Global(GlobalMessage),    // App-wide: Navigate, Quit, TogglePanel, etc.
+    Service(ServiceAction),   // Per-service: Ec2Action, S3Action, etc.
+}
+
+enum GlobalMessage {
+    Navigate(Service),
+    Quit,
+    RefreshData,
+    ToggleDetailPanel,
+    ToggleActionLog,
+    OpenProfileSwitcher,
+    SwitchProfileRegion { profile, region, read_only },
+    ConfirmAction,
+    CancelAction,
+    // ...
+}
+
+enum ServiceAction {
+    Ec2(Ec2Action),   // Start, Stop, Reboot
+    S3(S3Action),     // LoadObjects, DeleteObject, DownloadObject, OpenObject
+    Rds(RdsAction),   // Start, Stop, Reboot
+    DynamoDb(DynamoDbAction), // DrillDownTable, LoadItems, DeleteItem
+    Vpc(VpcAction),   // DrillDownSecurityGroup, ToggleDirection
+    Iam(IamAction),   // DrillDownUser, DrillDownRole, DrillDownPolicy
+    // ...
+}
+```
+
+### 2.4 State Organization
+
+State is organized hierarchically to avoid a monolithic `App` struct:
+
+```rust
+struct App {
+    // Core state
+    current_service: Service,
+    input_mode: InputMode,
+    focus: Focus,
+    
+    // AWS
+    aws_clients: Option<AwsClients>,
+    profile: Option<String>,
+    region: String,
+    
+    // Per-service state (organized in ServiceStates)
+    services: ServiceStates,
+    
+    // UI modals and action tracking
+    pending_action: Option<Message>,
+    show_confirmation: bool,
+    action_log: Vec<String>,
+    
+    // Async task management
+    tasks: TaskManager,
+    
+    // Profile switcher state
+    available_profiles: Vec<String>,
+    available_regions: Vec<String>,
+}
+
+struct ServiceStates {
+    ec2: Ec2State,
+    s3: S3State,
+    rds: RdsState,
+    dynamodb: DynamoDbState,
+    lambda: LambdaState,
+    vpc: VpcState,
+    iam: IamState,
+    backup: BackupState,
+    cloudtrail: CloudTrailState,
+}
+```
+
+---
+
+## 3. Module Structure
+
+```
+src/
+├── main.rs                 # Entry point, event loop, terminal setup
+├── config.rs               # CLI args (clap), Args struct
+├── event.rs                # Event, AwsEvent, EventHandler
+├── error.rs                # Error types (thiserror)
+│
+├── app/                    # Application state machine (9 files, ~139KB)
+│   ├── mod.rs              # Re-exports: App, Message, Service, Focus, InputMode
+│   ├── messages.rs         # Message, GlobalMessage, ServiceAction, ViewMode enums
+│   ├── state.rs            # App struct, new(), render()
+│   ├── update.rs           # Message handler (reducer) - largest file (~42KB)
+│   ├── input.rs            # Keyboard handling, handle_key() (~36KB)
+│   ├── events.rs           # AWS event handling
+│   ├── service_state.rs    # Per-service state structs (~15KB)
+│   ├── task_manager.rs     # Async task tracking
+│   └── filtered_list.rs    # Filter logic for resource lists
+│
+├── aws/                    # AWS SDK wrappers (11 files)
+│   ├── client.rs           # AwsClients initialization, endpoint_url handling
+│   ├── ec2.rs              # Ec2Service: list, start, stop, reboot
+│   ├── s3.rs               # S3Service: list buckets/objects, get/delete object
+│   ├── rds.rs              # RdsService: list, start, stop, reboot
+│   ├── dynamodb.rs         # DynamoDbService: list tables, scan items, delete
+│   ├── lambda.rs           # LambdaService: list functions
+│   ├── vpc.rs              # VpcService: list VPCs, subnets, security groups
+│   ├── iam.rs              # IamService: list users/roles/policies, get policy doc
+│   ├── backup.rs           # BackupService: list vaults/plans/jobs
+│   └── cloudtrail.rs       # CloudTrailService: list trails, lookup events
+│
+├── models/                 # Data structures (11 files)
+│   ├── ec2.rs              # Ec2Instance, InstanceState + state_color()
+│   ├── s3.rs               # S3Bucket, S3Object, S3BucketDetails
+│   ├── rds.rs              # RdsInstance + status_color()
+│   ├── dynamodb.rs         # DynamoDbTable, DynamoDbItem, KeySchema
+│   ├── lambda.rs           # LambdaFunction + runtime_color()
+│   ├── vpc.rs              # Vpc, Subnet, SecurityGroup, SgRule
+│   ├── iam.rs              # IamUser, IamRole, IamPolicy
+│   ├── backup.rs           # BackupVault, BackupPlan, BackupJob + status_color()
+│   ├── cloudtrail.rs       # Trail, CloudTrailEvent
+│   └── ids.rs              # Type-safe ID wrappers (Ec2InstanceId, etc.)
+│
+├── ui/                     # Rendering logic (25 files)
+│   ├── render.rs           # Main render dispatcher
+│   ├── theme.rs            # THEME constant with colors
+│   ├── components/         # Reusable widgets (11 files)
+│   │   ├── sidebar.rs      # Service navigation
+│   │   ├── modal.rs        # Confirmation, object viewer, profile switcher modals
+│   │   ├── action_bar.rs   # Bottom help bar with keybindings
+│   │   ├── action_log.rs   # Action history popup
+│   │   └── tabs.rs         # Tab navigation component
+│   └── screens/            # Service-specific views (10 files)
+│       ├── ec2.rs          # render_ec2_screen, render_ec2_row, render_ec2_details
+│       ├── s3.rs           # render_s3_screen (buckets + objects views)
+│       ├── vpc.rs          # render_vpc_screen (VPCs, Subnets, SGs, Rules)
+│       ├── iam.rs          # render_iam_screen (Users, Roles, Policies, Docs)
+│       └── ...
+│
+└── utils/                  # Utilities (5 files)
+    ├── aws_profiles.rs     # list_profiles(), is_sso_profile(), get_profile_endpoint_url()
+    ├── error.rs            # Error helpers
+    ├── formatting.rs       # Display formatting
+    └── pagination.rs       # AWS pagination helpers
+```
+
+---
+
+## 4. Agent Persona
+
 When working on this project, adopt the following persona:
-- **Role**: Senior Rust Systems Engineer & UI/UX Designer.
+
+- **Role**: Senior Rust Systems Engineer & UI/UX Designer
 - **Expertise**:
-  - **Rust**: Deep knowledge of lifetimes, async/await (`tokio`), and type systems.
-  - **TUI**: Expert in `ratatui` and `crossterm`. Focus on flicker-free rendering and intuitive keyboard navigation.
-  - **AWS**: Familiar with AWS SDKs and resource management patterns.
+  - **Rust**: Deep knowledge of lifetimes, async/await (`tokio`), trait patterns
+  - **TUI**: Expert in `ratatui` and `crossterm`
+  - **AWS**: Familiar with AWS SDK patterns and service APIs
 - **Style**:
-  - Write idiomatic, safe, and performant Rust code.
-  - Prioritize user experience (responsiveness, clear feedback).
-  - Follow the "Component + Message Passing" architecture strictly.
+  - Write idiomatic, safe, and performant Rust code
+  - Prioritize user experience (responsiveness, clear feedback)
+  - Follow the established architecture patterns strictly
+  - Add comprehensive tests for new functionality
 
-## 3. Coding Standards
-- **Architecture**: Hybrid Component Pattern + Elm Architecture (TEA).
-  - State is centralized in `App`.
-  - UI is broken into `Component`s.
-  - Updates happen via `Message` enum.
-- **Async**: Use `tokio::spawn` for all AWS operations. Never block the main UI thread.
-- **Error Handling**: Use `anyhow` for app errors, `thiserror` for domain errors.
-- **Styling**: Use `ratatui`'s styling capabilities. Keep themes consistent.
+---
 
-## 4. Workflows
+## 5. Coding Standards
 
-### 4.1 Adding a New AWS Service
-1.  **Update `Cargo.toml`**: Add the `aws-sdk-<service>` crate.
-2.  **Update `Service` Enum**: Add the new service variant in `src/app/messages.rs`.
-3.  **Create Service Module**: Create `src/aws/<service>.rs` for SDK interactions.
-4.  **Create Data Models**: Create `src/models/<service>.rs` for internal representations.
-5.  **Create UI Screen**: Create `src/ui/screens/<service>.rs` for the service view.
-6.  **Update `App` State**: Add state storage for the new service in `src/app/state.rs`.
-7.  **Update Input Handling**: Add navigation and keybindings in `src/app/input.rs`.
-8.  **Update Message Handling**: Add message handlers in `src/app/update.rs`.
-9.  **Register Navigation**: Update sidebar and render.rs to allow navigating to the new service.
+### 5.1 Architecture Rules
+- **State**: All mutable state lives in `App`. Components receive `&App` for rendering.
+- **Updates**: State mutations only in `update.rs` via `Message` handling.
+- **Input**: `input.rs` returns `Option<Message>`, never mutates state directly (except list navigation).
+- **Async**: Use `tokio::spawn` for AWS operations. Never block the UI thread.
 
-### 4.2 Implementing an Action (e.g., Start Instance)
-1.  **Define Message**: Add variant to `Message` enum in `src/app/messages.rs`.
-2.  **Update Input Handler**: In `src/app/input.rs`, add keybinding that returns `InputResult::Action(Message::YourAction)`.
-3.  **Update Update Handler**: In `src/app/update.rs`, implement the async logic in the `update()` function.
-4.  **Handle Result**: Ensure `AwsEvent::ActionCompleted` or `AwsEvent::Error` is sent back and handled in `src/app/events.rs`.
+### 5.2 Naming Conventions
+- **Files**: `snake_case.rs`
+- **Types**: `PascalCase` (e.g., `Ec2State`, `S3Action`)
+- **Functions**: `snake_case` (e.g., `handle_refresh_data`)
+- **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `ALL_REGIONS`)
 
-### 4.3 Implementing Hierarchical Navigation (e.g., S3 Buckets -> Objects)
-1.  **Update App State** (`src/app/state.rs`): Add state for the child view (e.g., `current_bucket`, `s3_objects`).
-2.  **Add Navigation Messages** (`src/app/messages.rs`): Add messages to enter/leave the child view.
-3.  **Update Key Handler** (`src/app/input.rs`): Check the state to determine which key bindings apply (drill-down vs. back).
-4.  **Update Renderer**: In the screen's `render` function, conditionally render the parent or child view.
-5.  **Update Action Bar**: Ensure the action bar reflects the current context (e.g., "Esc: Back").
+### 5.3 Error Handling
+- Use `anyhow::Result` for async operations
+- Use `thiserror` for domain-specific error types
+- Always send errors back via `AwsEvent::Error(String)` to display in UI
 
-## 5. Directory Structure Reference
+### 5.4 Testing
+- Add unit tests in `#[cfg(test)] mod tests` at the bottom of files
+- Test business logic (parsing, state transitions), not UI rendering
+- Use descriptive test names: `test_parse_profile_endpoint_url_no_spaces`
+
+---
+
+## 6. Workflows
+
+### 6.1 Adding a New AWS Service
+
+1. **Update `Cargo.toml`**: Add `aws-sdk-<service> = "1.x"`
+2. **Create Model** (`src/models/<service>.rs`): Define data structs with `from_aws()` conversion
+3. **Create AWS Service** (`src/aws/<service>.rs`): Implement `<Service>Service` with SDK operations
+4. **Add to State** (`src/app/service_state.rs`): Create `<Service>State` struct
+5. **Add to Messages** (`src/app/messages.rs`):
+   - Add variant to `Service` enum
+   - Create `<Service>Action` enum
+   - Add to `ServiceAction` enum
+6. **Add to AwsEvent** (`src/event.rs`): Add loaded event variants
+7. **Create Screen** (`src/ui/screens/<service>.rs`): Implement `render_<service>_screen()`
+8. **Update Handlers**:
+   - `src/app/update.rs`: Handle service actions
+   - `src/app/input.rs`: Add keybindings
+   - `src/app/events.rs`: Handle AWS events
+9. **Update Navigation**:
+   - `src/ui/components/sidebar.rs`: Add to service list
+   - `src/ui/screens/mod.rs`: Add screen function
+   - `src/ui/render.rs`: Add dispatch case
+
+### 6.2 Implementing an Action (e.g., Start Instance)
+
+1. **Define Action** in `messages.rs`:
+   ```rust
+   pub enum Ec2Action {
+       Start(String),  // instance_id
+       // ...
+   }
+   ```
+
+2. **Add Keybinding** in `input.rs`:
+   ```rust
+   KeyCode::Char('s') => {
+       if let Some(id) = self.services.ec2.selected_instance_id() {
+           return InputResult::Action(Message::ec2_start(id));
+       }
+   }
+   ```
+
+3. **Request Confirmation** (for destructive actions):
+   ```rust
+   // In request_action() helper, it checks read_only mode and sets pending_action
+   ```
+
+4. **Handle Message** in `update.rs`:
+   ```rust
+   ServiceAction::Ec2(Ec2Action::Start(id)) => {
+       self.handle_ec2_action("start", id, event_tx);
+   }
+   ```
+
+5. **Implement AWS Call**:
+   ```rust
+   fn handle_ec2_action(&mut self, action: &str, id: String, event_tx: ...) {
+       let client = clients.ec2.clone();
+       tokio::spawn(async move {
+           let service = Ec2Service::new(client);
+           match service.start_instance(&id).await {
+               Ok(_) => tx.send(Event::Aws(AwsEvent::ActionCompleted(...))).ok(),
+               Err(e) => tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(),
+           }
+       });
+   }
+   ```
+
+### 6.3 Implementing Hierarchical Navigation (e.g., S3 Bucket → Objects)
+
+1. **Add State Fields** in `service_state.rs`:
+   ```rust
+   pub struct S3State {
+       pub buckets: Vec<S3Bucket>,
+       pub current_bucket: Option<String>,  // Indicates drill-down
+       pub objects: Vec<S3Object>,
+       // ...
+   }
+   ```
+
+2. **Add Helper Methods**:
+   ```rust
+   pub fn is_viewing_objects(&self) -> bool {
+       self.current_bucket.is_some()
+   }
+   ```
+
+3. **Add Actions** in `messages.rs`:
+   ```rust
+   pub enum S3Action {
+       LoadObjects(String),  // bucket_name
+       LeaveBucket,
+       // ...
+   }
+   ```
+
+4. **Handle in Input**:
+   ```rust
+   // Enter drills down
+   KeyCode::Enter => {
+       if self.services.s3.is_viewing_objects() {
+           // Handle object selection
+       } else {
+           // Drill into bucket
+           return Some(Message::s3_load_objects(bucket_name));
+       }
+   }
+   
+   // Esc goes back
+   KeyCode::Esc => {
+       if self.services.s3.is_viewing_objects() {
+           return Some(Message::s3_leave_bucket());
+       }
+   }
+   ```
+
+5. **Conditional Rendering** in screen:
+   ```rust
+   if app.services.s3.is_viewing_objects() {
+       render_objects_table(frame, area, app);
+   } else {
+       render_buckets_table(frame, area, app);
+   }
+   ```
+
+---
+
+## 7. Key Features & Patterns
+
+### 7.1 Read-Only Mode
+- `App.read_only: bool` prevents destructive actions
+- `--read-only` CLI flag or toggle via `Shift+R` in profile switcher
+- `request_action()` helper in `input.rs` checks this flag
+
+### 7.2 Confirmation Modals
+- `App.pending_action: Option<Message>` stores action awaiting confirmation
+- `App.show_confirmation: bool` triggers modal render
+- Only `y/Y` confirms, `n/N/Esc` cancels (Enter does NOT confirm for safety)
+
+### 7.3 Profile/Region Switcher
+- `Shift+P` opens modal
+- Reads profiles from `~/.aws/config` and `~/.aws/credentials`
+- Auto-detects SSO profiles and runs `aws sso login` if needed
+- Reads `endpoint_url` from profile config for LocalStack support
+
+### 7.4 Task Manager
+- `TaskManager` tracks spawned async tasks
+- `spawn(key, handle)` replaces existing task with same key
+- `cancel_all()` on shutdown prevents dangling tasks
+- Predefined keys: `task_keys::EC2_REFRESH`, `EC2_ACTION`, etc.
+
+### 7.5 Action Log
+- `App.action_log: Vec<String>` stores history
+- Success/error events logged in `events.rs`
+- `Shift+A` opens full-screen popup
+- Last action shown in action bar (color-coded)
+
+### 7.6 Multi-View Navigation
+- Services like VPC, IAM, Backup have multiple views
+- `ViewMode` enums with `next()`/`previous()` methods
+- Keys: `v` cycles, `h/l` navigate, tabs shown at top
+
+### 7.7 Status Coloring
+- Models implement `state_color()` or `status_color()` methods
+- Return `ratatui::style::Color` using `THEME` constants
+- Consistent visual feedback: Green=running, Yellow=pending, Red=stopped
+
+### 7.8 Auto-Loading Details
+- S3 bucket details fetched automatically after listing
+- Rate limiting: Semaphore (3 concurrent), 100ms delay, max 20 buckets
+- UI shows loading indicator until complete
+
+---
+
+## 8. Testing
+
+Run tests with:
+```bash
+cargo test
 ```
-lazy-aws/
-├── src/
-│   ├── main.rs                 # Entry point, event loop
-│   ├── config.rs               # Configuration and CLI args
-│   ├── event.rs                # Event definitions (Key, Tick, Aws)
-│   ├── app/                    # Application state machine (modular)
-│   │   ├── mod.rs              # Module exports
-│   │   ├── messages.rs         # Service, Message, Focus, InputMode enums
-│   │   ├── state.rs            # App struct, new(), render(), on_tick()
-│   │   ├── update.rs           # Message handling (reducer)
-│   │   ├── input.rs            # Keyboard input handling
-│   │   └── events.rs           # AWS event handling
-│   ├── ui/                     # Rendering logic
-│   │   ├── mod.rs
-│   │   ├── render.rs           # Main render dispatcher
-│   │   ├── theme.rs            # Centralized theming
-│   │   ├── components/         # Reusable widgets (sidebar, modal, action_bar, action_log, etc.)
-│   │   └── screens/            # Service-specific views
-│   ├── aws/                    # AWS SDK wrappers
-│   │   ├── client.rs           # AwsClients initialization
-│   │   ├── ec2.rs, s3.rs, ...  # Per-service SDK wrappers
-│   ├── models/                 # Data structures for each service
-│   └── utils/                  # Utility functions (formatting, etc.)
+
+Current test coverage:
+- `app::filtered_list` - Filter and selection logic
+- `app::service_state` - State struct initialization and helpers
+- `app::task_manager` - Task spawn/cancel behavior
+- `utils::aws_profiles` - Config parsing, SSO detection, endpoint_url
+- `models::ids` - Type-safe ID wrappers
+- `error` - Error type construction
+
+---
+
+## 9. Common Patterns
+
+### Pattern: Safe State Access
+```rust
+// Always use helper methods that return Option
+if let Some(instance) = self.services.ec2.selected_instance() {
+    // Safe to use instance
+}
 ```
 
-## 6. Recent Features & Patterns
+### Pattern: Async Results
+```rust
+// Spawn task, send result via channel
+let tx = event_tx.clone();
+tokio::spawn(async move {
+    match service.some_operation().await {
+        Ok(data) => tx.send(Event::Aws(AwsEvent::DataLoaded(data))).ok(),
+        Err(e) => tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(),
+    }
+});
+```
 
-### 6.1 Read-Only Mode
-- **Feature**: Prevent accidental modification of resources.
-- **Implementation**:
-  - `App` struct has a `read_only: bool` field.
-  - CLI argument `--read-only` enables it.
-  - Header displays a yellow "READ-ONLY" warning.
-  - Destructive actions check this flag via `request_action()` helper in `input.rs`.
-  - If `read_only` is true, an error message "Read-only mode: Action not allowed" is shown.
+### Pattern: Conditional Action
+```rust
+// Check preconditions before creating action
+if !self.services.s3.is_viewing_objects() {
+    if let Some(bucket) = self.services.s3.selected_bucket() {
+        return Some(Message::s3_load_objects(bucket.name.clone()));
+    }
+}
+```
 
-### 6.2 Confirmation Modals
-- **Feature**: Require user confirmation for destructive actions.
-- **Implementation**:
-  - `App` has `pending_action: Option<Message>` and `show_confirmation: bool`.
-  - When an action is requested (and not read-only), `pending_action` is set and `show_confirmation` becomes true.
-  - `render_confirmation_modal` draws the dialog overlay.
-  - Only `y/Y` confirms, `n/N/Esc` cancels (Enter does NOT confirm for safety).
+---
 
-### 6.3 Multi-View Navigation
-- **Feature**: Switch between different lists within a service (e.g., VPCs <-> Subnets <-> Security Groups).
-- **Implementation**:
-  - Service screens use a `view_mode` integer in `App` state.
-  - Keys `v`, `h`/`l` (Vim style), and `Left`/`Right` (Arrow keys) cycle through these views.
-  - `Message::NextView` and `Message::PreviousView` handle the cycling logic in `App::update`.
-  - UI titles reflect the navigation hints (e.g., "(v/h/l to switch view)").
-
-### 6.4 Status Coloring
-- **Feature**: Consistent visual feedback for resource states.
-- **Implementation**:
-  - Models implement `state_color()` or `status_color()` methods.
-  - These methods return `ratatui::style::Color` using `THEME` constants (Success=Green, Warning=Yellow, Error=Red, Muted=Gray).
-  - UI rendering uses these methods instead of hardcoded colors.
-
-### 6.5 LocalStack Support
-- **Feature**: Support for local AWS development.
-- **Implementation**:
-  - `Args` struct supports `--endpoint-url` and `AWS_ENDPOINT_URL`.
-  - `AwsClients::new` configures the SDKs to use this endpoint (force_path_style for S3).
-
-### 6.6 Action Log
-- **Feature**: Track and display action history.
-- **Implementation**:
-  - `App` has `action_log: Vec<String>` and `action_log_expanded: bool`.
-  - Success and error events are logged to `action_log` in `src/app/events.rs`.
-  - Action bar title shows the last action (color-coded green/red).
-  - Press `Shift+A` (or `A`) to open a full-screen popup showing the action history.
-  - `src/ui/components/action_log.rs` handles the popup rendering.
-
-### 6.7 Auto-Loading Details
-- **Feature**: Automatically fetch detailed information without manual trigger.
-- **Implementation** (S3 Bucket Details):
-  - When buckets are loaded, details are fetched automatically in the background.
-  - Rate limiting: Semaphore limits to 3 concurrent requests, 100ms delay per request, max 20 buckets.
-  - UI shows "⏳ Loading bucket details..." until data arrives.
-
-### 6.8 S3 Object Download & Open
-- **Feature**: Download S3 objects to local filesystem or view them in a popup.
-- **Implementation**:
-  - **Messages**: `S3Action::DownloadObject` and `S3Action::OpenObject` in `src/app/messages.rs`.
-  - **Keybindings**: 
-    - `o` (when viewing objects): Open object in popup viewer.
-    - `w` (when viewing objects): Download object to `~/Downloads`.
-  - **Download Handler** (`src/app/update.rs → handle_download_s3_object`):
-    - Downloads via `S3Service::get_object()`.
-    - For `download`: Saves to `~/Downloads` directory (using `dirs` crate).
-    - For `open`: Saves to temp directory (`/tmp/lazy_aws/`).
-    - Sends `AwsEvent::S3ObjectDownloaded` or `AwsEvent::S3ObjectOpened`.
-  - **Events** (`src/app/events.rs`):
-    - `S3ObjectOpened` sets `show_object_viewer = true` and stores content.
-  - **Popup Viewer**:
-    - `S3State` fields: `show_object_viewer`, `opened_object_content`, `opened_object_key`, `viewer_scroll_offset`.
-    - Rendered via `render_object_viewer_modal()` in `src/ui/components/modal.rs`.
-    - Supports scrolling (j/k, PgUp/PgDown, g/G), closes with Esc/q.
-    - Shows line numbers for text files, warning for binary files.
-
-### 6.9 Service State Organization
-- **Pattern**: Each AWS service has its own state struct in `src/app/service_state.rs`.
-- **Implementation**:
-  - `Ec2State`, `S3State`, `RdsState`, `DynamoDbState`, `LambdaState`, `VpcState`, `IamState`, `BackupState`, `CloudTrailState`.
-  - All organized under `ServiceStates` container in `App.services`.
-  - Each state struct contains: data vectors, `TableState` for selection, view mode, and service-specific fields.
-  - Helper methods like `selected_instance()`, `selected_bucket()`, `is_viewing_objects()`.
-
-### 6.10 Task Manager
-- **Feature**: Track and manage async AWS operations.
-- **Implementation**:
-  - `TaskManager` in `src/app/task_manager.rs`.
-  - `spawn(key, handle)`: Track a task with a unique key.
-  - `cancel_all()`: Cancel all running tasks on shutdown.
-  - `cancel_service(prefix)`: Cancel all tasks for a specific service.
-  - Predefined task keys: `task_keys::EC2_REFRESH`, `task_keys::S3_ACTION`, etc.
+*Last updated: 2025-12-11*
+*Target: Rust 1.75+, Ratatui 0.29, AWS SDK for Rust 1.x*
