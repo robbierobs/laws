@@ -10,6 +10,7 @@ pub enum Event {
     Key(KeyEvent),
     Tick,
     Aws(AwsEvent),
+    Message(crate::app::Message),
 }
 
 use crate::models::backup::{BackupJob, BackupPlan, BackupVault};

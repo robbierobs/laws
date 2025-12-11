@@ -55,6 +55,16 @@ impl LambdaService {
         Ok(payload)
     }
 
+    pub async fn delete_function(&self, function_name: &str) -> AppResult<()> {
+        self.client
+            .delete_function()
+            .function_name(function_name)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("Lambda", "delete_function", function_name, e))?;
+        Ok(())
+    }
+
 }
 
 impl crate::aws::traits::AwsService<LambdaFunction> for LambdaService {

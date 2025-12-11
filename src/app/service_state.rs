@@ -89,6 +89,13 @@ impl ServiceInputHandler for Ec2State {
                     }
                 }
             }
+            KeyCode::Char('X') | KeyCode::Delete => {
+                if let Some(i) = self.list_state.selected() {
+                    if let Some(instance) = self.instances.get(i) {
+                        return InputResult::Action(Message::ec2_terminate(instance.instance_id.clone()));
+                    }
+                }
+            }
             _ => {}
         }
         InputResult::None
@@ -161,7 +168,7 @@ impl ServiceInputHandler for S3State {
                         self.object_list_state.select(Some(i));
                     }
                 }
-                KeyCode::Char('D') => {
+                KeyCode::Char('X') | KeyCode::Delete => {
                     if let Some(i) = self.object_list_state.selected() {
                         if let Some(obj) = self.objects.get(i) {
                             if let Some(bucket) = &self.current_bucket {
@@ -293,6 +300,13 @@ impl ServiceInputHandler for RdsState {
                     }
                 }
             }
+            KeyCode::Char('X') | KeyCode::Delete => {
+                if let Some(i) = self.list_state.selected() {
+                    if let Some(inst) = self.instances.get(i) {
+                        return InputResult::Action(Message::rds_delete(inst.db_instance_identifier.clone()));
+                    }
+                }
+            }
             _ => {}
         }
         InputResult::None
@@ -355,7 +369,7 @@ impl ServiceInputHandler for DynamoDbState {
                     let i = self.item_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
                     self.item_list_state.select(Some(i));
                 }
-                KeyCode::Char('D') => {
+                KeyCode::Char('X') | KeyCode::Delete => {
                     // Delete selected item
                     if let Some(idx) = self.item_list_state.selected() {
                         if let Some(item) = self.items.get(idx) {
@@ -445,6 +459,11 @@ impl ServiceInputHandler for LambdaState {
                     return InputResult::Action(Message::lambda_invoke(f.function_name.clone()));
                 }
             }
+            KeyCode::Char('X') | KeyCode::Delete => {
+                if let Some(f) = self.selected_function() {
+                    return InputResult::Action(Message::lambda_delete(f.function_name.clone()));
+                }
+            }
             _ => {}
         }
         InputResult::None
@@ -531,6 +550,11 @@ impl ServiceInputHandler for VpcState {
             // Toggle between inbound and outbound rules with 't' or 'v'
             KeyCode::Char('t') | KeyCode::Char('v') if self.view_mode == VpcViewMode::SecurityGroupRules => {
                 return InputResult::Message(Message::vpc_toggle_sg_rules_direction());
+            }
+            KeyCode::Char('X') | KeyCode::Delete if self.view_mode == VpcViewMode::SecurityGroups => {
+                if let Some(sg) = self.selected_security_group() {
+                     return InputResult::Action(Message::vpc_delete_security_group(sg.group_id.clone()));
+                }
             }
             _ => {}
         }
@@ -619,6 +643,28 @@ impl ServiceInputHandler for IamState {
                 };
             }
             KeyCode::Esc if !self.view_mode.is_main_tab() => return InputResult::Message(Message::iam_exit_drill_down()),
+            KeyCode::Char('X') | KeyCode::Delete if self.view_mode.is_main_tab() => {
+                match self.view_mode {
+                    IamViewMode::Users => {
+                        if let Some(user) = self.selected_user() {
+                            return InputResult::Action(Message::iam_delete_user(user.user_name.clone()));
+                        }
+                    }
+                    IamViewMode::Roles => {
+                        if let Some(role) = self.selected_role() {
+                            return InputResult::Action(Message::iam_delete_role(role.role_name.clone()));
+                        }
+                    }
+                    IamViewMode::Policies => {
+                        if let Some(policy) = self.selected_policy() {
+                            if let Some(arn) = &policy.arn {
+                                return InputResult::Action(Message::iam_delete_policy(arn.clone()));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
             _ => {}
         }
         InputResult::None
@@ -769,6 +815,11 @@ impl ServiceInputHandler for CloudTrailState {
                      return InputResult::Message(Message::cloudtrail_show_event_details(json));
                 }
             }
+            KeyCode::Char('X') | KeyCode::Delete if self.view_mode == CloudTrailViewMode::Trails => {
+                 if let Some(trail) = self.selected_trail() {
+                     return InputResult::Action(Message::cloudtrail_delete_trail(trail.name.clone()));
+                 }
+            }
             _ => {}
         }
         InputResult::None
@@ -839,6 +890,13 @@ impl ServiceInputHandler for SecretsManagerState {
                         ));
                     }
                 }
+            }
+            KeyCode::Char('X') | KeyCode::Delete => {
+                 if let Some(secret) = self.selected_secret() {
+                     if let Some(arn) = &secret.arn {
+                         return InputResult::Action(Message::secretsmanager_delete_secret(arn.clone()));
+                     }
+                 }
             }
             _ => {}
         }

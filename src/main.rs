@@ -98,6 +98,9 @@ async fn main() -> anyhow::Result<()> {
                 Event::Aws(aws_event) => {
                     app.handle_aws_event(aws_event);
                 }
+                Event::Message(msg) => {
+                    app.update(msg, event_tx.clone()).await;
+                }
             }
         }
     }

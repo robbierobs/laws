@@ -320,6 +320,7 @@ pub enum Ec2Action {
     Start(String),
     Stop(String),
     Reboot(String),
+    Terminate(String),
 }
 
 /// S3-specific actions
@@ -337,10 +338,12 @@ pub enum S3Action {
 
 /// RDS-specific actions
 #[derive(Debug, Clone)]
+
 pub enum RdsAction {
     Start(String),
     Stop(String),
     Reboot(String),
+    Delete(String),
 }
 
 /// DynamoDB-specific actions
@@ -356,6 +359,7 @@ pub enum DynamoDbAction {
 #[derive(Debug, Clone)]
 pub enum LambdaAction {
     InvokeFunction(String),
+    DeleteFunction(String),
 }
 
 /// VPC-specific actions
@@ -364,6 +368,7 @@ pub enum VpcAction {
     DrillDownSecurityGroup,
     ExitSecurityGroupRules,
     ToggleSgRulesDirection,
+    DeleteSecurityGroup(String),
 }
 
 /// IAM-specific actions
@@ -373,6 +378,9 @@ pub enum IamAction {
     DrillDownRole,
     DrillDownPolicy,
     ExitDrillDown,
+    DeleteUser(String),
+    DeleteRole(String),
+    DeletePolicy(String),
 }
 
 /// Backup-specific actions (placeholder for future)
@@ -386,6 +394,7 @@ pub enum BackupAction {
 pub enum CloudTrailAction {
     ShowEventDetails(String),
     CloseEventDetails,
+    DeleteTrail(String),
 }
 
 /// SecretsManager-specific actions (placeholder for future)
@@ -393,6 +402,7 @@ pub enum CloudTrailAction {
 pub enum SecretsManagerAction {
     GetSecretValue(String),
     CloseSecretValue,
+    DeleteSecret(String),
 }
 
 // ============================================================================
@@ -546,6 +556,10 @@ impl Message {
         Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(instance_id)))
     }
     
+    pub fn ec2_terminate(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Ec2(Ec2Action::Terminate(instance_id)))
+    }
+    
     // S3 message constructors
     pub fn s3_load_objects(bucket: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::LoadObjects(bucket)))
@@ -606,6 +620,15 @@ impl Message {
         Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(function_name)))
     }
 
+    pub fn lambda_delete(function_name: String) -> Self {
+        Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(function_name)))
+    }
+
+    // RDS message constructors
+    pub fn rds_delete(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Rds(RdsAction::Delete(instance_id)))
+    }
+
     // VPC message constructors
     pub fn vpc_drill_down_sg() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup))
@@ -617,6 +640,10 @@ impl Message {
     
     pub fn vpc_toggle_sg_rules_direction() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::ToggleSgRulesDirection))
+    }
+
+    pub fn vpc_delete_security_group(group_id: String) -> Self {
+        Message::Service(ServiceAction::Vpc(VpcAction::DeleteSecurityGroup(group_id)))
     }
     
     // IAM message constructors
@@ -634,6 +661,26 @@ impl Message {
     
     pub fn iam_exit_drill_down() -> Self {
         Message::Service(ServiceAction::Iam(IamAction::ExitDrillDown))
+    }
+
+    pub fn iam_delete_user(name: String) -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::DeleteUser(name)))
+    }
+
+    pub fn iam_delete_role(name: String) -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::DeleteRole(name)))
+    }
+
+    pub fn iam_delete_policy(arn: String) -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::DeletePolicy(arn)))
+    }
+
+    pub fn cloudtrail_delete_trail(name: String) -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(name)))
+    }
+
+    pub fn secretsmanager_delete_secret(arn: String) -> Self {
+        Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn)))
     }
 }
 

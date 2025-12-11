@@ -46,6 +46,15 @@ impl CloudTrailService {
 
         Ok(events)
     }
+    pub async fn delete_trail(&self, name: &str) -> AppResult<()> {
+        self.client
+            .delete_trail()
+            .name(name)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("CloudTrail", "delete_trail", name, e))?;
+        Ok(())
+    }
 }
 
 impl crate::aws::traits::AwsService<Trail> for CloudTrailService {

@@ -146,4 +146,72 @@ impl App {
         self.services.iam.selected_entity_name = None;
         self.services.iam.list_state.select(Some(0));
     }
+    pub(super) fn handle_delete_iam_user(&mut self, user_name: String, event_tx: crate::app::EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+        self.action_log.push(format!("Deleting IAM User: {}", user_name));
+        let client = clients.iam.clone();
+        tokio::spawn(async move {
+            let service = crate::aws::iam::IamService::new(client);
+            match service.delete_user(&user_name).await {
+                Ok(_) => {
+                    event_tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        format!("User {} deleted", user_name)
+                    ))).await.ok();
+                    // Trigger refresh
+                    event_tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
+                }
+                Err(e) => {
+                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                }
+            }
+        });
+    }
+
+    pub(super) fn handle_delete_iam_role(&mut self, role_name: String, event_tx: crate::app::EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+        self.action_log.push(format!("Deleting IAM Role: {}", role_name));
+        let client = clients.iam.clone();
+        tokio::spawn(async move {
+            let service = crate::aws::iam::IamService::new(client);
+            match service.delete_role(&role_name).await {
+                Ok(_) => {
+                    event_tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        format!("Role {} deleted", role_name)
+                    ))).await.ok();
+                    // Trigger refresh
+                    event_tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
+                }
+                Err(e) => {
+                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                }
+            }
+        });
+    }
+
+    pub(super) fn handle_delete_iam_policy(&mut self, policy_arn: String, event_tx: crate::app::EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+        self.action_log.push(format!("Deleting IAM Policy: {}", policy_arn));
+        let client = clients.iam.clone();
+        tokio::spawn(async move {
+            let service = crate::aws::iam::IamService::new(client);
+            match service.delete_policy(&policy_arn).await {
+                Ok(_) => {
+                    event_tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        format!("Policy {} deleted", policy_arn)
+                    ))).await.ok();
+                    // Trigger refresh
+                    event_tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
+                }
+                Err(e) => {
+                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                }
+            }
+        });
+    }
 }

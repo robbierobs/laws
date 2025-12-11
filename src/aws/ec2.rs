@@ -59,6 +59,16 @@ impl Ec2Service {
         Ok(())
     }
 
+    pub async fn terminate_instance(&self, instance_id: &str) -> AppResult<()> {
+        self.client
+            .terminate_instances()
+            .instance_ids(instance_id)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("EC2", "terminate", instance_id, e))?;
+        Ok(())
+    }
+
 
 }
 

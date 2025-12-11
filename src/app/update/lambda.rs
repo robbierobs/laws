@@ -31,4 +31,30 @@ impl App {
             }
         });
     }
+
+    pub(super) async fn handle_delete_lambda(&mut self, function_name: String, event_tx: EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.action_log.push(format!("Deleting Lambda function: {}", function_name));
+        
+        let client = clients.lambda.clone();
+        
+        tokio::spawn(async move {
+            let service = crate::aws::lambda::LambdaService::new(client);
+            match service.delete_function(&function_name).await {
+                Ok(_) => {
+                    event_tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        format!("Function {} deleted", function_name)
+                    ))).await.ok();
+                    // Trigger refresh
+                    event_tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
+                }
+                Err(e) => {
+                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                }
+            }
+        });
+    }
 }
