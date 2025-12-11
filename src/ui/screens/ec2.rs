@@ -89,14 +89,8 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.services.ec2.list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(instance) = app.services.ec2.instances.get(idx) {
-            build_instance_detail_lines(instance)
-        } else {
-            vec![Line::from("No instance selected")]
-        }
+    let content: Vec<Line> = if let Some(instance) = app.services.ec2.selected_instance() {
+        build_instance_detail_lines(instance)
     } else {
         vec![Line::from("Select an instance to view details (use j/k to navigate)")]
     };

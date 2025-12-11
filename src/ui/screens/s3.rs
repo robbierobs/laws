@@ -75,14 +75,8 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.services.s3.list_state.selected();
-    
-    let content = if let Some(idx) = selected {
-        if let Some(bucket) = app.services.s3.buckets.get(idx) {
-            build_bucket_detail_lines(bucket, app)
-        } else {
-            vec![Line::from("No bucket selected")]
-        }
+    let content = if let Some(bucket) = app.services.s3.selected_bucket() {
+        build_bucket_detail_lines(bucket, app)
     } else {
         vec![Line::from("Select a bucket to view details (use j/k to navigate)")]
     };

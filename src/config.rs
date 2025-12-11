@@ -33,6 +33,7 @@ impl Args {
 /// 
 /// Contains all magic numbers and configurable values in one place.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AppConfig {
     /// Tick rate in milliseconds for the main event loop
     pub tick_rate_ms: u64,

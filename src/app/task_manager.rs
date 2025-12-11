@@ -3,6 +3,8 @@
 //! Provides centralized management of background async tasks to prevent
 //! race conditions and enable graceful cancellation when switching services.
 
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 use tokio::task::JoinHandle;
 

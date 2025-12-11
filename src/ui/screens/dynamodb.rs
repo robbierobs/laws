@@ -91,14 +91,8 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.services.dynamodb.list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(table) = app.services.dynamodb.tables.get(idx) {
-            build_table_detail_lines(table)
-        } else {
-            vec![Line::from("No table selected")]
-        }
+    let content: Vec<Line> = if let Some(table) = app.services.dynamodb.selected_table() {
+        build_table_detail_lines(table)
     } else {
         vec![Line::from("Select a DynamoDB table to view details (use j/k to navigate)")]
     };

@@ -3,6 +3,8 @@
 //! Provides structured error handling with context for AWS API errors,
 //! validation errors, and other failure modes.
 
+#![allow(dead_code)]
+
 use thiserror::Error;
 
 /// Main application error type

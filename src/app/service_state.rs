@@ -4,6 +4,8 @@
 //! across 50+ fields in the App struct. Each service has its own state struct
 //! containing all data, list states, and view modes specific to that service.
 
+#![allow(dead_code)]
+
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
 

@@ -13,6 +13,8 @@
 //! assert_eq!(list.filtered_count(), 2); // "banana" and "cherry" (via 'an')
 //! ```
 
+#![allow(dead_code)]
+
 use ratatui::widgets::ListState;
 
 /// A list with built-in filtering and selection state

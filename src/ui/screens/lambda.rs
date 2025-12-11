@@ -84,14 +84,8 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.services.lambda.list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(func) = app.services.lambda.functions.get(idx) {
-            build_function_detail_lines(func)
-        } else {
-            vec![Line::from("No function selected")]
-        }
+    let content: Vec<Line> = if let Some(func) = app.services.lambda.selected_function() {
+        build_function_detail_lines(func)
     } else {
         vec![Line::from("Select a Lambda function to view details (use j/k to navigate)")]
     };

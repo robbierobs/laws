@@ -83,14 +83,8 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.services.rds.list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(instance) = app.services.rds.instances.get(idx) {
-            build_instance_detail_lines(instance)
-        } else {
-            vec![Line::from("No instance selected")]
-        }
+    let content: Vec<Line> = if let Some(instance) = app.services.rds.selected_instance() {
+        build_instance_detail_lines(instance)
     } else {
         vec![Line::from("Select an RDS instance to view details (use j/k to navigate)")]
     };

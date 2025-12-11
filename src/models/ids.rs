@@ -4,6 +4,8 @@
 //! different kinds of resource IDs (e.g., passing an S3 bucket name
 //! where an EC2 instance ID is expected).
 
+#![allow(dead_code)]
+
 use std::fmt;
 
 // =========================================
