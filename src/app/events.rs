@@ -3,7 +3,7 @@
 //! Processes async events from AWS service calls and updates application state.
 
 use crate::event::AwsEvent;
-use super::App;
+use super::{App, IamViewMode};
 
 impl App {
     /// Handle async AWS events and update state accordingly
@@ -70,19 +70,19 @@ impl App {
             }
             AwsEvent::IamUserPoliciesLoaded(policies) => {
                 self.current_iam_policies = policies;
-                self.iam_view_mode = 3;
+                self.iam_view_mode = IamViewMode::UserAttachedPolicies;
                 self.iam_list_state.select(Some(0));
                 self.loading = false;
             }
             AwsEvent::IamRolePoliciesLoaded(policies) => {
                 self.current_iam_policies = policies;
-                self.iam_view_mode = 4;
+                self.iam_view_mode = IamViewMode::RoleAttachedPolicies;
                 self.iam_list_state.select(Some(0));
                 self.loading = false;
             }
             AwsEvent::IamPolicyDocumentLoaded(doc) => {
                 self.current_policy_document = doc;
-                self.iam_view_mode = 5;
+                self.iam_view_mode = IamViewMode::PolicyDocument;
                 self.loading = false;
             }
             AwsEvent::BackupVaultsLoaded(vaults) => {

@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
-use crate::app::App;
+use crate::app::{App, CloudTrailViewMode};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 use crate::ui::theme::THEME;
 
@@ -22,22 +22,21 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         .split(list_area);
 
     let tabs = ["Trails", "Events"];
-    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.cloudtrail_view_mode as usize);
+    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.cloudtrail_view_mode.to_index());
 
     match app.cloudtrail_view_mode {
-        0 => {
+        CloudTrailViewMode::Trails => {
             render_trail_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_trail_details(frame, area, app);
             }
         }
-        1 => {
+        CloudTrailViewMode::Events => {
             render_event_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_event_details(frame, area, app);
             }
         }
-        _ => {}
     }
 }
 

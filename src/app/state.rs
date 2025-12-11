@@ -15,7 +15,7 @@ use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::vpc::{Vpc, Subnet, SecurityGroup, SecurityGroupRule};
 use crate::ui::components::sidebar::Sidebar;
 
-use super::{Service, Message, Focus, InputMode};
+use super::{Service, Message, Focus, InputMode, VpcViewMode, IamViewMode, BackupViewMode, CloudTrailViewMode, DynamoDbViewMode};
 
 /// Main application state
 pub struct App {
@@ -55,7 +55,7 @@ pub struct App {
     // DynamoDB state
     pub dynamodb_tables: Vec<DynamoDbTable>,
     pub dynamodb_list_state: TableState,
-    pub dynamodb_view_mode: u8, // 0 = tables list, 1 = items view
+    pub dynamodb_view_mode: DynamoDbViewMode,
     pub current_dynamodb_table: Option<String>,
     pub dynamodb_items: Vec<DynamoDbItem>,
     pub dynamodb_item_list_state: TableState,
@@ -69,7 +69,7 @@ pub struct App {
     pub subnets: Vec<Subnet>,
     pub security_groups: Vec<SecurityGroup>,
     pub vpc_list_state: TableState,
-    pub vpc_view_mode: u8,
+    pub vpc_view_mode: VpcViewMode,
     pub current_sg_rules: Vec<SecurityGroupRule>,
     pub selected_sg_id: Option<String>,
     pub sg_rules_inbound: bool, // true = showing inbound, false = showing outbound
@@ -79,8 +79,8 @@ pub struct App {
     pub iam_users: Vec<IamUser>,
     pub iam_policies: Vec<IamPolicy>,
     pub iam_list_state: TableState,
-    pub iam_view_mode: u8,
-    pub previous_iam_view_mode: u8,
+    pub iam_view_mode: IamViewMode,
+    pub previous_iam_view_mode: IamViewMode,
     pub current_iam_policies: Vec<IamPolicy>,
     pub current_policy_document: String,
     pub selected_iam_entity_name: Option<String>,
@@ -90,13 +90,13 @@ pub struct App {
     pub backup_plans: Vec<BackupPlan>,
     pub backup_jobs: Vec<BackupJob>,
     pub backup_list_state: TableState,
-    pub backup_view_mode: u8,
+    pub backup_view_mode: BackupViewMode,
     
     // CloudTrail state
     pub cloudtrail_trails: Vec<Trail>,
     pub cloudtrail_events: Vec<CloudTrailEvent>,
     pub cloudtrail_list_state: TableState,
-    pub cloudtrail_view_mode: u8,
+    pub cloudtrail_view_mode: CloudTrailViewMode,
     
     // Config and State
     pub read_only: bool,
@@ -137,7 +137,7 @@ impl App {
             rds_list_state: TableState::default(),
             dynamodb_tables: Vec::new(),
             dynamodb_list_state: TableState::default(),
-            dynamodb_view_mode: 0,
+            dynamodb_view_mode: DynamoDbViewMode::default(),
             current_dynamodb_table: None,
             dynamodb_items: Vec::new(),
             dynamodb_item_list_state: TableState::default(),
@@ -147,7 +147,7 @@ impl App {
             subnets: Vec::new(),
             security_groups: Vec::new(),
             vpc_list_state: TableState::default(),
-            vpc_view_mode: 0,
+            vpc_view_mode: VpcViewMode::default(),
             current_sg_rules: Vec::new(),
             selected_sg_id: None,
             sg_rules_inbound: true,
@@ -155,8 +155,8 @@ impl App {
             iam_users: Vec::new(),
             iam_policies: Vec::new(),
             iam_list_state: TableState::default(),
-            iam_view_mode: 0,
-            previous_iam_view_mode: 0,
+            iam_view_mode: IamViewMode::default(),
+            previous_iam_view_mode: IamViewMode::default(),
             current_iam_policies: Vec::new(),
             current_policy_document: String::new(),
             selected_iam_entity_name: None,
@@ -164,11 +164,11 @@ impl App {
             backup_plans: Vec::new(),
             backup_jobs: Vec::new(),
             backup_list_state: TableState::default(),
-            backup_view_mode: 0,
+            backup_view_mode: BackupViewMode::default(),
             cloudtrail_trails: Vec::new(),
             cloudtrail_events: Vec::new(),
             cloudtrail_list_state: TableState::default(),
-            cloudtrail_view_mode: 0,
+            cloudtrail_view_mode: CloudTrailViewMode::default(),
             read_only,
             pending_action: None,
             show_confirmation: false,

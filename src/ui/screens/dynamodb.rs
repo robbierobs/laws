@@ -5,25 +5,24 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
-use crate::app::App;
+use crate::app::{App, DynamoDbViewMode};
 use crate::models::dynamodb::DynamoDbTable;
 
 use crate::ui::theme::THEME;
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
     match app.dynamodb_view_mode {
-        0 => {
+        DynamoDbViewMode::Tables => {
             // Tables list view
             render_table_list(frame, list_area, app);
             if let Some(area) = detail_area {
                 render_table_details(frame, area, app);
             }
         }
-        1 => {
+        DynamoDbViewMode::Items => {
             // Table detail/drill-down view
             render_table_drilldown(frame, list_area, detail_area, app);
         }
-        _ => {}
     }
 }
 

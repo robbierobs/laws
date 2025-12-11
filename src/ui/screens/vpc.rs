@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
-use crate::app::App;
+use crate::app::{App, VpcViewMode};
 use crate::models::vpc::{Vpc, Subnet, SecurityGroup, SecurityGroupRule};
 
 use crate::ui::theme::THEME;
@@ -22,7 +22,7 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         ])
         .split(list_area);
 
-    if app.vpc_view_mode == 3 {
+    if app.vpc_view_mode == VpcViewMode::SecurityGroupRules {
         let title = format!("Rules for {}", app.selected_sg_id.as_deref().unwrap_or("Unknown"));
         let block = Block::default()
             .borders(Borders::ALL)
@@ -32,24 +32,22 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         frame.render_widget(block, chunks[0]);
     } else {
         let tabs = ["VPCs", "Subnets", "Security Groups"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.vpc_view_mode as usize);
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.vpc_view_mode.to_index());
     }
 
     match app.vpc_view_mode {
-        0 => render_vpc_list(frame, chunks[1], app),
-        1 => render_subnet_list(frame, chunks[1], app),
-        2 => render_security_group_list(frame, chunks[1], app),
-        3 => render_sg_rules_list(frame, chunks[1], app),
-        _ => render_vpc_list(frame, chunks[1], app),
+        VpcViewMode::Vpcs => render_vpc_list(frame, chunks[1], app),
+        VpcViewMode::Subnets => render_subnet_list(frame, chunks[1], app),
+        VpcViewMode::SecurityGroups => render_security_group_list(frame, chunks[1], app),
+        VpcViewMode::SecurityGroupRules => render_sg_rules_list(frame, chunks[1], app),
     }
     
     if let Some(area) = detail_area {
         match app.vpc_view_mode {
-            0 => render_vpc_details(frame, area, app),
-            1 => render_subnet_details(frame, area, app),
-            2 => render_security_group_details(frame, area, app),
-            3 => render_sg_rule_details(frame, area, app),
-            _ => render_vpc_details(frame, area, app),
+            VpcViewMode::Vpcs => render_vpc_details(frame, area, app),
+            VpcViewMode::Subnets => render_subnet_details(frame, area, app),
+            VpcViewMode::SecurityGroups => render_security_group_details(frame, area, app),
+            VpcViewMode::SecurityGroupRules => render_sg_rule_details(frame, area, app),
         }
     }
 }
