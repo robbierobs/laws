@@ -50,12 +50,30 @@ cargo run
 # With explicit profile and region
 cargo run -- --profile my-profile --region us-west-2
 
-# Connect to LocalStack
+# Connect to LocalStack (explicit endpoint)
 cargo run -- --endpoint-url http://localhost:4566
 
 # Read-only mode (safer for production browsing)
 cargo run -- --read-only
 ```
+
+### LocalStack / Custom Endpoints
+
+The app automatically reads `endpoint_url` from your AWS profile config. For example, if your `~/.aws/config` contains:
+
+```ini
+[profile localstack]
+region = us-east-1
+endpoint_url = http://localhost.localstack.cloud:4566
+```
+
+Simply run with that profile:
+```bash
+cargo run -- --profile localstack
+```
+
+Priority for endpoint URL: CLI `--endpoint-url` > profile config `endpoint_url` > `AWS_ENDPOINT_URL` env var
+
 
 ## Key Bindings
 

@@ -177,6 +177,51 @@ fn check_profile_has_sso(content: &str, profile_name: &str) -> bool {
     false
 }
 
+/// Get the endpoint_url configured for a profile in ~/.aws/config
+/// This is used for LocalStack and other custom endpoints
+pub fn get_profile_endpoint_url(profile_name: &str) -> Option<String> {
+    if let Some(config_path) = get_aws_config_path() {
+        if let Ok(content) = fs::read_to_string(&config_path) {
+            return parse_profile_endpoint_url(&content, profile_name);
+        }
+    }
+    None
+}
+
+/// Parse the config file and extract endpoint_url for a given profile
+fn parse_profile_endpoint_url(content: &str, profile_name: &str) -> Option<String> {
+    let target_section = if profile_name == "default" {
+        "[default]".to_string()
+    } else {
+        format!("[profile {}]", profile_name)
+    };
+    
+    let mut in_target_section = false;
+    
+    for line in content.lines() {
+        let line = line.trim();
+        
+        // Check for section header
+        if line.starts_with('[') && line.ends_with(']') {
+            in_target_section = line == target_section;
+            continue;
+        }
+        
+        // Check for endpoint_url in the target section
+        if in_target_section {
+            if let Some(value) = line.strip_prefix("endpoint_url") {
+                // Handle both "endpoint_url = value" and "endpoint_url=value"
+                let value = value.trim().trim_start_matches('=').trim();
+                if !value.is_empty() {
+                    return Some(value.to_string());
+                }
+            }
+        }
+    }
+    
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,8 +278,42 @@ region = us-east-1
     }
 
     #[test]
+    fn test_parse_profile_endpoint_url() {
+        let content = r#"
+[default]
+region = us-east-1
+
+[profile localstack]
+region = us-east-1
+endpoint_url = http://localhost.localstack.cloud:4566
+
+[profile other]
+region = us-west-2
+"#;
+        assert!(parse_profile_endpoint_url(content, "default").is_none());
+        assert_eq!(
+            parse_profile_endpoint_url(content, "localstack"),
+            Some("http://localhost.localstack.cloud:4566".to_string())
+        );
+        assert!(parse_profile_endpoint_url(content, "other").is_none());
+    }
+
+    #[test]
+    fn test_parse_profile_endpoint_url_no_spaces() {
+        let content = r#"
+[profile localstack]
+endpoint_url=http://localhost:4566
+"#;
+        assert_eq!(
+            parse_profile_endpoint_url(content, "localstack"),
+            Some("http://localhost:4566".to_string())
+        );
+    }
+
+    #[test]
     fn test_all_regions_includes_govcloud() {
         assert!(ALL_REGIONS.contains(&"us-gov-east-1"));
         assert!(ALL_REGIONS.contains(&"us-gov-west-1"));
     }
 }
+
