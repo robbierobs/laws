@@ -8,6 +8,7 @@
 //! - `input`: Keyboard input handling
 //! - `events`: AWS event handling
 //! - `task_manager`: Async task tracking and cancellation
+//! - `filtered_list`: Generic filtered list with caching
 
 mod messages;
 mod state;
@@ -16,6 +17,7 @@ mod update;
 mod input;
 mod events;
 pub mod task_manager;
+pub mod filtered_list;
 
 // Re-export everything needed by other modules
 pub use messages::{
@@ -28,3 +30,5 @@ pub use state::App;
 pub use service_state::ServiceStates;
 // Re-export TaskManager
 pub use task_manager::TaskManager;
+// Re-export FilteredList
+pub use filtered_list::FilteredList;
