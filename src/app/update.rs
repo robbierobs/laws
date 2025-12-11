@@ -21,6 +21,7 @@ impl App {
 
     /// Handle global (non-service-specific) messages
     async fn handle_global_message(&mut self, message: GlobalMessage, event_tx: mpsc::UnboundedSender<Event>) {
+        use super::InputMode;
         match message {
             GlobalMessage::Quit => self.should_quit = true,
             GlobalMessage::Navigate(service) => {
@@ -52,6 +53,93 @@ impl App {
             }
             GlobalMessage::PreviousView => {
                 self.handle_cycle_view_mode(false);
+            }
+            GlobalMessage::OpenProfileSwitcher => {
+                // Pre-select current profile
+                if let Some(current) = &self.profile {
+                    if let Some(idx) = self.available_profiles.iter().position(|p| p == current) {
+                        self.profile_switcher_index = idx;
+                    }
+                } else {
+                    // Default profile is at index 0
+                    self.profile_switcher_index = 0;
+                }
+                self.input_mode = InputMode::ProfileSwitcherProfile;
+            }
+            GlobalMessage::CancelProfileSwitcher => {
+                self.input_mode = InputMode::Normal;
+                self.pending_profile = None;
+            }
+            GlobalMessage::SwitchProfileRegion { profile, region } => {
+                self.input_mode = InputMode::Normal;
+                
+                // Check if profile uses SSO and run login if needed
+                let profile_name = profile.clone().unwrap_or_else(|| "default".to_string());
+                if crate::utils::aws_profiles::is_sso_profile(&profile_name) {
+                    self.action_log.push(format!("Running SSO login for profile: {}", profile_name));
+                    // Run SSO login in background
+                    let sso_result = tokio::process::Command::new("aws")
+                        .args(["sso", "login", "--profile", &profile_name])
+                        .output()
+                        .await;
+                    
+                    match sso_result {
+                        Ok(output) => {
+                            if output.status.success() {
+                                self.action_log.push(format!("SSO login successful for profile: {}", profile_name));
+                            } else {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                self.action_log.push(format!("SSO login warning: {}", stderr.trim()));
+                            }
+                        }
+                        Err(e) => {
+                            self.action_log.push(format!("SSO login error: {}", e));
+                        }
+                    }
+                }
+                
+                // Create new AWS clients with the new profile and region
+                self.loading = true;
+                let new_clients = crate::aws::client::AwsClients::new(
+                    profile.as_deref(),
+                    Some(region.as_str()),
+                    None, // Keep existing endpoint_url handling
+                ).await;
+                
+                match new_clients {
+                    Ok(clients) => {
+                        self.aws_clients = Some(clients);
+                        self.profile = profile;
+                        self.region = region.clone();
+                        
+                        // Update profile/region indices
+                        if let Some(idx) = self.available_profiles.iter().position(|p| {
+                            self.profile.as_ref().map_or(p == "default", |prof| p == prof)
+                        }) {
+                            self.profile_switcher_index = idx;
+                        }
+                        if let Some(idx) = self.available_regions.iter().position(|r| r == &region) {
+                            self.region_switcher_index = idx;
+                        }
+                        
+                        // Clear all service data to force refresh
+                        self.services = super::service_state::ServiceStates::new();
+                        
+                        self.action_log.push(format!(
+                            "Switched to profile: {}, region: {}", 
+                            self.profile.as_deref().unwrap_or("default"),
+                            self.region
+                        ));
+                        
+                        // Refresh current service data
+                        self.update(Message::refresh(), event_tx).await;
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to switch profile: {}", e));
+                        self.action_log.push(format!("Failed to switch profile: {}", e));
+                        self.loading = false;
+                    }
+                }
             }
         }
     }

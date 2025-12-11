@@ -129,6 +129,155 @@ pub fn render_object_viewer_modal(
     frame.render_widget(paragraph, popup_area);
 }
 
+/// Render the profile switcher modal
+pub fn render_profile_switcher_modal(
+    frame: &mut Frame,
+    area: Rect,
+    profiles: &[String],
+    selected_index: usize,
+    current_profile: Option<&str>,
+) {
+    let block = Block::default()
+        .title(" Select AWS Profile (Shift+P) ")
+        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.primary));
+
+    let mut lines: Vec<Line> = Vec::new();
+    
+    lines.push(Line::from(vec![
+        Span::styled("Use ", Style::default().fg(THEME.muted)),
+        Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" or ", Style::default().fg(THEME.muted)),
+        Span::styled("↑/↓", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" to navigate, ", Style::default().fg(THEME.muted)),
+        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(" to select, ", Style::default().fg(THEME.muted)),
+        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(" to cancel", Style::default().fg(THEME.muted)),
+    ]));
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("─".repeat(50), Style::default().fg(THEME.border)),
+    ]));
+    lines.push(Line::from(""));
+
+    for (i, profile) in profiles.iter().enumerate() {
+        let is_selected = i == selected_index;
+        let is_current = current_profile.map_or(false, |cp| cp == profile);
+        
+        let prefix = if is_selected { "▶ " } else { "  " };
+        let suffix = if is_current { " (current)" } else { "" };
+        
+        let style = if is_selected {
+            Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+        } else if is_current {
+            Style::default().fg(THEME.success)
+        } else {
+            Style::default().fg(THEME.fg)
+        };
+        
+        lines.push(Line::from(vec![
+            Span::styled(format!("{}{}{}", prefix, profile, suffix), style),
+        ]));
+    }
+
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .alignment(Alignment::Left);
+
+    let popup_area = centered_rect(50, 60, area);
+    
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(paragraph, popup_area);
+}
+
+/// Render the region switcher modal
+pub fn render_region_switcher_modal(
+    frame: &mut Frame,
+    area: Rect,
+    regions: &[String],
+    selected_index: usize,
+    current_region: &str,
+    selected_profile: Option<&str>,
+) {
+    let title = if let Some(profile) = selected_profile {
+        format!(" Select AWS Region (Profile: {}) ", profile)
+    } else {
+        " Select AWS Region ".to_string()
+    };
+    
+    let block = Block::default()
+        .title(title)
+        .title_style(Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.secondary));
+
+    let mut lines: Vec<Line> = Vec::new();
+    
+    lines.push(Line::from(vec![
+        Span::styled("Use ", Style::default().fg(THEME.muted)),
+        Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" or ", Style::default().fg(THEME.muted)),
+        Span::styled("↑/↓", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" to navigate, ", Style::default().fg(THEME.muted)),
+        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(" to confirm, ", Style::default().fg(THEME.muted)),
+        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(" to cancel", Style::default().fg(THEME.muted)),
+    ]));
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("─".repeat(50), Style::default().fg(THEME.border)),
+    ]));
+    lines.push(Line::from(""));
+
+    // Calculate scroll offset to keep selection visible
+    let visible_rows = 15usize; // Approximate visible rows in modal
+    let scroll_offset = if selected_index >= visible_rows {
+        selected_index - visible_rows + 5
+    } else {
+        0
+    };
+
+    for (i, region) in regions.iter().enumerate().skip(scroll_offset).take(visible_rows + 5) {
+        let is_selected = i == selected_index;
+        let is_current = region == current_region;
+        
+        let prefix = if is_selected { "▶ " } else { "  " };
+        let suffix = if is_current { " (current)" } else { "" };
+        
+        let style = if is_selected {
+            Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+        } else if is_current {
+            Style::default().fg(THEME.success)
+        } else {
+            Style::default().fg(THEME.fg)
+        };
+        
+        lines.push(Line::from(vec![
+            Span::styled(format!("{}{}{}", prefix, region, suffix), style),
+        ]));
+    }
+    
+    // Show scroll indicator if there are more items
+    if regions.len() > visible_rows + 5 {
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  ... {} regions total", regions.len()), Style::default().fg(THEME.muted)),
+        ]));
+    }
+
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .alignment(Alignment::Left);
+
+    let popup_area = centered_rect(50, 70, area);
+    
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(paragraph, popup_area);
+}
+
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)

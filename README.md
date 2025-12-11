@@ -64,6 +64,7 @@ cargo run -- --read-only
 |-----|--------|
 | `1-9` | Quick switch to service |
 | `Tab` | Toggle focus between Sidebar and Main View |
+| `P` (Shift+P) | Open profile/region switcher |
 | `q` | Quit |
 | `d` | Toggle detail panel |
 | `A` | Toggle action log popup |
