@@ -6,11 +6,17 @@ rust-version = "1.75"
 
 [dependencies]
 # TUI
-ratatui = { version = "0.29", features = ["crossterm", "all-widgets"] }
+ratatui = { version = "0.29", features = ["crossterm"] }
 crossterm = "0.28"
 
 # Async
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "macros",
+    "process",
+] }
 
 # AWS SDK
 aws-config = "1.5"
