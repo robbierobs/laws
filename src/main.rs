@@ -54,14 +54,19 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| "us-east-1".to_string());
 
     // Create app state
-    let mut app = App::new(aws_clients, profile, region, args.read_only);
+    let mut app = App::new(aws_clients, profile.clone(), region, args.read_only);
 
     // Create event handler
     let mut events = EventHandler::new(250); // 250ms tick rate
     let event_tx = events.sender();
 
-    // Initial data load
-    app.update(Message::refresh(), event_tx.clone()).await;
+    // If no profile was specified, open the profile switcher immediately
+    if profile.is_none() {
+        app.update(Message::open_profile_switcher(), event_tx.clone()).await;
+    } else {
+        // Initial data load
+        app.update(Message::refresh(), event_tx.clone()).await;
+    }
 
     // Main loop
     while !app.should_quit {
