@@ -101,6 +101,87 @@ impl App {
             };
         }
 
+        // Handle profile switcher - profile selection
+        if self.input_mode == InputMode::ProfileSwitcherProfile {
+            match key.code {
+                KeyCode::Esc => {
+                    return Some(Message::cancel_profile_switcher());
+                }
+                KeyCode::Char('R') => {
+                    // Toggle read-only mode
+                    self.pending_read_only = !self.pending_read_only;
+                }
+                KeyCode::Enter => {
+                    // Store selected profile and move to region selection
+                    let selected = self.available_profiles.get(self.profile_switcher_index)
+                        .map(|s| if s == "default" { None } else { Some(s.clone()) })
+                        .unwrap_or(None);
+                    self.pending_profile = selected;
+                    self.input_mode = InputMode::ProfileSwitcherRegion;
+                    // Pre-select current region in region list
+                    if let Some(idx) = self.available_regions.iter().position(|r| r == &self.region) {
+                        self.region_switcher_index = idx;
+                    }
+                    return None;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !self.available_profiles.is_empty() {
+                        self.profile_switcher_index = 
+                            (self.profile_switcher_index + 1) % self.available_profiles.len();
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if !self.available_profiles.is_empty() {
+                        self.profile_switcher_index = if self.profile_switcher_index == 0 {
+                            self.available_profiles.len() - 1
+                        } else {
+                            self.profile_switcher_index - 1
+                        };
+                    }
+                }
+                _ => {}
+            }
+            return None;
+        }
+
+        // Handle profile switcher - region selection
+        if self.input_mode == InputMode::ProfileSwitcherRegion {
+            match key.code {
+                KeyCode::Esc => {
+                    // Cancel and go back to normal mode
+                    self.pending_profile = None;
+                    return Some(Message::cancel_profile_switcher());
+                }
+                KeyCode::Enter => {
+                    // Confirm and switch profile/region
+                    let profile = self.pending_profile.clone();
+                    let region = self.available_regions.get(self.region_switcher_index)
+                        .cloned()
+                        .unwrap_or_else(|| "us-east-1".to_string());
+                    let read_only = self.pending_read_only;
+                    self.pending_profile = None;
+                    return Some(Message::switch_profile_region(profile, region, read_only));
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !self.available_regions.is_empty() {
+                        self.region_switcher_index = 
+                            (self.region_switcher_index + 1) % self.available_regions.len();
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if !self.available_regions.is_empty() {
+                        self.region_switcher_index = if self.region_switcher_index == 0 {
+                            self.available_regions.len() - 1
+                        } else {
+                            self.region_switcher_index - 1
+                        };
+                    }
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         // Handle filter input mode
         if self.input_mode == InputMode::Filtering {
             match key.code {
@@ -204,6 +285,7 @@ impl App {
         // Global keys
         match key.code {
             KeyCode::Char('q') => Some(Message::quit()),
+            KeyCode::Char('P') => Some(Message::open_profile_switcher()),
             KeyCode::Char('1') => Some(Message::navigate(Service::EC2)),
             KeyCode::Char('2') => Some(Message::navigate(Service::S3)),
             KeyCode::Char('3') => Some(Message::navigate(Service::RDS)),

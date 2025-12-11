@@ -305,6 +305,12 @@ pub enum GlobalMessage {
     ConfirmAction,
     /// Cancel pending action
     CancelAction,
+    /// Open profile switcher modal
+    OpenProfileSwitcher,
+    /// Cancel profile switcher
+    CancelProfileSwitcher,
+    /// Switch to selected profile and region
+    SwitchProfileRegion { profile: Option<String>, region: String, read_only: bool },
 }
 
 /// Service-specific messages
@@ -375,6 +381,18 @@ impl Message {
     
     pub fn cancel_action() -> Self {
         Message::Global(GlobalMessage::CancelAction)
+    }
+    
+    pub fn open_profile_switcher() -> Self {
+        Message::Global(GlobalMessage::OpenProfileSwitcher)
+    }
+    
+    pub fn cancel_profile_switcher() -> Self {
+        Message::Global(GlobalMessage::CancelProfileSwitcher)
+    }
+    
+    pub fn switch_profile_region(profile: Option<String>, region: String, read_only: bool) -> Self {
+        Message::Global(GlobalMessage::SwitchProfileRegion { profile, region, read_only })
     }
     
     // EC2 message constructors
@@ -492,4 +510,8 @@ pub enum Focus {
 pub enum InputMode {
     Normal,
     Filtering,
+    /// Profile switcher modal - selecting profile
+    ProfileSwitcherProfile,
+    /// Profile switcher modal - selecting region  
+    ProfileSwitcherRegion,
 }

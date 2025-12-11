@@ -41,13 +41,19 @@ impl AwsClients {
             .map(|s| s.to_string())
             .or_else(|| std::env::var("AWS_PROFILE").ok());
         
-        if let Some(p) = profile_name {
+        if let Some(ref p) = profile_name {
             config_loader = config_loader.profile_name(p);
         }
 
-        // Set custom endpoint URL: CLI arg > AWS_ENDPOINT_URL env
+        // Set custom endpoint URL: CLI arg > profile config > AWS_ENDPOINT_URL env
+        // First check the profile's config file for endpoint_url
+        let profile_endpoint = profile_name
+            .as_ref()
+            .and_then(|p| crate::utils::aws_profiles::get_profile_endpoint_url(p));
+        
         let endpoint = endpoint_url
             .map(|s| s.to_string())
+            .or(profile_endpoint)
             .or_else(|| std::env::var("AWS_ENDPOINT_URL").ok());
         
         if let Some(ref url) = endpoint {

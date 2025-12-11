@@ -43,10 +43,35 @@ pub struct App {
     
     // Task manager for async task tracking
     pub tasks: TaskManager,
+    
+    // Profile/Region Switcher State
+    pub available_profiles: Vec<String>,
+    pub available_regions: Vec<String>,
+    pub profile_switcher_index: usize,
+    pub region_switcher_index: usize,
+    pub pending_profile: Option<String>,
+    pub pending_read_only: bool,
 }
 
 impl App {
     pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool) -> Self {
+        // Load available profiles from AWS config
+        let available_profiles = crate::utils::aws_profiles::list_profiles();
+        let available_regions: Vec<String> = crate::utils::aws_profiles::ALL_REGIONS
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        
+        // Find current profile/region index for pre-selection
+        let profile_switcher_index = profile
+            .as_ref()
+            .and_then(|p| available_profiles.iter().position(|x| x == p))
+            .unwrap_or(0);
+        let region_switcher_index = available_regions
+            .iter()
+            .position(|r| r == &region)
+            .unwrap_or(0);
+        
         Self {
             should_quit: false,
             current_service: Service::EC2,
@@ -69,6 +94,12 @@ impl App {
             action_log_expanded: false,
             services: ServiceStates::new(),
             tasks: TaskManager::new(),
+            available_profiles,
+            available_regions,
+            profile_switcher_index,
+            region_switcher_index,
+            pending_profile: None,
+            pending_read_only: read_only,
         }
     }
     
@@ -112,6 +143,30 @@ impl App {
                 };
                 crate::ui::components::modal::render_confirmation_modal(frame, frame.area(), &description);
             }
+        }
+        
+        // Render profile switcher modal
+        if self.input_mode == InputMode::ProfileSwitcherProfile {
+            crate::ui::components::modal::render_profile_switcher_modal(
+                frame,
+                frame.area(),
+                &self.available_profiles,
+                self.profile_switcher_index,
+                self.profile.as_deref(),
+                self.pending_read_only,
+            );
+        }
+        
+        // Render region switcher modal
+        if self.input_mode == InputMode::ProfileSwitcherRegion {
+            crate::ui::components::modal::render_region_switcher_modal(
+                frame,
+                frame.area(),
+                &self.available_regions,
+                self.region_switcher_index,
+                &self.region,
+                self.pending_profile.as_deref(),
+            );
         }
     }
     
