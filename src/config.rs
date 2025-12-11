@@ -55,6 +55,12 @@ pub struct ConfigFile {
     /// API timeout in seconds for AWS SDK calls
     pub api_timeout_secs: u64,
     
+    /// Maximum retry attempts for AWS API calls (default: 3)
+    pub aws_max_retries: u32,
+    
+    /// Initial backoff in milliseconds for AWS retries (default: 100)
+    pub aws_initial_backoff_ms: u64,
+    
     /// Maximum number of items in action history log
     pub max_history_items: usize,
     
@@ -74,6 +80,8 @@ impl Default for ConfigFile {
             theme: ThemePreset::Dark,
             tick_rate_ms: 250,
             api_timeout_secs: 30,
+            aws_max_retries: 3,
+            aws_initial_backoff_ms: 100,
             max_history_items: 100,
             max_s3_objects: 1000,
             max_dynamodb_items: 100,
@@ -150,6 +158,14 @@ tick_rate_ms = 250
 # AWS API timeout (seconds)
 api_timeout_secs = 30
 
+# AWS API retry configuration
+# Maximum retry attempts (default: 3)
+aws_max_retries = 3
+
+# Initial backoff for retries in milliseconds (default: 100)
+# Uses exponential backoff with jitter
+aws_initial_backoff_ms = 100
+
 # Maximum items to keep in action history
 max_history_items = 100
 
@@ -180,6 +196,12 @@ pub struct AppConfig {
     
     /// API timeout in seconds for AWS SDK calls
     pub api_timeout_secs: u64,
+    
+    /// Maximum retry attempts for AWS API calls
+    pub aws_max_retries: u32,
+    
+    /// Initial backoff in milliseconds for AWS retries
+    pub aws_initial_backoff_ms: u64,
     
     /// Maximum number of items in action history log
     pub max_history_items: usize,
@@ -212,6 +234,8 @@ impl Default for AppConfig {
             theme: ThemePreset::Dark,
             tick_rate_ms: 250,
             api_timeout_secs: 30,
+            aws_max_retries: 3,
+            aws_initial_backoff_ms: 100,
             max_history_items: 100,
             max_s3_objects: 1000,
             max_dynamodb_items: 100,
@@ -246,6 +270,8 @@ impl AppConfig {
             theme,
             tick_rate_ms: file_config.tick_rate_ms,
             api_timeout_secs: file_config.api_timeout_secs,
+            aws_max_retries: file_config.aws_max_retries,
+            aws_initial_backoff_ms: file_config.aws_initial_backoff_ms,
             max_history_items: file_config.max_history_items,
             max_s3_objects: file_config.max_s3_objects,
             max_dynamodb_items: file_config.max_dynamodb_items,

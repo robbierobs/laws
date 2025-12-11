@@ -315,12 +315,12 @@ max_s3_objects = 1000
 | **High** | Reduce `tokio` features | ✅ REVIEWED | All 5 features required (spawn, channels, timers, SSO login) |
 | **High** | Add task cancellation logic | ✅ DONE | `TaskManager` with full cancellation support |
 | **Medium** | Standardize error handling | ✅ DONE | Phase 5: Migrated to `AppResult`/`AppError` |
-| **Medium** | Add retry/backoff for AWS | ⏸️ DEFERRED | Would require event loop changes |
+| **Medium** | Add retry/backoff for AWS | ✅ DONE | Uses SDK's built-in RetryConfig with exponential backoff |
 | **Medium** | Split `input.rs` by mode | ⚠️ OPTIONAL | 501 lines, has ServiceInputHandler trait |
 | **Low** | Add config file support | ✅ DONE | Phase 8: TOML config at `~/.config/lazy-aws/` |
 | **Low** | Audit string allocations | ✅ DONE | Phase 4: RenderCache, Display impl for InstanceState |
 
-**Summary**: 6 of 8 items completed/reviewed, 1 deferred, 1 optional.
+**Summary**: 7 of 8 items completed/reviewed, 1 optional.
 
 ---
 

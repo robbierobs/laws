@@ -1,4 +1,9 @@
+//! AWS SDK client initialization
+//!
+//! Centralizes AWS client creation with retry configuration.
+
 use aws_config::{BehaviorVersion, Region};
+use aws_config::retry::RetryConfig;
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_s3::Client as S3Client;
 use aws_sdk_rds::Client as RdsClient;
@@ -8,6 +13,13 @@ use aws_sdk_iam::Client as IamClient;
 use aws_sdk_backup::Client as BackupClient;
 use aws_sdk_cloudtrail::Client as CloudTrailClient;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
+use std::time::Duration;
+
+/// Default maximum retry attempts for AWS API calls
+const DEFAULT_MAX_ATTEMPTS: u32 = 3;
+
+/// Default initial backoff duration for retries
+const DEFAULT_INITIAL_BACKOFF_MS: u64 = 100;
 
 #[derive(Clone)]
 pub struct AwsClients {
@@ -28,7 +40,24 @@ impl AwsClients {
         region: Option<&str>,
         endpoint_url: Option<&str>,
     ) -> crate::error::AppResult<Self> {
-        let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
+        Self::with_retry_config(profile, region, endpoint_url, DEFAULT_MAX_ATTEMPTS, DEFAULT_INITIAL_BACKOFF_MS).await
+    }
+    
+    /// Create AWS clients with custom retry configuration
+    pub async fn with_retry_config(
+        profile: Option<&str>, 
+        region: Option<&str>,
+        endpoint_url: Option<&str>,
+        max_attempts: u32,
+        initial_backoff_ms: u64,
+    ) -> crate::error::AppResult<Self> {
+        // Configure retry behavior with exponential backoff
+        let retry_config = RetryConfig::standard()
+            .with_max_attempts(max_attempts)
+            .with_initial_backoff(Duration::from_millis(initial_backoff_ms));
+        
+        let mut config_loader = aws_config::defaults(BehaviorVersion::latest())
+            .retry_config(retry_config);
         
         // Set region: CLI arg > AWS_REGION env > default to us-east-1
         let region_str = region
@@ -86,3 +115,15 @@ impl AwsClients {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_retry_constants() {
+        assert_eq!(DEFAULT_MAX_ATTEMPTS, 3);
+        assert_eq!(DEFAULT_INITIAL_BACKOFF_MS, 100);
+    }
+}
+
