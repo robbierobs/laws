@@ -327,8 +327,9 @@ impl Filterable for Ec2Instance {
 6. **Filterable trait** - [COMPLETED] Implemented `Filterable` trait for all models and updated UI lists to use it.
 
 ### Low Priority (Future)
-7. **AWS Service traits** - Only needed for testing/mocking
-8. **Input handler trait** - [COMPLETED] Implemented `ServiceInputHandler` trait and applied to all services (EC2, RDS, DynamoDB, Lambda, VPC, IAM, Backup, CloudTrail, S3). Monolithic `input.rs` refactored.
+7. **AWS Service traits** - [PARTIAL] Defined `AwsService` trait and implemented for EC2 as proof of concept. Not critical for current functionality.
+8. **AppConfig integration** - [COMPLETED] Integrated `AppConfig` to centralize magic numbers (tick rate, limits, layout).
+9. **Input handler trait** - [COMPLETED] Implemented `ServiceInputHandler` trait and applied to all services. Monolithic `input.rs` refactored.
 
 ---
 
