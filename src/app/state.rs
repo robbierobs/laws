@@ -51,6 +51,10 @@ pub struct App {
     pub region_switcher_index: usize,
     pub pending_profile: Option<String>,
     pub pending_read_only: bool,
+    pub profile_filter: String,
+    pub region_filter: String,
+    pub profile_filter_active: bool,
+    pub region_filter_active: bool,
 }
 
 impl App {
@@ -100,6 +104,36 @@ impl App {
             region_switcher_index,
             pending_profile: None,
             pending_read_only: read_only,
+            profile_filter: String::new(),
+            region_filter: String::new(),
+            profile_filter_active: false,
+            region_filter_active: false,
+        }
+    }
+    
+    /// Get filtered profile list based on current filter
+    pub fn filtered_profiles(&self) -> Vec<&String> {
+        if self.profile_filter.is_empty() {
+            self.available_profiles.iter().collect()
+        } else {
+            let filter_lower = self.profile_filter.to_lowercase();
+            self.available_profiles
+                .iter()
+                .filter(|p| p.to_lowercase().contains(&filter_lower))
+                .collect()
+        }
+    }
+    
+    /// Get filtered region list based on current filter
+    pub fn filtered_regions(&self) -> Vec<&String> {
+        if self.region_filter.is_empty() {
+            self.available_regions.iter().collect()
+        } else {
+            let filter_lower = self.region_filter.to_lowercase();
+            self.available_regions
+                .iter()
+                .filter(|r| r.to_lowercase().contains(&filter_lower))
+                .collect()
         }
     }
     
@@ -147,25 +181,31 @@ impl App {
         
         // Render profile switcher modal
         if self.input_mode == InputMode::ProfileSwitcherProfile {
+            let filtered: Vec<String> = self.filtered_profiles().into_iter().cloned().collect();
             crate::ui::components::modal::render_profile_switcher_modal(
                 frame,
                 frame.area(),
-                &self.available_profiles,
+                &filtered,
                 self.profile_switcher_index,
                 self.profile.as_deref(),
                 self.pending_read_only,
+                &self.profile_filter,
+                self.profile_filter_active,
             );
         }
         
         // Render region switcher modal
         if self.input_mode == InputMode::ProfileSwitcherRegion {
+            let filtered: Vec<String> = self.filtered_regions().into_iter().cloned().collect();
             crate::ui::components::modal::render_region_switcher_modal(
                 frame,
                 frame.area(),
-                &self.available_regions,
+                &filtered,
                 self.region_switcher_index,
                 &self.region,
                 self.pending_profile.as_deref(),
+                &self.region_filter,
+                self.region_filter_active,
             );
         }
     }

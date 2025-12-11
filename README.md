@@ -126,9 +126,10 @@ SSO profiles are automatically detected. When you switch to an SSO profile, the 
 |-----|--------|
 | `j` / `↓` | Move selection down |
 | `k` / `↑` | Move selection up |
-| `R` | Toggle read-only mode |
+| `/` | Start filtering (type to search) |
+| `R` | Toggle read-only mode (profiles only) |
 | `Enter` | Select profile → Select region → Confirm |
-| `Esc` | Cancel and close |
+| `Esc` | Cancel filter / Cancel and close |
 
 ### Navigation
 

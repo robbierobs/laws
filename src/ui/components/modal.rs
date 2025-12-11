@@ -14,33 +14,54 @@ pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_descripti
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.warning));
 
+    // Use fixed size that ensures content fits
+    let popup_width = area.width.min(60).max(40);
+    let popup_height = 9u16; // Fixed height for 5 lines + border + padding
+    
+    let popup_area = centered_rect_fixed(popup_width, popup_height, area);
+    let inner_area = block.inner(popup_area);
+    
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(block, popup_area);
+    
+    // Calculate vertical centering - our content is 5 lines
+    let content_height = 5u16;
+    let vertical_padding = inner_area.height.saturating_sub(content_height) / 2;
+    
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(vertical_padding),
+            Constraint::Min(content_height),
+            Constraint::Length(vertical_padding),
+        ])
+        .split(inner_area);
+
     let text = vec![
-        Line::from(vec![
-            Span::styled("Are you sure you want to perform this action?", Style::default().fg(THEME.fg)),
-        ]),
+        Line::from(Span::styled(
+            "Are you sure you want to perform this action?",
+            Style::default().fg(THEME.fg),
+        )),
         Line::from(""),
-        Line::from(vec![
-            Span::styled(action_description, Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(Span::styled(
+            action_description,
+            Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from(vec![
             Span::styled("Press ", Style::default().fg(THEME.muted)),
             Span::styled("y", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
             Span::styled(" to confirm or ", Style::default().fg(THEME.muted)),
             Span::styled("n/Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
-            Span::styled(" to cancel.", Style::default().fg(THEME.muted)),
+            Span::styled(" to cancel", Style::default().fg(THEME.muted)),
         ]),
     ];
 
     let paragraph = Paragraph::new(text)
-        .block(block)
         .wrap(Wrap { trim: true })
         .alignment(Alignment::Center);
 
-    let area = centered_rect(60, 20, area);
-    
-    frame.render_widget(Clear, area); // Clear background
-    frame.render_widget(paragraph, area);
+    frame.render_widget(paragraph, chunks[1]);
 }
 
 /// Render a modal to display S3 object content
@@ -129,7 +150,7 @@ pub fn render_object_viewer_modal(
     frame.render_widget(paragraph, popup_area);
 }
 
-/// Render the profile switcher modal
+/// Render the profile switcher modal with scrollbar and filter support
 pub fn render_profile_switcher_modal(
     frame: &mut Frame,
     area: Rect,
@@ -137,49 +158,98 @@ pub fn render_profile_switcher_modal(
     selected_index: usize,
     current_profile: Option<&str>,
     read_only: bool,
+    filter: &str,
+    filter_active: bool,
 ) {
     let block = Block::default()
-        .title(" Select AWS Profile (Shift+P) ")
+        .title(" Select AWS Profile ")
         .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
-    let mut lines: Vec<Line> = Vec::new();
+    let popup_area = centered_rect(55, 70, area);
+    let inner_area = block.inner(popup_area);
     
-    lines.push(Line::from(vec![
-        Span::styled("Use ", Style::default().fg(THEME.muted)),
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(block, popup_area);
+    
+    // Calculate layout
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Help line
+            Constraint::Length(2), // Filter input
+            Constraint::Length(2), // Read-only toggle
+            Constraint::Length(1), // Separator
+            Constraint::Min(5),    // Profile list
+            Constraint::Length(1), // Scroll indicator
+        ])
+        .split(inner_area);
+    
+    // Help line
+    let help = Line::from(vec![
         Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        Span::styled(" to navigate, ", Style::default().fg(THEME.muted)),
+        Span::styled(" nav  ", Style::default().fg(THEME.muted)),
+        Span::styled("/", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" filter  ", Style::default().fg(THEME.muted)),
+        Span::styled("R", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" read-only  ", Style::default().fg(THEME.muted)),
         Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
-        Span::styled(" to select, ", Style::default().fg(THEME.muted)),
+        Span::styled(" select  ", Style::default().fg(THEME.muted)),
         Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
-        Span::styled(" to cancel", Style::default().fg(THEME.muted)),
-    ]));
-    lines.push(Line::from(""));
+        Span::styled(" cancel", Style::default().fg(THEME.muted)),
+    ]);
+    frame.render_widget(Paragraph::new(help), chunks[0]);
     
-    // Read-only toggle checkbox
+    // Filter input
+    let filter_style = if filter_active {
+        Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(THEME.muted)
+    };
+    let filter_text = if filter.is_empty() && !filter_active {
+        "/ to filter...".to_string()
+    } else {
+        format!("Filter: {}{}", filter, if filter_active { "▏" } else { "" })
+    };
+    let filter_line = Paragraph::new(filter_text).style(filter_style);
+    frame.render_widget(filter_line, chunks[1]);
+    
+    // Read-only toggle
     let checkbox = if read_only { "[✓]" } else { "[ ]" };
     let ro_style = if read_only {
         Style::default().fg(THEME.warning).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.muted)
     };
-    lines.push(Line::from(vec![
-        Span::styled("  ", Style::default()),
+    let readonly_line = Line::from(vec![
         Span::styled(checkbox, ro_style),
-        Span::styled(" Read-only mode  ", ro_style),
-        Span::styled("(", Style::default().fg(THEME.muted)),
-        Span::styled("Shift+R", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        Span::styled(" to toggle)", Style::default().fg(THEME.muted)),
-    ]));
-    lines.push(Line::from(""));
+        Span::styled(" Read-only mode", ro_style),
+    ]);
+    frame.render_widget(Paragraph::new(readonly_line), chunks[2]);
     
-    lines.push(Line::from(vec![
-        Span::styled("─".repeat(50), Style::default().fg(THEME.border)),
-    ]));
-    lines.push(Line::from(""));
-
-    for (i, profile) in profiles.iter().enumerate() {
+    // Separator
+    let separator = Line::from(Span::styled("─".repeat(chunks[3].width as usize), Style::default().fg(THEME.border)));
+    frame.render_widget(Paragraph::new(separator), chunks[3]);
+    
+    // Calculate visible area for profiles
+    let list_height = chunks[4].height as usize;
+    let total_profiles = profiles.len();
+    
+    // Calculate scroll offset to keep selection visible
+    let scroll_offset = if total_profiles <= list_height {
+        0
+    } else if selected_index < list_height / 2 {
+        0
+    } else if selected_index >= total_profiles.saturating_sub(list_height / 2) {
+        total_profiles.saturating_sub(list_height)
+    } else {
+        selected_index.saturating_sub(list_height / 2)
+    };
+    
+    // Profile list with scrolling
+    let mut lines: Vec<Line> = Vec::new();
+    for (i, profile) in profiles.iter().enumerate().skip(scroll_offset).take(list_height) {
         let is_selected = i == selected_index;
         let is_current = current_profile.map_or(false, |cp| cp == profile);
         
@@ -194,22 +264,38 @@ pub fn render_profile_switcher_modal(
             Style::default().fg(THEME.fg)
         };
         
-        lines.push(Line::from(vec![
-            Span::styled(format!("{}{}{}", prefix, profile, suffix), style),
-        ]));
+        lines.push(Line::from(Span::styled(format!("{}{}{}", prefix, profile, suffix), style)));
     }
-
-    let paragraph = Paragraph::new(lines)
-        .block(block)
-        .alignment(Alignment::Left);
-
-    let popup_area = centered_rect(50, 65, area);
     
-    frame.render_widget(Clear, popup_area);
-    frame.render_widget(paragraph, popup_area);
+    let list = Paragraph::new(lines);
+    frame.render_widget(list, chunks[4]);
+    
+    // Scroll indicator
+    if total_profiles > list_height {
+        let scroll_pos = if total_profiles <= list_height {
+            0
+        } else {
+            (scroll_offset * 100) / (total_profiles - list_height)
+        };
+        let indicator = format!(
+            " {} of {} profiles │ {}% ",
+            selected_index + 1,
+            total_profiles,
+            scroll_pos
+        );
+        let scroll_line = Paragraph::new(indicator)
+            .style(Style::default().fg(THEME.muted))
+            .alignment(Alignment::Right);
+        frame.render_widget(scroll_line, chunks[5]);
+    } else if total_profiles == 0 {
+        let no_results = Paragraph::new("No matching profiles")
+            .style(Style::default().fg(THEME.muted))
+            .alignment(Alignment::Center);
+        frame.render_widget(no_results, chunks[5]);
+    }
 }
 
-/// Render the region switcher modal
+/// Render the region switcher modal with scrollbar and filter support
 pub fn render_region_switcher_modal(
     frame: &mut Frame,
     area: Rect,
@@ -217,9 +303,11 @@ pub fn render_region_switcher_modal(
     selected_index: usize,
     current_region: &str,
     selected_profile: Option<&str>,
+    filter: &str,
+    filter_active: bool,
 ) {
     let title = if let Some(profile) = selected_profile {
-        format!(" Select AWS Region (Profile: {}) ", profile)
+        format!(" Select Region (Profile: {}) ", profile)
     } else {
         " Select AWS Region ".to_string()
     };
@@ -230,34 +318,73 @@ pub fn render_region_switcher_modal(
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.secondary));
 
-    let mut lines: Vec<Line> = Vec::new();
+    let popup_area = centered_rect(55, 70, area);
+    let inner_area = block.inner(popup_area);
     
-    lines.push(Line::from(vec![
-        Span::styled("Use ", Style::default().fg(THEME.muted)),
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(block, popup_area);
+    
+    // Calculate layout
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Help line
+            Constraint::Length(2), // Filter input
+            Constraint::Length(1), // Separator
+            Constraint::Min(5),    // Region list
+            Constraint::Length(1), // Scroll indicator
+        ])
+        .split(inner_area);
+    
+    // Help line
+    let help = Line::from(vec![
         Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        Span::styled(" or ", Style::default().fg(THEME.muted)),
-        Span::styled("↑/↓", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        Span::styled(" to navigate, ", Style::default().fg(THEME.muted)),
+        Span::styled(" nav  ", Style::default().fg(THEME.muted)),
+        Span::styled("/", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" filter  ", Style::default().fg(THEME.muted)),
         Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
-        Span::styled(" to confirm, ", Style::default().fg(THEME.muted)),
+        Span::styled(" confirm  ", Style::default().fg(THEME.muted)),
         Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
-        Span::styled(" to cancel", Style::default().fg(THEME.muted)),
-    ]));
-    lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("─".repeat(50), Style::default().fg(THEME.border)),
-    ]));
-    lines.push(Line::from(""));
-
-    // Calculate scroll offset to keep selection visible
-    let visible_rows = 15usize; // Approximate visible rows in modal
-    let scroll_offset = if selected_index >= visible_rows {
-        selected_index - visible_rows + 5
+        Span::styled(" cancel", Style::default().fg(THEME.muted)),
+    ]);
+    frame.render_widget(Paragraph::new(help), chunks[0]);
+    
+    // Filter input
+    let filter_style = if filter_active {
+        Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)
     } else {
-        0
+        Style::default().fg(THEME.muted)
     };
-
-    for (i, region) in regions.iter().enumerate().skip(scroll_offset).take(visible_rows + 5) {
+    let filter_text = if filter.is_empty() && !filter_active {
+        "/ to filter...".to_string()
+    } else {
+        format!("Filter: {}{}", filter, if filter_active { "▏" } else { "" })
+    };
+    let filter_line = Paragraph::new(filter_text).style(filter_style);
+    frame.render_widget(filter_line, chunks[1]);
+    
+    // Separator
+    let separator = Line::from(Span::styled("─".repeat(chunks[2].width as usize), Style::default().fg(THEME.border)));
+    frame.render_widget(Paragraph::new(separator), chunks[2]);
+    
+    // Calculate visible area for regions
+    let list_height = chunks[3].height as usize;
+    let total_regions = regions.len();
+    
+    // Calculate scroll offset to keep selection visible
+    let scroll_offset = if total_regions <= list_height {
+        0
+    } else if selected_index < list_height / 2 {
+        0
+    } else if selected_index >= total_regions.saturating_sub(list_height / 2) {
+        total_regions.saturating_sub(list_height)
+    } else {
+        selected_index.saturating_sub(list_height / 2)
+    };
+    
+    // Region list with scrolling
+    let mut lines: Vec<Line> = Vec::new();
+    for (i, region) in regions.iter().enumerate().skip(scroll_offset).take(list_height) {
         let is_selected = i == selected_index;
         let is_current = region == current_region;
         
@@ -272,27 +399,35 @@ pub fn render_region_switcher_modal(
             Style::default().fg(THEME.fg)
         };
         
-        lines.push(Line::from(vec![
-            Span::styled(format!("{}{}{}", prefix, region, suffix), style),
-        ]));
+        lines.push(Line::from(Span::styled(format!("{}{}{}", prefix, region, suffix), style)));
     }
     
-    // Show scroll indicator if there are more items
-    if regions.len() > visible_rows + 5 {
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled(format!("  ... {} regions total", regions.len()), Style::default().fg(THEME.muted)),
-        ]));
-    }
-
-    let paragraph = Paragraph::new(lines)
-        .block(block)
-        .alignment(Alignment::Left);
-
-    let popup_area = centered_rect(50, 70, area);
+    let list = Paragraph::new(lines);
+    frame.render_widget(list, chunks[3]);
     
-    frame.render_widget(Clear, popup_area);
-    frame.render_widget(paragraph, popup_area);
+    // Scroll indicator
+    if total_regions > list_height {
+        let scroll_pos = if total_regions <= list_height {
+            0
+        } else {
+            (scroll_offset * 100) / (total_regions - list_height)
+        };
+        let indicator = format!(
+            " {} of {} regions │ {}% ",
+            selected_index + 1,
+            total_regions,
+            scroll_pos
+        );
+        let scroll_line = Paragraph::new(indicator)
+            .style(Style::default().fg(THEME.muted))
+            .alignment(Alignment::Right);
+        frame.render_widget(scroll_line, chunks[4]);
+    } else if total_regions == 0 {
+        let no_results = Paragraph::new("No matching regions")
+            .style(Style::default().fg(THEME.muted))
+            .alignment(Alignment::Center);
+        frame.render_widget(no_results, chunks[4]);
+    }
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
@@ -313,4 +448,22 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+/// Create a centered rect with fixed width and height (in characters/rows)
+fn centered_rect_fixed(width: u16, height: u16, r: Rect) -> Rect {
+    // Ensure we don't exceed available space
+    let actual_width = width.min(r.width);
+    let actual_height = height.min(r.height);
+    
+    // Calculate centering offsets
+    let x_offset = (r.width.saturating_sub(actual_width)) / 2;
+    let y_offset = (r.height.saturating_sub(actual_height)) / 2;
+    
+    Rect {
+        x: r.x + x_offset,
+        y: r.y + y_offset,
+        width: actual_width,
+        height: actual_height,
+    }
 }

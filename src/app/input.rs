@@ -103,9 +103,38 @@ impl App {
 
         // Handle profile switcher - profile selection
         if self.input_mode == InputMode::ProfileSwitcherProfile {
+            // If filter is active, handle text input
+            if self.profile_filter_active {
+                match key.code {
+                    KeyCode::Esc => {
+                        self.profile_filter_active = false;
+                        self.profile_filter.clear();
+                        self.profile_switcher_index = 0;
+                    }
+                    KeyCode::Enter => {
+                        self.profile_filter_active = false;
+                    }
+                    KeyCode::Backspace => {
+                        self.profile_filter.pop();
+                        self.profile_switcher_index = 0;
+                    }
+                    KeyCode::Char(c) => {
+                        self.profile_filter.push(c);
+                        self.profile_switcher_index = 0;
+                    }
+                    _ => {}
+                }
+                return None;
+            }
+            
+            // Normal navigation mode
             match key.code {
                 KeyCode::Esc => {
+                    self.profile_filter.clear();
                     return Some(Message::cancel_profile_switcher());
+                }
+                KeyCode::Char('/') => {
+                    self.profile_filter_active = true;
                 }
                 KeyCode::Char('R') => {
                     // Toggle read-only mode
@@ -113,27 +142,33 @@ impl App {
                 }
                 KeyCode::Enter => {
                     // Store selected profile and move to region selection
-                    let selected = self.available_profiles.get(self.profile_switcher_index)
-                        .map(|s| if s == "default" { None } else { Some(s.clone()) })
+                    let filtered = self.filtered_profiles();
+                    let selected = filtered.get(self.profile_switcher_index)
+                        .map(|s| if *s == "default" { None } else { Some((*s).clone()) })
                         .unwrap_or(None);
                     self.pending_profile = selected;
+                    self.profile_filter.clear();
                     self.input_mode = InputMode::ProfileSwitcherRegion;
                     // Pre-select current region in region list
-                    if let Some(idx) = self.available_regions.iter().position(|r| r == &self.region) {
+                    if let Some(idx) = self.filtered_regions().iter().position(|r| *r == &self.region) {
                         self.region_switcher_index = idx;
+                    } else {
+                        self.region_switcher_index = 0;
                     }
                     return None;
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if !self.available_profiles.is_empty() {
+                    let filtered_len = self.filtered_profiles().len();
+                    if filtered_len > 0 {
                         self.profile_switcher_index = 
-                            (self.profile_switcher_index + 1) % self.available_profiles.len();
+                            (self.profile_switcher_index + 1) % filtered_len;
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if !self.available_profiles.is_empty() {
+                    let filtered_len = self.filtered_profiles().len();
+                    if filtered_len > 0 {
                         self.profile_switcher_index = if self.profile_switcher_index == 0 {
-                            self.available_profiles.len() - 1
+                            filtered_len - 1
                         } else {
                             self.profile_switcher_index - 1
                         };
@@ -146,32 +181,66 @@ impl App {
 
         // Handle profile switcher - region selection
         if self.input_mode == InputMode::ProfileSwitcherRegion {
+            // If filter is active, handle text input
+            if self.region_filter_active {
+                match key.code {
+                    KeyCode::Esc => {
+                        self.region_filter_active = false;
+                        self.region_filter.clear();
+                        self.region_switcher_index = 0;
+                    }
+                    KeyCode::Enter => {
+                        self.region_filter_active = false;
+                    }
+                    KeyCode::Backspace => {
+                        self.region_filter.pop();
+                        self.region_switcher_index = 0;
+                    }
+                    KeyCode::Char(c) => {
+                        self.region_filter.push(c);
+                        self.region_switcher_index = 0;
+                    }
+                    _ => {}
+                }
+                return None;
+            }
+            
+            // Normal navigation mode
             match key.code {
                 KeyCode::Esc => {
                     // Cancel and go back to normal mode
                     self.pending_profile = None;
+                    self.region_filter.clear();
                     return Some(Message::cancel_profile_switcher());
+                }
+                KeyCode::Char('/') => {
+                    self.region_filter_active = true;
                 }
                 KeyCode::Enter => {
                     // Confirm and switch profile/region
                     let profile = self.pending_profile.clone();
-                    let region = self.available_regions.get(self.region_switcher_index)
+                    let filtered = self.filtered_regions();
+                    let region = filtered.get(self.region_switcher_index)
+                        .cloned()
                         .cloned()
                         .unwrap_or_else(|| "us-east-1".to_string());
                     let read_only = self.pending_read_only;
                     self.pending_profile = None;
+                    self.region_filter.clear();
                     return Some(Message::switch_profile_region(profile, region, read_only));
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if !self.available_regions.is_empty() {
+                    let filtered_len = self.filtered_regions().len();
+                    if filtered_len > 0 {
                         self.region_switcher_index = 
-                            (self.region_switcher_index + 1) % self.available_regions.len();
+                            (self.region_switcher_index + 1) % filtered_len;
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if !self.available_regions.is_empty() {
+                    let filtered_len = self.filtered_regions().len();
+                    if filtered_len > 0 {
                         self.region_switcher_index = if self.region_switcher_index == 0 {
-                            self.available_regions.len() - 1
+                            filtered_len - 1
                         } else {
                             self.region_switcher_index - 1
                         };

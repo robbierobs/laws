@@ -71,6 +71,10 @@ impl App {
             GlobalMessage::CancelProfileSwitcher => {
                 self.input_mode = InputMode::Normal;
                 self.pending_profile = None;
+                self.profile_filter.clear();
+                self.region_filter.clear();
+                self.profile_filter_active = false;
+                self.region_filter_active = false;
             }
             GlobalMessage::SwitchProfileRegion { profile, region, read_only } => {
                 self.input_mode = InputMode::Normal;
