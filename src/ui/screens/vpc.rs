@@ -10,36 +10,39 @@ use crate::models::vpc::{Vpc, Subnet, SecurityGroup, SecurityGroupRule};
 
 use crate::ui::theme::THEME;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
 
-    // Split list area for tabs
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Tabs
-            Constraint::Min(0),    // List
-        ])
-        .split(list_area);
+    // Render list area if provided (not in fullscreen detail mode)
+    if let Some(area) = list_area {
+        // Split list area for tabs
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Tabs
+                Constraint::Min(0),    // List
+            ])
+            .split(area);
 
-    if app.services.vpc.view_mode == VpcViewMode::SecurityGroupRules {
-        let title = format!("Rules for {}", app.services.vpc.selected_sg_id.as_deref().unwrap_or("Unknown"));
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(title)
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border));
-        frame.render_widget(block, chunks[0]);
-    } else {
-        let tabs = ["VPCs", "Subnets", "Security Groups"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.vpc.view_mode.to_index());
-    }
+        if app.services.vpc.view_mode == VpcViewMode::SecurityGroupRules {
+            let title = format!("Rules for {}", app.services.vpc.selected_sg_id.as_deref().unwrap_or("Unknown"));
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .title_style(Style::default().fg(THEME.primary))
+                .border_style(Style::default().fg(THEME.border));
+            frame.render_widget(block, chunks[0]);
+        } else {
+            let tabs = ["VPCs", "Subnets", "Security Groups"];
+            crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.vpc.view_mode.to_index());
+        }
 
-    match app.services.vpc.view_mode {
-        VpcViewMode::Vpcs => render_vpc_list(frame, chunks[1], app),
-        VpcViewMode::Subnets => render_subnet_list(frame, chunks[1], app),
-        VpcViewMode::SecurityGroups => render_security_group_list(frame, chunks[1], app),
-        VpcViewMode::SecurityGroupRules => render_sg_rules_list(frame, chunks[1], app),
+        match app.services.vpc.view_mode {
+            VpcViewMode::Vpcs => render_vpc_list(frame, chunks[1], app),
+            VpcViewMode::Subnets => render_subnet_list(frame, chunks[1], app),
+            VpcViewMode::SecurityGroups => render_security_group_list(frame, chunks[1], app),
+            VpcViewMode::SecurityGroupRules => render_sg_rules_list(frame, chunks[1], app),
+        }
     }
     
     if let Some(area) = detail_area {

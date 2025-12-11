@@ -7,14 +7,20 @@ use ratatui::{
 };
 use crate::app::App;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     if let Some(bucket_name) = app.services.s3.current_bucket.clone() {
-        render_objects(frame, list_area, app, &bucket_name);
+        // Viewing objects mode
+        if let Some(area) = list_area {
+            render_objects(frame, area, app, &bucket_name);
+        }
         if let Some(area) = detail_area {
             render_object_details(frame, area, app);
         }
     } else {
-        render_buckets(frame, list_area, app);
+        // Viewing buckets mode
+        if let Some(area) = list_area {
+            render_buckets(frame, area, app);
+        }
         if let Some(area) = detail_area {
             render_bucket_details(frame, area, app);
         }

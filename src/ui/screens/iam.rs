@@ -10,42 +10,45 @@ use crate::models::iam::{IamRole, IamUser, IamPolicy};
 
 use crate::ui::theme::THEME;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
     
-    // Split list area for tabs
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Tabs
-            Constraint::Min(0),    // List
-        ])
-        .split(list_area);
+    // Render list area if provided (not in fullscreen detail mode)
+    if let Some(area) = list_area {
+        // Split list area for tabs
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Tabs
+                Constraint::Min(0),    // List
+            ])
+            .split(area);
 
-    if !app.services.iam.view_mode.is_main_tab() {
-        let title = match app.services.iam.view_mode {
-            IamViewMode::UserAttachedPolicies => format!("Policies attached to User: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
-            IamViewMode::RoleAttachedPolicies => format!("Policies attached to Role: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
-            IamViewMode::PolicyDocument => format!("Policy Document: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
-            _ => "Details".to_string(),
-        };
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(title)
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border));
-        frame.render_widget(block, chunks[0]);
-    } else {
-        let tabs = ["Users", "Roles", "Policies"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.to_index());
-    }
+        if !app.services.iam.view_mode.is_main_tab() {
+            let title = match app.services.iam.view_mode {
+                IamViewMode::UserAttachedPolicies => format!("Policies attached to User: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
+                IamViewMode::RoleAttachedPolicies => format!("Policies attached to Role: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
+                IamViewMode::PolicyDocument => format!("Policy Document: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
+                _ => "Details".to_string(),
+            };
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .title_style(Style::default().fg(THEME.primary))
+                .border_style(Style::default().fg(THEME.border));
+            frame.render_widget(block, chunks[0]);
+        } else {
+            let tabs = ["Users", "Roles", "Policies"];
+            crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.to_index());
+        }
 
-    match app.services.iam.view_mode {
-        IamViewMode::Users => render_user_list(frame, chunks[1], app),
-        IamViewMode::Roles => render_role_list(frame, chunks[1], app),
-        IamViewMode::Policies => render_policy_list(frame, chunks[1], app),
-        IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => render_attached_policies_list(frame, chunks[1], app),
-        IamViewMode::PolicyDocument => render_policy_document(frame, chunks[1], app),
+        match app.services.iam.view_mode {
+            IamViewMode::Users => render_user_list(frame, chunks[1], app),
+            IamViewMode::Roles => render_role_list(frame, chunks[1], app),
+            IamViewMode::Policies => render_policy_list(frame, chunks[1], app),
+            IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => render_attached_policies_list(frame, chunks[1], app),
+            IamViewMode::PolicyDocument => render_policy_document(frame, chunks[1], app),
+        }
     }
     
     if let Some(area) = detail_area {

@@ -2,15 +2,17 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
 use crate::app::App;
 use crate::models::ec2::{Ec2Instance, InstanceState};
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
-    // Render the instance list
-    render_instance_list(frame, list_area, app);
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+    // Render the instance list (if not in fullscreen detail mode)
+    if let Some(area) = list_area {
+        render_instance_list(frame, area, app);
+    }
     
     // Render detail panel if visible
     if let Some(area) = detail_area {
@@ -95,14 +97,43 @@ fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an instance to view details (use j/k to navigate)")]
     };
 
+    let total_lines = content.len();
+    let visible_height = area.height.saturating_sub(2) as usize; // Account for borders
+    let scroll_offset = app.detail_scroll_offset as usize;
+    
+    // Determine if we need to show scroll indicator
+    let can_scroll = total_lines > visible_height;
+    let scroll_info = if can_scroll {
+        format!(" [{}/{}] ", scroll_offset + 1, total_lines.saturating_sub(visible_height) + 1)
+    } else {
+        String::new()
+    };
+    
+    let title = if app.detail_panel_fullscreen {
+        format!("Instance Details (Fullscreen){} [D: exit, PgUp/PgDn: scroll]", scroll_info)
+    } else {
+        format!("Instance Details{} [D: fullscreen]", scroll_info)
+    };
+
     let paragraph = Paragraph::new(content)
         .block(Block::default()
             .borders(Borders::ALL)
-            .title("Instance Details")
+            .title(title)
             .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
+            .border_style(Style::default().fg(THEME.border)))
+        .scroll((app.detail_scroll_offset, 0));
     
     frame.render_widget(paragraph, area);
+    
+    // Render scrollbar if content overflows
+    if can_scroll {
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼"));
+        let mut scrollbar_state = ScrollbarState::new(total_lines.saturating_sub(visible_height))
+            .position(scroll_offset);
+        frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
+    }
 }
 
 fn build_instance_detail_lines(instance: &Ec2Instance) -> Vec<Line<'_>> {

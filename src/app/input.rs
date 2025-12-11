@@ -3,7 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use super::{App, Message, Service, Focus, InputMode, VpcViewMode};
+use super::{App, Message, Service, Focus, InputMode, VpcViewMode, GlobalMessage};
 use crate::ui::components::Component;
 
 /// Result from service input handlers
@@ -365,6 +365,9 @@ impl App {
             KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
             KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
             KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
+            KeyCode::Char('D') => Some(Message::Global(GlobalMessage::ToggleDetailFullscreen)),
+            KeyCode::PageUp => Some(Message::Global(GlobalMessage::DetailScrollUp)),
+            KeyCode::PageDown => Some(Message::Global(GlobalMessage::DetailScrollDown)),
             _ => None,
         }
     }

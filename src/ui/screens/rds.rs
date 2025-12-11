@@ -8,8 +8,10 @@ use ratatui::{
 use crate::app::App;
 use crate::models::rds::RdsInstance;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
-    render_instance_list(frame, list_area, app);
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+    if let Some(area) = list_area {
+        render_instance_list(frame, area, app);
+    }
     
     if let Some(area) = detail_area {
         render_instance_details(frame, area, app);

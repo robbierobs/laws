@@ -29,55 +29,55 @@ pub struct CloudTrailScreen;
 
 // Implement Screen trait for each service screen
 impl Screen for Ec2Screen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         ec2::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for S3Screen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         s3::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for RdsScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         rds::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for DynamoDbScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         dynamodb::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for LambdaScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         lambda::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for VpcScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         vpc::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for IamScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         iam::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for BackupScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         backup::render(frame, list_area, detail_area, app);
     }
 }
 
 impl Screen for CloudTrailScreen {
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
         cloudtrail::render(frame, list_area, detail_area, app);
     }
 }

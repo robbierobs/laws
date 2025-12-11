@@ -88,8 +88,13 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Render Sidebar
     app.sidebar.render(frame, body_chunks[0]);
 
-    // Split main content area for list and details if panel is visible
-    let (list_area, detail_area): (Rect, Option<Rect>) = if app.detail_panel_visible {
+    // Split main content area for list and details
+    // In fullscreen mode, detail panel takes the entire area
+    let (list_area, detail_area): (Option<Rect>, Option<Rect>) = if app.detail_panel_fullscreen {
+        // Fullscreen: only show detail panel
+        (None, Some(body_chunks[1]))
+    } else if app.detail_panel_visible {
+        // Normal: split between list and detail
         let content_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -97,9 +102,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
                 Constraint::Percentage(40),  // Detail panel takes 40%
             ])
             .split(body_chunks[1]);
-        (content_chunks[0], Some(content_chunks[1]))
+        (Some(content_chunks[0]), Some(content_chunks[1]))
     } else {
-        (body_chunks[1], None)
+        // No detail panel: list takes full area
+        (Some(body_chunks[1]), None)
     };
 
     // Render the current service screen using polymorphic dispatch

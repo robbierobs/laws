@@ -9,39 +9,35 @@ use crate::app::{App, BackupViewMode};
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::ui::theme::THEME;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
     
-    // Split list area for tabs
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Tabs
-            Constraint::Min(0),    // List
-        ])
-        .split(list_area);
+    // Render list area if provided (not in fullscreen detail mode)
+    if let Some(area) = list_area {
+        // Split list area for tabs
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Tabs
+                Constraint::Min(0),    // List
+            ])
+            .split(area);
 
-    let tabs = ["Vaults", "Plans", "Jobs"];
-    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.backup.view_mode.to_index());
+        let tabs = ["Vaults", "Plans", "Jobs"];
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.backup.view_mode.to_index());
 
-    match app.services.backup.view_mode {
-        BackupViewMode::Vaults => {
-            render_vault_list(frame, chunks[1], app);
-            if let Some(area) = detail_area {
-                render_vault_details(frame, area, app);
-            }
+        match app.services.backup.view_mode {
+            BackupViewMode::Vaults => render_vault_list(frame, chunks[1], app),
+            BackupViewMode::Plans => render_plan_list(frame, chunks[1], app),
+            BackupViewMode::Jobs => render_job_list(frame, chunks[1], app),
         }
-        BackupViewMode::Plans => {
-            render_plan_list(frame, chunks[1], app);
-            if let Some(area) = detail_area {
-                render_plan_details(frame, area, app);
-            }
-        }
-        BackupViewMode::Jobs => {
-            render_job_list(frame, chunks[1], app);
-            if let Some(area) = detail_area {
-                render_job_details(frame, area, app);
-            }
+    }
+    
+    if let Some(area) = detail_area {
+        match app.services.backup.view_mode {
+            BackupViewMode::Vaults => render_vault_details(frame, area, app),
+            BackupViewMode::Plans => render_plan_details(frame, area, app),
+            BackupViewMode::Jobs => render_job_details(frame, area, app),
         }
     }
 }

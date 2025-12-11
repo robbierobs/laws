@@ -116,6 +116,9 @@ SSO profiles are automatically detected. When you switch to an SSO profile, the 
 | `q` | Quit |
 | `r` | Refresh current view |
 | `d` | Toggle detail panel |
+| `D` | Toggle fullscreen detail panel |
+| `Page Up` | Scroll detail panel up |
+| `Page Down` | Scroll detail panel down |
 | `A` | Toggle action log popup |
 | `/` | Filter items |
 | `Ctrl+c` | Force quit |

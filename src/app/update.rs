@@ -44,6 +44,27 @@ impl App {
             }
             GlobalMessage::ToggleDetailPanel => {
                 self.detail_panel_visible = !self.detail_panel_visible;
+                // Exit fullscreen when hiding
+                if !self.detail_panel_visible {
+                    self.detail_panel_fullscreen = false;
+                }
+                // Reset scroll when toggling
+                self.detail_scroll_offset = 0;
+            }
+            GlobalMessage::ToggleDetailFullscreen => {
+                self.detail_panel_fullscreen = !self.detail_panel_fullscreen;
+                // Ensure detail panel is visible when entering fullscreen
+                if self.detail_panel_fullscreen {
+                    self.detail_panel_visible = true;
+                }
+                // Reset scroll when toggling fullscreen
+                self.detail_scroll_offset = 0;
+            }
+            GlobalMessage::DetailScrollUp => {
+                self.detail_scroll_offset = self.detail_scroll_offset.saturating_sub(5);
+            }
+            GlobalMessage::DetailScrollDown => {
+                self.detail_scroll_offset = self.detail_scroll_offset.saturating_add(5);
             }
             GlobalMessage::ToggleActionLog => {
                 self.action_log_expanded = !self.action_log_expanded;

@@ -10,11 +10,13 @@ use crate::models::dynamodb::DynamoDbTable;
 
 use crate::ui::theme::THEME;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     match app.services.dynamodb.view_mode {
         DynamoDbViewMode::Tables => {
             // Tables list view
-            render_table_list(frame, list_area, app);
+            if let Some(area) = list_area {
+                render_table_list(frame, area, app);
+            }
             if let Some(area) = detail_area {
                 render_table_details(frame, area, app);
             }
@@ -252,7 +254,7 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     lines
 }
 
-fn render_table_drilldown(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     let table_name = app.services.dynamodb.current_table.as_deref().unwrap_or("Unknown");
     let table = app.services.dynamodb.tables.iter().find(|t| t.table_name == table_name);
     
@@ -347,7 +349,9 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Rect, detail_area: Optio
         .block(block)
         .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, list_area, &mut app.services.dynamodb.item_list_state);
+    if let Some(area) = list_area {
+        frame.render_stateful_widget(t, area, &mut app.services.dynamodb.item_list_state);
+    }
     
     // Render item details in detail area if available
     if let Some(area) = detail_area {

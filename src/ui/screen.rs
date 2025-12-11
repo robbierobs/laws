@@ -11,8 +11,8 @@ pub trait Screen {
     ///
     /// # Arguments
     /// * `frame` - The frame to render to
-    /// * `list_area` - Area for the main list/table view
+    /// * `list_area` - Optional area for the main list/table view (None in fullscreen detail mode)
     /// * `detail_area` - Optional area for detail panel
     /// * `app` - Mutable reference to app state (for TableState updates)
-    fn render(&self, frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App);
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App);
 }

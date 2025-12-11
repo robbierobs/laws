@@ -27,6 +27,8 @@ pub struct App {
     pub should_refresh: bool,
     pub error_message: Option<String>,
     pub detail_panel_visible: bool,
+    pub detail_panel_fullscreen: bool,
+    pub detail_scroll_offset: u16,
     pub detail_loading: bool,
     
     // Config and State
@@ -90,6 +92,8 @@ impl App {
             should_refresh: false,
             error_message: None,
             detail_panel_visible: true,
+            detail_panel_fullscreen: false,
+            detail_scroll_offset: 0,
             detail_loading: false,
             read_only,
             pending_action: None,

@@ -293,6 +293,12 @@ pub enum GlobalMessage {
     RefreshData,
     /// Toggle detail panel visibility
     ToggleDetailPanel,
+    /// Toggle fullscreen detail panel mode
+    ToggleDetailFullscreen,
+    /// Scroll detail panel up
+    DetailScrollUp,
+    /// Scroll detail panel down
+    DetailScrollDown,
     /// Toggle action log visibility
     ToggleActionLog,
     /// Cycle through view modes (for services with tabs)

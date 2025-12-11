@@ -9,33 +9,33 @@ use crate::app::{App, CloudTrailViewMode};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
 use crate::ui::theme::THEME;
 
-pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
     
-    // Split list area for tabs
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Tabs
-            Constraint::Min(0),    // List
-        ])
-        .split(list_area);
+    // Render list area if provided (not in fullscreen detail mode)
+    if let Some(area) = list_area {
+        // Split list area for tabs
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Tabs
+                Constraint::Min(0),    // List
+            ])
+            .split(area);
 
-    let tabs = ["Trails", "Events"];
-    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.to_index());
+        let tabs = ["Trails", "Events"];
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.to_index());
 
-    match app.services.cloudtrail.view_mode {
-        CloudTrailViewMode::Trails => {
-            render_trail_list(frame, chunks[1], app);
-            if let Some(area) = detail_area {
-                render_trail_details(frame, area, app);
-            }
+        match app.services.cloudtrail.view_mode {
+            CloudTrailViewMode::Trails => render_trail_list(frame, chunks[1], app),
+            CloudTrailViewMode::Events => render_event_list(frame, chunks[1], app),
         }
-        CloudTrailViewMode::Events => {
-            render_event_list(frame, chunks[1], app);
-            if let Some(area) = detail_area {
-                render_event_details(frame, area, app);
-            }
+    }
+    
+    if let Some(area) = detail_area {
+        match app.services.cloudtrail.view_mode {
+            CloudTrailViewMode::Trails => render_trail_details(frame, area, app),
+            CloudTrailViewMode::Events => render_event_details(frame, area, app),
         }
     }
 }
