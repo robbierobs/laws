@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::secretsmanager::Secret;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_secretsmanager::Client;
@@ -11,7 +12,7 @@ impl SecretsManagerService {
         Self { client }
     }
 
-    pub async fn list_secrets(&self) -> anyhow::Result<Vec<Secret>> {
+    pub async fn list_secrets(&self) -> AppResult<Vec<Secret>> {
         let mut secrets = Vec::new();
         let mut next_token: Option<String> = None;
 
@@ -38,7 +39,7 @@ impl SecretsManagerService {
 
         Ok(secrets)
     }
-    pub async fn get_secret_value(&self, arn: &str) -> anyhow::Result<String> {
+    pub async fn get_secret_value(&self, arn: &str) -> AppResult<String> {
         let response = self
             .client
             .get_secret_value()
@@ -57,7 +58,7 @@ impl SecretsManagerService {
 }
 
 impl crate::aws::traits::AwsService<Secret> for SecretsManagerService {
-    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Secret>>> + Send + 'a>> {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<Secret>>> + Send + 'a>> {
         Box::pin(self.list_secrets())
     }
 }

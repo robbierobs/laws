@@ -638,3 +638,88 @@ pub enum InputMode {
     /// Profile switcher modal - selecting region  
     ProfileSwitcherRegion,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_service_as_str() {
+        assert_eq!(Service::EC2.as_str(), "EC2");
+        assert_eq!(Service::S3.as_str(), "S3");
+        assert_eq!(Service::RDS.as_str(), "RDS");
+        assert_eq!(Service::DynamoDB.as_str(), "DynamoDB");
+        assert_eq!(Service::Lambda.as_str(), "Lambda");
+    }
+
+    #[test]
+    fn test_service_iterator() {
+        let services: Vec<Service> = Service::iterator().collect();
+        assert_eq!(services.len(), 10); // All 10 services
+        assert!(services.contains(&Service::EC2));
+        assert!(services.contains(&Service::SecretsManager));
+    }
+
+    #[test]
+    fn test_message_quit() {
+        let msg = Message::quit();
+        matches!(msg, Message::Global(GlobalMessage::Quit));
+    }
+
+    #[test]
+    fn test_message_navigate() {
+        let msg = Message::navigate(Service::S3);
+        if let Message::Global(GlobalMessage::Navigate(svc)) = msg {
+            assert_eq!(svc, Service::S3);
+        } else {
+            panic!("Expected Navigate message");
+        }
+    }
+
+    #[test]
+    fn test_message_ec2_actions() {
+        let start = Message::ec2_start("i-123".to_string());
+        let stop = Message::ec2_stop("i-456".to_string());
+        let reboot = Message::ec2_reboot("i-789".to_string());
+        
+        matches!(start, Message::Service(ServiceAction::Ec2(Ec2Action::Start(_))));
+        matches!(stop, Message::Service(ServiceAction::Ec2(Ec2Action::Stop(_))));
+        matches!(reboot, Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(_))));
+    }
+
+    #[test]
+    fn test_message_rds_actions() {
+        let start = Message::rds_start("db-123".to_string());
+        let stop = Message::rds_stop("db-456".to_string());
+        
+        matches!(start, Message::Service(ServiceAction::Rds(RdsAction::Start(_))));
+        matches!(stop, Message::Service(ServiceAction::Rds(RdsAction::Stop(_))));
+    }
+
+    #[test]
+    fn test_vpc_view_mode_navigation() {
+        let mode = VpcViewMode::Vpcs;
+        assert_eq!(mode.next(), VpcViewMode::Subnets);
+        assert_eq!(mode.next().next(), VpcViewMode::SecurityGroups);
+        
+        // Should wrap around
+        let sg_mode = VpcViewMode::SecurityGroups;
+        assert_eq!(sg_mode.next(), VpcViewMode::Vpcs);
+    }
+
+    #[test]
+    fn test_vpc_view_mode_labels() {
+        assert_eq!(VpcViewMode::Vpcs.label(), "VPCs");
+        assert_eq!(VpcViewMode::Subnets.label(), "Subnets");
+        assert_eq!(VpcViewMode::SecurityGroups.label(), "Security Groups");
+    }
+
+    #[test]
+    fn test_iam_view_mode_is_main_tab() {
+        assert!(IamViewMode::Users.is_main_tab());
+        assert!(IamViewMode::Roles.is_main_tab());
+        assert!(IamViewMode::Policies.is_main_tab());
+        assert!(!IamViewMode::UserAttachedPolicies.is_main_tab());
+        assert!(!IamViewMode::PolicyDocument.is_main_tab());
+    }
+}

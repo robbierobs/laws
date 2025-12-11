@@ -60,6 +60,37 @@ pub struct App {
     
     // Configuration
     pub config: crate::config::AppConfig,
+    
+    // Render cache for optimized string formatting
+    pub render_cache: RenderCache,
+}
+
+/// Cache for render-time string formatting to avoid repeated allocations
+#[derive(Default)]
+pub struct RenderCache {
+    /// Cached AWS info string "[profile@region]"
+    pub aws_info: String,
+    /// Last profile used for cache
+    cached_profile: Option<String>,
+    /// Last region used for cache  
+    cached_region: String,
+}
+
+impl RenderCache {
+    /// Get or update the cached AWS info string
+    pub fn get_aws_info(&mut self, profile: Option<&str>, region: &str) -> &str {
+        let profile_changed = self.cached_profile.as_deref() != profile;
+        let region_changed = self.cached_region != region;
+        
+        if profile_changed || region_changed {
+            let profile_str = profile.unwrap_or("default");
+            self.aws_info = format!("[{}@{}]", profile_str, region);
+            self.cached_profile = profile.map(String::from);
+            self.cached_region = region.to_string();
+        }
+        
+        &self.aws_info
+    }
 }
 
 impl App {
@@ -116,6 +147,7 @@ impl App {
             profile_filter_active: false,
             region_filter_active: false,
             config: crate::config::AppConfig::default(),
+            render_cache: RenderCache::default(),
         }
     }
     
@@ -221,5 +253,70 @@ impl App {
     /// Shutdown the app - cancel all async tasks
     pub fn shutdown(&mut self) {
         self.tasks.cancel_all();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_cache_default() {
+        let cache = RenderCache::default();
+        assert!(cache.aws_info.is_empty());
+    }
+
+    #[test]
+    fn test_render_cache_get_aws_info() {
+        let mut cache = RenderCache::default();
+        let result = cache.get_aws_info(Some("my-profile"), "us-east-1");
+        assert_eq!(result, "[my-profile@us-east-1]");
+    }
+
+    #[test]
+    fn test_render_cache_default_profile() {
+        let mut cache = RenderCache::default();
+        let result = cache.get_aws_info(None, "eu-west-1");
+        assert_eq!(result, "[default@eu-west-1]");
+    }
+
+    #[test]
+    fn test_render_cache_caching() {
+        let mut cache = RenderCache::default();
+        
+        // First call should create the string
+        let result1 = cache.get_aws_info(Some("profile"), "us-east-1");
+        assert_eq!(result1, "[profile@us-east-1]");
+        
+        // Second call with same values should return cached version
+        let result2 = cache.get_aws_info(Some("profile"), "us-east-1");
+        assert_eq!(result2, "[profile@us-east-1]");
+    }
+
+    #[test]
+    fn test_render_cache_invalidation_on_profile_change() {
+        let mut cache = RenderCache::default();
+        
+        cache.get_aws_info(Some("profile1"), "us-east-1");
+        let result = cache.get_aws_info(Some("profile2"), "us-east-1");
+        assert_eq!(result, "[profile2@us-east-1]");
+    }
+
+    #[test]
+    fn test_render_cache_invalidation_on_region_change() {
+        let mut cache = RenderCache::default();
+        
+        cache.get_aws_info(Some("profile"), "us-east-1");
+        let result = cache.get_aws_info(Some("profile"), "eu-west-1");
+        assert_eq!(result, "[profile@eu-west-1]");
+    }
+
+    #[test]
+    fn test_render_cache_profile_none_to_some() {
+        let mut cache = RenderCache::default();
+        
+        cache.get_aws_info(None, "us-east-1");
+        let result = cache.get_aws_info(Some("new-profile"), "us-east-1");
+        assert_eq!(result, "[new-profile@us-east-1]");
     }
 }

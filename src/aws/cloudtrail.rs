@@ -1,4 +1,6 @@
-use crate::models::cloudtrail::{Trail, CloudTrailEvent};
+use crate::error::AppResult;
+use crate::models::cloudtrail::{CloudTrailEvent, Trail};
+use crate::utils::error::format_sdk_error;
 use aws_sdk_cloudtrail::Client;
 
 pub struct CloudTrailService {
@@ -10,14 +12,16 @@ impl CloudTrailService {
         Self { client }
     }
 
-    pub async fn list_trails(&self) -> anyhow::Result<Vec<Trail>> {
-        let response = self.client
+    pub async fn list_trails(&self) -> AppResult<Vec<Trail>> {
+        let response = self
+            .client
             .describe_trails()
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to list trails: {}", e))?;
+            .map_err(|e| format_sdk_error("CloudTrail", "describe_trails", "all", e))?;
 
-        let trails = response.trail_list()
+        let trails = response
+            .trail_list()
             .iter()
             .map(|t| Trail::from_aws(t))
             .collect();
@@ -25,15 +29,17 @@ impl CloudTrailService {
         Ok(trails)
     }
 
-    pub async fn lookup_events(&self, max_results: i32) -> anyhow::Result<Vec<CloudTrailEvent>> {
-        let response = self.client
+    pub async fn lookup_events(&self, max_results: i32) -> AppResult<Vec<CloudTrailEvent>> {
+        let response = self
+            .client
             .lookup_events()
             .max_results(max_results)
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to lookup events: {}", e))?;
+            .map_err(|e| format_sdk_error("CloudTrail", "lookup_events", "all", e))?;
 
-        let events = response.events()
+        let events = response
+            .events()
             .iter()
             .map(|e| CloudTrailEvent::from_aws(e))
             .collect();
@@ -43,7 +49,10 @@ impl CloudTrailService {
 }
 
 impl crate::aws::traits::AwsService<Trail> for CloudTrailService {
-    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Trail>>> + Send + 'a>> {
+    fn list<'a>(
+        &'a self,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<Trail>>> + Send + 'a>>
+    {
         Box::pin(self.list_trails())
     }
 }

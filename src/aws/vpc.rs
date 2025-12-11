@@ -1,4 +1,6 @@
-use crate::models::vpc::{Vpc, Subnet, SecurityGroup};
+use crate::error::AppResult;
+use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
+use crate::utils::error::format_sdk_error;
 use aws_sdk_ec2::Client;
 
 pub struct VpcService {
@@ -10,39 +12,38 @@ impl VpcService {
         Self { client }
     }
 
-    pub async fn list_vpcs(&self) -> anyhow::Result<Vec<Vpc>> {
-        let response = self.client
+    pub async fn list_vpcs(&self) -> AppResult<Vec<Vpc>> {
+        let response = self
+            .client
             .describe_vpcs()
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to list VPCs: {}", e))?;
+            .map_err(|e| format_sdk_error("VPC", "describe_vpcs", "all", e))?;
 
-        let vpcs = response.vpcs()
-            .iter()
-            .map(|v| Vpc::from_aws(v))
-            .collect();
+        let vpcs = response.vpcs().iter().map(|v| Vpc::from_aws(v)).collect();
 
         Ok(vpcs)
     }
 
-    pub async fn list_subnets(&self, vpc_id: Option<&str>) -> anyhow::Result<Vec<Subnet>> {
+    pub async fn list_subnets(&self, vpc_id: Option<&str>) -> AppResult<Vec<Subnet>> {
         let mut request = self.client.describe_subnets();
-        
+
         if let Some(id) = vpc_id {
             request = request.filters(
                 aws_sdk_ec2::types::Filter::builder()
                     .name("vpc-id")
                     .values(id)
-                    .build()
+                    .build(),
             );
         }
 
         let response = request
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to list subnets: {}", e))?;
+            .map_err(|e| format_sdk_error("VPC", "describe_subnets", vpc_id.unwrap_or("all"), e))?;
 
-        let subnets = response.subnets()
+        let subnets = response
+            .subnets()
             .iter()
             .map(|s| Subnet::from_aws(s))
             .collect();
@@ -50,24 +51,32 @@ impl VpcService {
         Ok(subnets)
     }
 
-    pub async fn list_security_groups(&self, vpc_id: Option<&str>) -> anyhow::Result<Vec<SecurityGroup>> {
+    pub async fn list_security_groups(
+        &self,
+        vpc_id: Option<&str>,
+    ) -> AppResult<Vec<SecurityGroup>> {
         let mut request = self.client.describe_security_groups();
-        
+
         if let Some(id) = vpc_id {
             request = request.filters(
                 aws_sdk_ec2::types::Filter::builder()
                     .name("vpc-id")
                     .values(id)
-                    .build()
+                    .build(),
             );
         }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to list security groups: {}", e))?;
+        let response = request.send().await.map_err(|e| {
+            format_sdk_error(
+                "VPC",
+                "describe_security_groups",
+                vpc_id.unwrap_or("all"),
+                e,
+            )
+        })?;
 
-        let sgs = response.security_groups()
+        let sgs = response
+            .security_groups()
             .iter()
             .map(|sg| SecurityGroup::from_aws(sg))
             .collect();
@@ -77,7 +86,10 @@ impl VpcService {
 }
 
 impl crate::aws::traits::AwsService<Vpc> for VpcService {
-    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Vpc>>> + Send + 'a>> {
+    fn list<'a>(
+        &'a self,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<Vpc>>> + Send + 'a>>
+    {
         Box::pin(self.list_vpcs())
     }
 }

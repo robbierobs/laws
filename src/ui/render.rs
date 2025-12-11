@@ -28,9 +28,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         ""
     };
     
-    // Build profile/region info
-    let profile_str = app.profile.as_deref().unwrap_or("default");
-    let aws_info = format!("[{}@{}]", profile_str, app.region);
+    // Build profile/region info (cached to avoid repeated allocations)
+    let aws_info = app.render_cache.get_aws_info(app.profile.as_deref(), &app.region).to_string();
     
     let filter_status = if !app.filter_input.is_empty() {
         format!(" [Filter: {}]", app.filter_input)

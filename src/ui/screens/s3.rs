@@ -41,10 +41,11 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
             b.matches_filter(&filter)
         })
         .map(|bucket| {
+            // Use as_deref() to avoid clones
             let cells = vec![
-                Cell::from(bucket.name.clone()),
-                Cell::from(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
-                Cell::from(bucket.region.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(bucket.name.as_str()),
+                Cell::from(bucket.creation_date.as_deref().unwrap_or("-")),
+                Cell::from(bucket.region.as_deref().unwrap_or("-")),
             ];
             
             Row::new(cells).height(1)
@@ -171,11 +172,12 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
             o.matches_filter(&filter)
         })
         .map(|obj| {
+            // Use as_deref() to avoid clones
             let cells = vec![
-                Cell::from(obj.key.clone()),
+                Cell::from(obj.key.as_str()),
                 Cell::from(format_size(obj.size)),
-                Cell::from(obj.last_modified.clone().unwrap_or_else(|| "-".to_string())),
-                Cell::from(obj.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
+                Cell::from(obj.last_modified.as_deref().unwrap_or("-")),
+                Cell::from(obj.storage_class.as_deref().unwrap_or("STANDARD")),
             ];
             
             Row::new(cells).height(1)
