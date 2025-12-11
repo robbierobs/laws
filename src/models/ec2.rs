@@ -54,6 +54,20 @@ impl From<aws_sdk_ec2::types::InstanceStateName> for InstanceState {
     }
 }
 
+impl std::fmt::Display for InstanceState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstanceState::Pending => write!(f, "Pending"),
+            InstanceState::Running => write!(f, "Running"),
+            InstanceState::ShuttingDown => write!(f, "ShuttingDown"),
+            InstanceState::Terminated => write!(f, "Terminated"),
+            InstanceState::Stopping => write!(f, "Stopping"),
+            InstanceState::Stopped => write!(f, "Stopped"),
+            InstanceState::Unknown(s) => write!(f, "{}", s),
+        }
+    }
+}
+
 impl Ec2Instance {
     pub fn state_color(&self) -> Color {
         match self.state {

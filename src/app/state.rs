@@ -60,6 +60,37 @@ pub struct App {
     
     // Configuration
     pub config: crate::config::AppConfig,
+    
+    // Render cache for optimized string formatting
+    pub render_cache: RenderCache,
+}
+
+/// Cache for render-time string formatting to avoid repeated allocations
+#[derive(Default)]
+pub struct RenderCache {
+    /// Cached AWS info string "[profile@region]"
+    pub aws_info: String,
+    /// Last profile used for cache
+    cached_profile: Option<String>,
+    /// Last region used for cache  
+    cached_region: String,
+}
+
+impl RenderCache {
+    /// Get or update the cached AWS info string
+    pub fn get_aws_info(&mut self, profile: Option<&str>, region: &str) -> &str {
+        let profile_changed = self.cached_profile.as_deref() != profile;
+        let region_changed = self.cached_region != region;
+        
+        if profile_changed || region_changed {
+            let profile_str = profile.unwrap_or("default");
+            self.aws_info = format!("[{}@{}]", profile_str, region);
+            self.cached_profile = profile.map(String::from);
+            self.cached_region = region.to_string();
+        }
+        
+        &self.aws_info
+    }
 }
 
 impl App {
@@ -116,6 +147,7 @@ impl App {
             profile_filter_active: false,
             region_filter_active: false,
             config: crate::config::AppConfig::default(),
+            render_cache: RenderCache::default(),
         }
     }
     

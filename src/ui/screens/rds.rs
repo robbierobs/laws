@@ -34,15 +34,16 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .map(|instance| {
             let status_color = instance.state_color();
             
+            // Use as_deref() to avoid clones where possible
             let cells = vec![
-                Cell::from(instance.db_instance_identifier.clone()),
+                Cell::from(instance.db_instance_identifier.as_str()),
                 Cell::from(format!("{} {}", 
-                    instance.engine.clone(),
-                    instance.engine_version.clone().unwrap_or_default()
+                    &instance.engine,
+                    instance.engine_version.as_deref().unwrap_or("")
                 )),
-                Cell::from(instance.db_instance_class.clone()),
-                Cell::from(instance.status.clone()).style(Style::default().fg(status_color)),
-                Cell::from(instance.endpoint.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(instance.db_instance_class.as_str()),
+                Cell::from(instance.status.as_str()).style(Style::default().fg(status_color)),
+                Cell::from(instance.endpoint.as_deref().unwrap_or("-")),
                 Cell::from(if instance.multi_az { "Yes" } else { "No" }),
             ];
             
@@ -84,44 +85,45 @@ fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
 fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
     let status_color = instance.state_color();
     
+    // Use references where possible, only allocate when transforming values
     let engine_str = format!("{} {}", 
-        instance.engine.clone(),
-        instance.engine_version.clone().unwrap_or_default()
+        &instance.engine,
+        instance.engine_version.as_deref().unwrap_or("")
     );
-    let endpoint_str = instance.endpoint.clone().unwrap_or_else(|| "-".to_string());
-    let master_str = instance.master_username.clone().unwrap_or_else(|| "-".to_string());
+    let endpoint_str = instance.endpoint.as_deref().unwrap_or("-");
+    let master_str = instance.master_username.as_deref().unwrap_or("-");
     let storage_str = instance.allocated_storage
         .map(|s| format!("{} GB", s))
         .unwrap_or_else(|| "-".to_string());
-    let storage_type_str = instance.storage_type.clone().unwrap_or_else(|| "-".to_string());
+    let storage_type_str = instance.storage_type.as_deref().unwrap_or("-");
     let iops_str = instance.iops
         .map(|i| i.to_string())
         .unwrap_or_else(|| "-".to_string());
-    let az_str = instance.availability_zone.clone().unwrap_or_else(|| "-".to_string());
-    let vpc_str = instance.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-    let subnet_str = instance.db_subnet_group.clone().unwrap_or_else(|| "-".to_string());
-    let backup_window_str = instance.preferred_backup_window.clone().unwrap_or_else(|| "-".to_string());
+    let az_str = instance.availability_zone.as_deref().unwrap_or("-");
+    let vpc_str = instance.vpc_id.as_deref().unwrap_or("-");
+    let subnet_str = instance.db_subnet_group.as_deref().unwrap_or("-");
+    let backup_window_str = instance.preferred_backup_window.as_deref().unwrap_or("-");
     let backup_retention_str = instance.backup_retention_period
         .map(|d| format!("{} days", d))
         .unwrap_or_else(|| "-".to_string());
-    let maint_window_str = instance.preferred_maintenance_window.clone().unwrap_or_else(|| "-".to_string());
-    let created_str = instance.created_time.clone().unwrap_or_else(|| "-".to_string());
-    let license_str = instance.license_model.clone().unwrap_or_else(|| "-".to_string());
+    let maint_window_str = instance.preferred_maintenance_window.as_deref().unwrap_or("-");
+    let created_str = instance.created_time.as_deref().unwrap_or("-");
+    let license_str = instance.license_model.as_deref().unwrap_or("-");
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
             Span::styled("Identifier: ", Style::default().fg(THEME.primary)),
-            Span::raw(instance.db_instance_identifier.clone()),
+            Span::raw(instance.db_instance_identifier.as_str()),
             Span::raw("   "),
             Span::styled("Status: ", Style::default().fg(THEME.primary)),
-            Span::styled(instance.status.clone(), Style::default().fg(status_color)),
+            Span::styled(instance.status.as_str(), Style::default().fg(status_color)),
         ]),
         Line::from(vec![
             Span::styled("Engine: ", Style::default().fg(THEME.primary)),
             Span::raw(engine_str),
             Span::raw("   "),
             Span::styled("Class: ", Style::default().fg(THEME.primary)),
-            Span::raw(instance.db_instance_class.clone()),
+            Span::raw(instance.db_instance_class.as_str()),
         ]),
         Line::from(vec![
             Span::styled("Endpoint: ", Style::default().fg(THEME.primary)),

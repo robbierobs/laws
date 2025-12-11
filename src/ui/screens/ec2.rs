@@ -36,13 +36,14 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .map(|instance| {
             let state_style = Style::default().fg(instance.state_color());
 
+            // Use as_deref() to avoid clones where possible
             let cells = vec![
-                Cell::from(instance.instance_id.clone()),
-                Cell::from(instance.name.clone().unwrap_or_else(|| "-".to_string())),
-                Cell::from(format!("{:?}", instance.state)).style(state_style),
-                Cell::from(instance.instance_type.clone()),
-                Cell::from(instance.public_ip.clone().unwrap_or_else(|| "-".to_string())),
-                Cell::from(instance.launch_time.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(instance.instance_id.as_str()),
+                Cell::from(instance.name.as_deref().unwrap_or("-")),
+                Cell::from(instance.state.to_string()).style(state_style),
+                Cell::from(instance.instance_type.as_str()),
+                Cell::from(instance.public_ip.as_deref().unwrap_or("-")),
+                Cell::from(instance.launch_time.as_deref().unwrap_or("-")),
             ];
             
             Row::new(cells).height(1)
@@ -83,19 +84,20 @@ fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
 fn build_instance_detail_lines(instance: &Ec2Instance) -> Vec<Line<'_>> {
     let state_color = instance.state_color();
 
-    let state_str = format!("{:?}", instance.state);
-    let name_str = instance.name.clone().unwrap_or_else(|| "-".to_string());
-    let arch_str = instance.architecture.clone().unwrap_or_else(|| "-".to_string());
-    let pub_ip_str = instance.public_ip.clone().unwrap_or_else(|| "-".to_string());
-    let priv_ip_str = instance.private_ip.clone().unwrap_or_else(|| "-".to_string());
-    let vpc_str = instance.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-    let subnet_str = instance.subnet_id.clone().unwrap_or_else(|| "-".to_string());
-    let az_str = instance.availability_zone.clone().unwrap_or_else(|| "-".to_string());
-    let ami_str = instance.ami_id.clone().unwrap_or_else(|| "-".to_string());
-    let key_str = instance.key_name.clone().unwrap_or_else(|| "-".to_string());
-    let platform_str = instance.platform.clone().unwrap_or_else(|| "Linux/UNIX".to_string());
-    let monitoring_str = instance.monitoring_state.clone().unwrap_or_else(|| "-".to_string());
-    let launch_str = instance.launch_time.clone().unwrap_or_else(|| "-".to_string());
+    // Use references where possible, only allocate when necessary
+    let state_str = instance.state.to_string();
+    let name_str = instance.name.as_deref().unwrap_or("-");
+    let arch_str = instance.architecture.as_deref().unwrap_or("-");
+    let pub_ip_str = instance.public_ip.as_deref().unwrap_or("-");
+    let priv_ip_str = instance.private_ip.as_deref().unwrap_or("-");
+    let vpc_str = instance.vpc_id.as_deref().unwrap_or("-");
+    let subnet_str = instance.subnet_id.as_deref().unwrap_or("-");
+    let az_str = instance.availability_zone.as_deref().unwrap_or("-");
+    let ami_str = instance.ami_id.as_deref().unwrap_or("-");
+    let key_str = instance.key_name.as_deref().unwrap_or("-");
+    let platform_str = instance.platform.as_deref().unwrap_or("Linux/UNIX");
+    let monitoring_str = instance.monitoring_state.as_deref().unwrap_or("-");
+    let launch_str = instance.launch_time.as_deref().unwrap_or("-");
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![

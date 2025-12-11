@@ -25,7 +25,7 @@ pub use messages::{
     BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, Focus, GlobalMessage, IamViewMode,
     InputMode, Message, Service, ServiceAction, VpcViewMode,
 };
-pub use state::App;
+pub use state::{App, RenderCache};
 pub use view_mode::ViewMode;
 // Re-export from service_state (for external use - suppressed unused warning)
 #[allow(unused_imports)]

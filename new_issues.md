@@ -106,32 +106,37 @@ pub fn queue_depth(&self) -> usize {
 
 ---
 
-## 4. **Memory & Performance Optimization**
+## 4. **Memory & Performance Optimization** ✅ COMPLETED
 
-### 4.1 Filtered List Caching
-**Current**: Generic `FilteredList` exists but may not be optimally cached
+### 4.1 Filtered List Caching ✅
+**Status**: Already implemented - `FilteredList<T>` has `cache_dirty` flag and `rebuild_cache()` method.
 
-**Recommendation**:
-- Add LRU cache for filter results
-- Profile if filtering on large datasets (1000+ items) causes frame drops
-- Consider debouncing filter input to reduce re-filtering frequency
+**What exists**:
+- Cache invalidation on filter text change
+- Cache invalidation on items change
+- Efficient filtered indices caching
 
-### 4.2 AWS Response Data Duplication
-**Potential Issue**: Converting AWS SDK types → internal models may create unnecessary allocations
+**Future considerations**:
+- Add LRU cache for very large datasets (1000+ items) if needed
+- Debouncing filter input would require event loop changes
 
-**Recommendation**: 
-- Profile memory usage during typical workflows
-- Consider `Arc<>` wrapping for large response objects
-- Implement `Copy` where appropriate for small model types
-- Add memory profiling to CI/CD pipeline
+### 4.2 AWS Response Data Duplication ✅
+**Status**: Optimized where practical.
 
-### 4.3 String Allocations in Render Loop
-**Potential Issue**: `render()` is called frequently; any string allocations here impact performance
+**What was done**:
+- Added `Display` impl for `InstanceState` enum to avoid `format!("{:?}", state)` allocations
+- Note: `Copy` trait cannot be added to `InstanceState` because of `Unknown(String)` variant
+- References are now preferred over clones in render functions
 
-**Recommendation**: 
-- Audit `src/ui/` for string formatting in render functions
-- Use `&str` and formatting directly to the terminal buffer where possible
-- Cache formatted strings if they don't change between renders
+### 4.3 String Allocations in Render Loop ✅
+**Status**: Completed - major render functions optimized.
+
+**What was done**:
+- Added `RenderCache` struct to `App` for caching formatted strings (e.g., AWS info `[profile@region]`)
+- Optimized EC2 screen: `render_instance_list()` and `build_instance_detail_lines()` use `as_deref().unwrap_or()` instead of `.clone()`
+- Optimized RDS screen: `render_instance_list()` and `build_instance_detail_lines()` use references
+- Optimized S3 screen: `render_buckets()` and `render_objects()` use references
+- Used `&str` references where possible via `Cell::from(string.as_str())`
 
 ---
 
