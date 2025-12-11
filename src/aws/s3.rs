@@ -74,6 +74,12 @@ impl S3Service {
                         format!("Access denied to bucket '{}'. Check your IAM permissions.", bucket_name)
                     } else if err_str.contains("InvalidAccessKeyId") || err_str.contains("SignatureDoesNotMatch") {
                         format!("Invalid AWS credentials when accessing bucket '{}'", bucket_name)
+                    } else if err_str.contains("XmlDecodeError") || err_str.contains("invalid XML") {
+                        // LocalStack compatibility issue
+                        format!("Bucket '{}' returned invalid XML response. This may be a LocalStack limitation - try upgrading LocalStack or checking if the bucket exists.", bucket_name)
+                    } else if err_str.contains("Unhandled") {
+                        // Generic unhandled error - likely LocalStack
+                        format!("Bucket '{}' returned an unhandled error. This may be a LocalStack limitation.", bucket_name)
                     } else {
                         // Use Display for cleaner output, but include Debug if empty
                         let display_msg = format!("{}", e);
