@@ -307,18 +307,20 @@ max_s3_objects = 1000
 
 ---
 
-## 9. **Specific Quick Wins** (Implement First)
+## 9. **Specific Quick Wins** - STATUS REVIEW
 
-| Priority | Issue | Effort | Impact | Estimated Time |
-|----------|-------|--------|--------|-----------------|
-| **High** | Split `update.rs` by service | Medium | High - maintainability | 4-6 hours |
-| **High** | Reduce `tokio` features | Low | Medium - binary size | 30 mins |
-| **High** | Add task cancellation logic | Medium | High - correctness | 2-3 hours |
-| **Medium** | Standardize error handling | Medium | Medium - consistency | 2-3 hours |
-| **Medium** | Add retry/backoff for AWS | Medium | Medium - robustness | 3-4 hours |
-| **Medium** | Split `input.rs` by mode | Medium | Medium - maintainability | 3-4 hours |
-| **Low** | Add config file support | Low | Low - UX | 2-3 hours |
-| **Low** | Audit string allocations | Low | Low - micro-optimization | 1-2 hours |
+| Priority | Issue | Status | Notes |
+|----------|-------|--------|-------|
+| **High** | Split `update.rs` by service | ✅ DONE | Already modularized in `src/app/update/` |
+| **High** | Reduce `tokio` features | ✅ REVIEWED | All 5 features required (spawn, channels, timers, SSO login) |
+| **High** | Add task cancellation logic | ✅ DONE | `TaskManager` with full cancellation support |
+| **Medium** | Standardize error handling | ✅ DONE | Phase 5: Migrated to `AppResult`/`AppError` |
+| **Medium** | Add retry/backoff for AWS | ⏸️ DEFERRED | Would require event loop changes |
+| **Medium** | Split `input.rs` by mode | ⚠️ OPTIONAL | 501 lines, has ServiceInputHandler trait |
+| **Low** | Add config file support | ✅ DONE | Phase 8: TOML config at `~/.config/lazy-aws/` |
+| **Low** | Audit string allocations | ✅ DONE | Phase 4: RenderCache, Display impl for InstanceState |
+
+**Summary**: 6 of 8 items completed/reviewed, 1 deferred, 1 optional.
 
 ---
 
