@@ -70,6 +70,15 @@ cargo run -- --read-only
 | `A` | Toggle action log popup |
 | `/` | Filter items |
 
+### Profile/Region Switcher (when open)
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move selection down |
+| `k` / `↑` | Move selection up |
+| `R` (Shift+R) | Toggle read-only mode |
+| `Enter` | Select profile → region → confirm |
+| `Esc` | Cancel and close |
+
 ### Navigation
 | Key | Action |
 |-----|--------|

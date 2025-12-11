@@ -310,7 +310,7 @@ pub enum GlobalMessage {
     /// Cancel profile switcher
     CancelProfileSwitcher,
     /// Switch to selected profile and region
-    SwitchProfileRegion { profile: Option<String>, region: String },
+    SwitchProfileRegion { profile: Option<String>, region: String, read_only: bool },
 }
 
 /// Service-specific messages
@@ -391,8 +391,8 @@ impl Message {
         Message::Global(GlobalMessage::CancelProfileSwitcher)
     }
     
-    pub fn switch_profile_region(profile: Option<String>, region: String) -> Self {
-        Message::Global(GlobalMessage::SwitchProfileRegion { profile, region })
+    pub fn switch_profile_region(profile: Option<String>, region: String, read_only: bool) -> Self {
+        Message::Global(GlobalMessage::SwitchProfileRegion { profile, region, read_only })
     }
     
     // EC2 message constructors

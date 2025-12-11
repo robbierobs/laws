@@ -50,6 +50,7 @@ pub struct App {
     pub profile_switcher_index: usize,
     pub region_switcher_index: usize,
     pub pending_profile: Option<String>,
+    pub pending_read_only: bool,
 }
 
 impl App {
@@ -98,6 +99,7 @@ impl App {
             profile_switcher_index,
             region_switcher_index,
             pending_profile: None,
+            pending_read_only: read_only,
         }
     }
     
@@ -151,6 +153,7 @@ impl App {
                 &self.available_profiles,
                 self.profile_switcher_index,
                 self.profile.as_deref(),
+                self.pending_read_only,
             );
         }
         

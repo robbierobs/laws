@@ -136,6 +136,7 @@ pub fn render_profile_switcher_modal(
     profiles: &[String],
     selected_index: usize,
     current_profile: Option<&str>,
+    read_only: bool,
 ) {
     let block = Block::default()
         .title(" Select AWS Profile (Shift+P) ")
@@ -148,8 +149,6 @@ pub fn render_profile_switcher_modal(
     lines.push(Line::from(vec![
         Span::styled("Use ", Style::default().fg(THEME.muted)),
         Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        Span::styled(" or ", Style::default().fg(THEME.muted)),
-        Span::styled("↑/↓", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
         Span::styled(" to navigate, ", Style::default().fg(THEME.muted)),
         Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
         Span::styled(" to select, ", Style::default().fg(THEME.muted)),
@@ -157,6 +156,24 @@ pub fn render_profile_switcher_modal(
         Span::styled(" to cancel", Style::default().fg(THEME.muted)),
     ]));
     lines.push(Line::from(""));
+    
+    // Read-only toggle checkbox
+    let checkbox = if read_only { "[✓]" } else { "[ ]" };
+    let ro_style = if read_only {
+        Style::default().fg(THEME.warning).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(THEME.muted)
+    };
+    lines.push(Line::from(vec![
+        Span::styled("  ", Style::default()),
+        Span::styled(checkbox, ro_style),
+        Span::styled(" Read-only mode  ", ro_style),
+        Span::styled("(", Style::default().fg(THEME.muted)),
+        Span::styled("Shift+R", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(" to toggle)", Style::default().fg(THEME.muted)),
+    ]));
+    lines.push(Line::from(""));
+    
     lines.push(Line::from(vec![
         Span::styled("─".repeat(50), Style::default().fg(THEME.border)),
     ]));
@@ -186,7 +203,7 @@ pub fn render_profile_switcher_modal(
         .block(block)
         .alignment(Alignment::Left);
 
-    let popup_area = centered_rect(50, 60, area);
+    let popup_area = centered_rect(50, 65, area);
     
     frame.render_widget(Clear, popup_area);
     frame.render_widget(paragraph, popup_area);

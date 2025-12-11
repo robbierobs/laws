@@ -107,6 +107,10 @@ impl App {
                 KeyCode::Esc => {
                     return Some(Message::cancel_profile_switcher());
                 }
+                KeyCode::Char('R') => {
+                    // Toggle read-only mode
+                    self.pending_read_only = !self.pending_read_only;
+                }
                 KeyCode::Enter => {
                     // Store selected profile and move to region selection
                     let selected = self.available_profiles.get(self.profile_switcher_index)
@@ -154,8 +158,9 @@ impl App {
                     let region = self.available_regions.get(self.region_switcher_index)
                         .cloned()
                         .unwrap_or_else(|| "us-east-1".to_string());
+                    let read_only = self.pending_read_only;
                     self.pending_profile = None;
-                    return Some(Message::switch_profile_region(profile, region));
+                    return Some(Message::switch_profile_region(profile, region, read_only));
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
                     if !self.available_regions.is_empty() {

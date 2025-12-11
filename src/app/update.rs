@@ -64,13 +64,15 @@ impl App {
                     // Default profile is at index 0
                     self.profile_switcher_index = 0;
                 }
+                // Initialize pending_read_only to current state
+                self.pending_read_only = self.read_only;
                 self.input_mode = InputMode::ProfileSwitcherProfile;
             }
             GlobalMessage::CancelProfileSwitcher => {
                 self.input_mode = InputMode::Normal;
                 self.pending_profile = None;
             }
-            GlobalMessage::SwitchProfileRegion { profile, region } => {
+            GlobalMessage::SwitchProfileRegion { profile, region, read_only } => {
                 self.input_mode = InputMode::Normal;
                 
                 // Check if profile uses SSO and run login if needed
@@ -111,6 +113,8 @@ impl App {
                         self.aws_clients = Some(clients);
                         self.profile = profile;
                         self.region = region.clone();
+                        self.read_only = read_only;
+                        self.pending_read_only = read_only;
                         
                         // Update profile/region indices
                         if let Some(idx) = self.available_profiles.iter().position(|p| {
@@ -125,10 +129,12 @@ impl App {
                         // Clear all service data to force refresh
                         self.services = super::service_state::ServiceStates::new();
                         
+                        let ro_status = if read_only { " [READ-ONLY]" } else { "" };
                         self.action_log.push(format!(
-                            "Switched to profile: {}, region: {}", 
+                            "Switched to profile: {}, region: {}{}", 
                             self.profile.as_deref().unwrap_or("default"),
-                            self.region
+                            self.region,
+                            ro_status
                         ));
                         
                         // Refresh current service data
