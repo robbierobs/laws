@@ -96,6 +96,9 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    // Cleanup: cancel all pending async tasks
+    app.shutdown();
+
     // Restore terminal
     disable_raw_mode()?;
     execute!(

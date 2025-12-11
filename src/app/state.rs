@@ -97,4 +97,9 @@ impl App {
             }
         }
     }
+    
+    /// Shutdown the app - cancel all async tasks
+    pub fn shutdown(&mut self) {
+        self.tasks.cancel_all();
+    }
 }
