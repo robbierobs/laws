@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::lambda::LambdaFunction;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_lambda::Client;
@@ -11,7 +12,7 @@ impl LambdaService {
         Self { client }
     }
 
-    pub async fn list_functions(&self) -> anyhow::Result<Vec<LambdaFunction>> {
+    pub async fn list_functions(&self) -> AppResult<Vec<LambdaFunction>> {
         let mut functions = Vec::new();
         let mut marker: Option<String> = None;
 
@@ -43,7 +44,7 @@ impl LambdaService {
 }
 
 impl crate::aws::traits::AwsService<LambdaFunction> for LambdaService {
-    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<LambdaFunction>>> + Send + 'a>> {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<LambdaFunction>>> + Send + 'a>> {
         Box::pin(self.list_functions())
     }
 }

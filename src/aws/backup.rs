@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_backup::Client;
@@ -11,7 +12,7 @@ impl BackupService {
         Self { client }
     }
 
-    pub async fn list_backup_plans(&self) -> anyhow::Result<Vec<BackupPlan>> {
+    pub async fn list_backup_plans(&self) -> AppResult<Vec<BackupPlan>> {
         let response = self
             .client
             .list_backup_plans()
@@ -28,7 +29,7 @@ impl BackupService {
         Ok(plans)
     }
 
-    pub async fn list_backup_vaults(&self) -> anyhow::Result<Vec<BackupVault>> {
+    pub async fn list_backup_vaults(&self) -> AppResult<Vec<BackupVault>> {
         let response = self
             .client
             .list_backup_vaults()
@@ -45,7 +46,7 @@ impl BackupService {
         Ok(vaults)
     }
 
-    pub async fn list_backup_jobs(&self) -> anyhow::Result<Vec<BackupJob>> {
+    pub async fn list_backup_jobs(&self) -> AppResult<Vec<BackupJob>> {
         let response = self
             .client
             .list_backup_jobs()
@@ -68,7 +69,7 @@ impl crate::aws::traits::AwsService<BackupVault> for BackupService {
     fn list<'a>(
         &'a self,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = anyhow::Result<Vec<BackupVault>>> + Send + 'a>,
+        Box<dyn std::future::Future<Output = AppResult<Vec<BackupVault>>> + Send + 'a>,
     > {
         Box::pin(self.list_backup_vaults())
     }

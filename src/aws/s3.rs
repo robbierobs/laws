@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::s3::{S3Bucket, S3BucketDetails};
 use crate::utils::error::{format_s3_error, format_sdk_error};
 use aws_sdk_s3::Client;
@@ -11,7 +12,7 @@ impl S3Service {
         Self { client }
     }
 
-    pub async fn list_buckets(&self) -> anyhow::Result<Vec<S3Bucket>> {
+    pub async fn list_buckets(&self) -> AppResult<Vec<S3Bucket>> {
         let response = self
             .client
             .list_buckets()
@@ -31,7 +32,7 @@ impl S3Service {
     pub async fn list_objects(
         &self,
         bucket_name: &str,
-    ) -> anyhow::Result<Vec<crate::models::s3::S3Object>> {
+    ) -> AppResult<Vec<crate::models::s3::S3Object>> {
         let result = self
             .client
             .list_objects_v2()
@@ -128,7 +129,7 @@ impl S3Service {
         details
     }
 
-    pub async fn delete_object(&self, bucket_name: &str, key: &str) -> anyhow::Result<()> {
+    pub async fn delete_object(&self, bucket_name: &str, key: &str) -> AppResult<()> {
         self.client
             .delete_object()
             .bucket(bucket_name)
@@ -140,7 +141,7 @@ impl S3Service {
     }
 
     /// Download an object from S3 and return its contents as bytes
-    pub async fn get_object(&self, bucket_name: &str, key: &str) -> anyhow::Result<Vec<u8>> {
+    pub async fn get_object(&self, bucket_name: &str, key: &str) -> AppResult<Vec<u8>> {
         let response = self
             .client
             .get_object()
@@ -166,7 +167,7 @@ impl crate::aws::traits::AwsService<S3Bucket> for S3Service {
     fn list<'a>(
         &'a self,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = anyhow::Result<Vec<S3Bucket>>> + Send + 'a>,
+        Box<dyn std::future::Future<Output = AppResult<Vec<S3Bucket>>> + Send + 'a>,
     > {
         Box::pin(self.list_buckets())
     }

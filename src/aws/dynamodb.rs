@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::dynamodb::{
     DynamoDbTable, GlobalSecondaryIndex, KeyAttribute, LocalSecondaryIndex,
 };
@@ -13,7 +14,7 @@ impl DynamoDbService {
         Self { client }
     }
 
-    pub async fn list_tables(&self) -> anyhow::Result<Vec<DynamoDbTable>> {
+    pub async fn list_tables(&self) -> AppResult<Vec<DynamoDbTable>> {
         // First, get the list of table names
         let list_response = self
             .client
@@ -35,7 +36,7 @@ impl DynamoDbService {
         Ok(tables)
     }
 
-    pub async fn describe_table(&self, table_name: &str) -> anyhow::Result<DynamoDbTable> {
+    pub async fn describe_table(&self, table_name: &str) -> AppResult<DynamoDbTable> {
         let response = self
             .client
             .describe_table()
@@ -179,7 +180,7 @@ impl DynamoDbService {
         &self,
         table_name: &str,
         limit: i32,
-    ) -> anyhow::Result<Vec<crate::models::dynamodb::DynamoDbItem>> {
+    ) -> AppResult<Vec<crate::models::dynamodb::DynamoDbItem>> {
         use crate::models::dynamodb::DynamoDbItem;
 
         let response = self
@@ -211,7 +212,7 @@ impl DynamoDbService {
         &self,
         table_name: &str,
         key: std::collections::HashMap<String, aws_sdk_dynamodb::types::AttributeValue>,
-    ) -> anyhow::Result<()> {
+    ) -> AppResult<()> {
         self.client
             .delete_item()
             .table_name(table_name)
@@ -261,7 +262,7 @@ impl crate::aws::traits::AwsService<DynamoDbTable> for DynamoDbService {
     fn list<'a>(
         &'a self,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = anyhow::Result<Vec<DynamoDbTable>>> + Send + 'a>,
+        Box<dyn std::future::Future<Output = AppResult<Vec<DynamoDbTable>>> + Send + 'a>,
     > {
         Box::pin(self.list_tables())
     }

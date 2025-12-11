@@ -27,7 +27,7 @@ impl AwsClients {
         profile: Option<&str>, 
         region: Option<&str>,
         endpoint_url: Option<&str>,
-    ) -> anyhow::Result<Self> {
+    ) -> crate::error::AppResult<Self> {
         let mut config_loader = aws_config::defaults(BehaviorVersion::latest());
         
         // Set region: CLI arg > AWS_REGION env > default to us-east-1

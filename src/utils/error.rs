@@ -15,13 +15,13 @@ use std::fmt::Debug;
 /// * `error` - The SDK error implementing Debug
 ///
 /// # Returns
-/// An anyhow::Error wrapping an AppError with a formatted error message
+/// An AppError with a formatted error message
 pub fn format_sdk_error<E: Debug>(
     service: &str,
     action: &str,
     resource_id: &str,
     error: E,
-) -> anyhow::Error {
+) -> AppError {
     let debug_str = format!("{:?}", error);
 
     let message = if debug_str.contains("Unhandled") || debug_str.contains("unhandled") {
@@ -40,13 +40,13 @@ pub fn format_sdk_error<E: Debug>(
         }
     };
 
-    AppError::aws_api(service, message).into()
+    AppError::aws_api(service, message)
 }
 
 /// Format an S3 error with detailed context
 ///
 /// Handles common S3 error patterns including region redirects, access denied, etc.
-pub fn format_s3_error(bucket_name: &str, error: impl std::fmt::Display + Debug) -> anyhow::Error {
+pub fn format_s3_error(bucket_name: &str, error: impl std::fmt::Display + Debug) -> AppError {
     let err_str = format!("{:?}", error);
 
     let message = if err_str.contains("PermanentRedirect") || err_str.contains("301") {
@@ -85,5 +85,5 @@ pub fn format_s3_error(bucket_name: &str, error: impl std::fmt::Display + Debug)
         }
     };
 
-    AppError::aws_api("S3", message).into()
+    AppError::aws_api("S3", message)
 }

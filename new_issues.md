@@ -140,31 +140,42 @@ pub fn queue_depth(&self) -> usize {
 
 ---
 
-## 5. **Error Handling Improvements**
+## 5. **Error Handling Improvements** ✅ COMPLETED
 
-### 5.1 Redundant Error Type Handling
-**Current**: Using both `anyhow::Result` and `thiserror` throughout
+### 5.1 Redundant Error Type Handling ✅
+**Status**: Completed - Standardized on `AppError` and `AppResult` throughout AWS services.
 
-**Recommendation**:  Standardize on a single error handling strategy: 
+**What was done**:
+- Updated `src/aws/traits.rs` to use `AppResult` instead of `anyhow::Result`
+- Migrated all AWS services to use `AppResult`:
+  - EC2, RDS, S3, Lambda, DynamoDB
+  - VPC, IAM, Backup, CloudTrail, SecretsManager
+- Updated `src/utils/error.rs`: `format_sdk_error` and `format_s3_error` now return `AppError` directly
+- Updated `src/aws/client.rs` to use `AppResult`
+
+**Existing error structure** (preserved):
 ```rust
-// Create custom error enum for application-level errors
+// src/error.rs
 #[derive(thiserror::Error, Debug)]
-pub enum LazyAwsError {
-    #[error("AWS SDK error: {0}")]
-    AwsSdk(String),
-    
-    #[error("UI error: {0}")]
-    Ui(String),
-    
+pub enum AppError {
+    #[error("AWS {service} error: {message}")]
+    AwsApi { service: String, message: String, source: Option<...> },
+    #[error("Resource not found: {resource_type} '{resource_id}'")]
+    NotFound { ... },
+    #[error("Invalid input: {0}")]
+    Validation(String),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    // ... and more variants
 }
 
-pub type Result<T> = std:: result::Result<T, LazyAwsError>;
+pub type AppResult<T> = Result<T, AppError>;
 ```
 
 ### 5.2 Error Recovery Patterns
-**Recommendation**: 
+**Status**: Deferred - Would require significant architectural changes to the event loop.
+
+**Future considerations**:
 - Add automatic retry logic for transient AWS errors (429, 5xx)
 - Implement exponential backoff for rate-limited operations
 - Add circuit breaker pattern for failing services

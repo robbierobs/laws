@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_iam::Client;
@@ -11,7 +12,7 @@ impl IamService {
         Self { client }
     }
 
-    pub async fn list_users(&self) -> anyhow::Result<Vec<IamUser>> {
+    pub async fn list_users(&self) -> AppResult<Vec<IamUser>> {
         let mut users = Vec::new();
         let mut marker: Option<String> = None;
 
@@ -39,7 +40,7 @@ impl IamService {
         Ok(users)
     }
 
-    pub async fn list_roles(&self) -> anyhow::Result<Vec<IamRole>> {
+    pub async fn list_roles(&self) -> AppResult<Vec<IamRole>> {
         let mut roles = Vec::new();
         let mut marker: Option<String> = None;
 
@@ -67,7 +68,7 @@ impl IamService {
         Ok(roles)
     }
 
-    pub async fn list_policies(&self) -> anyhow::Result<Vec<IamPolicy>> {
+    pub async fn list_policies(&self) -> AppResult<Vec<IamPolicy>> {
         let mut policies = Vec::new();
         let mut marker: Option<String> = None;
 
@@ -101,7 +102,7 @@ impl IamService {
     pub async fn list_attached_user_policies(
         &self,
         user_name: &str,
-    ) -> anyhow::Result<Vec<IamPolicy>> {
+    ) -> AppResult<Vec<IamPolicy>> {
         let response = self
             .client
             .list_attached_user_policies()
@@ -128,7 +129,7 @@ impl IamService {
     pub async fn list_attached_role_policies(
         &self,
         role_name: &str,
-    ) -> anyhow::Result<Vec<IamPolicy>> {
+    ) -> AppResult<Vec<IamPolicy>> {
         let response = self
             .client
             .list_attached_role_policies()
@@ -152,7 +153,7 @@ impl IamService {
         Ok(policies)
     }
 
-    pub async fn get_policy_version(&self, policy_arn: &str) -> anyhow::Result<String> {
+    pub async fn get_policy_version(&self, policy_arn: &str) -> AppResult<String> {
         let policy = self
             .client
             .get_policy()
@@ -201,7 +202,7 @@ impl crate::aws::traits::AwsService<IamUser> for IamService {
     fn list<'a>(
         &'a self,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = anyhow::Result<Vec<IamUser>>> + Send + 'a>,
+        Box<dyn std::future::Future<Output = AppResult<Vec<IamUser>>> + Send + 'a>,
     > {
         Box::pin(self.list_users())
     }

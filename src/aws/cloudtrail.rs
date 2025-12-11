@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_cloudtrail::Client;
@@ -11,7 +12,7 @@ impl CloudTrailService {
         Self { client }
     }
 
-    pub async fn list_trails(&self) -> anyhow::Result<Vec<Trail>> {
+    pub async fn list_trails(&self) -> AppResult<Vec<Trail>> {
         let response = self
             .client
             .describe_trails()
@@ -28,7 +29,7 @@ impl CloudTrailService {
         Ok(trails)
     }
 
-    pub async fn lookup_events(&self, max_results: i32) -> anyhow::Result<Vec<CloudTrailEvent>> {
+    pub async fn lookup_events(&self, max_results: i32) -> AppResult<Vec<CloudTrailEvent>> {
         let response = self
             .client
             .lookup_events()
@@ -50,7 +51,7 @@ impl CloudTrailService {
 impl crate::aws::traits::AwsService<Trail> for CloudTrailService {
     fn list<'a>(
         &'a self,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Trail>>> + Send + 'a>>
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<Trail>>> + Send + 'a>>
     {
         Box::pin(self.list_trails())
     }

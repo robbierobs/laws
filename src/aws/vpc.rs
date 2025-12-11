@@ -1,3 +1,4 @@
+use crate::error::AppResult;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ec2::Client;
@@ -11,7 +12,7 @@ impl VpcService {
         Self { client }
     }
 
-    pub async fn list_vpcs(&self) -> anyhow::Result<Vec<Vpc>> {
+    pub async fn list_vpcs(&self) -> AppResult<Vec<Vpc>> {
         let response = self
             .client
             .describe_vpcs()
@@ -24,7 +25,7 @@ impl VpcService {
         Ok(vpcs)
     }
 
-    pub async fn list_subnets(&self, vpc_id: Option<&str>) -> anyhow::Result<Vec<Subnet>> {
+    pub async fn list_subnets(&self, vpc_id: Option<&str>) -> AppResult<Vec<Subnet>> {
         let mut request = self.client.describe_subnets();
 
         if let Some(id) = vpc_id {
@@ -53,7 +54,7 @@ impl VpcService {
     pub async fn list_security_groups(
         &self,
         vpc_id: Option<&str>,
-    ) -> anyhow::Result<Vec<SecurityGroup>> {
+    ) -> AppResult<Vec<SecurityGroup>> {
         let mut request = self.client.describe_security_groups();
 
         if let Some(id) = vpc_id {
@@ -87,7 +88,7 @@ impl VpcService {
 impl crate::aws::traits::AwsService<Vpc> for VpcService {
     fn list<'a>(
         &'a self,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Vpc>>> + Send + 'a>>
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<Vpc>>> + Send + 'a>>
     {
         Box::pin(self.list_vpcs())
     }
