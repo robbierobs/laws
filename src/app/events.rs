@@ -111,10 +111,13 @@ impl App {
             }
             AwsEvent::S3ObjectOpened { key, path, content } => {
                 self.loading = false;
-                // Store the opened content for display
+                // Store the opened content for display in popup
+                self.services.s3.opened_object_key = Some(key.clone());
                 self.services.s3.opened_object_content = content;
                 self.services.s3.opened_object_path = Some(path.clone());
-                self.action_log.push(format!("[SUCCESS] Opened '{}' at {}", key, path));
+                self.services.s3.show_object_viewer = true;
+                self.services.s3.viewer_scroll_offset = 0;
+                self.action_log.push(format!("[SUCCESS] Opened '{}'", key));
             }
             AwsEvent::ActionCompleted(msg) => {
                 self.loading = false;

@@ -79,6 +79,23 @@ impl App {
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
         crate::ui::render::render(frame, self);
         
+        // Render S3 object viewer popup
+        if self.services.s3.show_object_viewer {
+            let object_key = self.services.s3.opened_object_key.as_deref().unwrap_or("Unknown");
+            let object_path = self.services.s3.opened_object_path.as_deref();
+            let content = self.services.s3.opened_object_content.as_deref();
+            let scroll = self.services.s3.viewer_scroll_offset;
+            
+            crate::ui::components::modal::render_object_viewer_modal(
+                frame,
+                frame.area(),
+                object_key,
+                object_path,
+                content,
+                scroll,
+            );
+        }
+        
         if self.show_confirmation {
             if let Some(action) = &self.pending_action {
                 use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction};
