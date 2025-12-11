@@ -8,7 +8,7 @@ A terminal user interface (TUI) for managing AWS resources, built with Rust and 
 
 ### Supported Services
 - **EC2**: List, start, stop, reboot instances
-- **S3**: Browse buckets and objects, delete objects, view bucket details
+- **S3**: Browse buckets and objects, download/open objects, delete objects, view bucket details
 - **RDS**: Manage database instances (start, stop, reboot)
 - **DynamoDB**: View tables
 - **Lambda**: List functions
@@ -90,9 +90,27 @@ cargo run -- --read-only
 | `s` | Start instance (EC2, RDS) |
 | `S` | Stop instance (EC2, RDS) |
 | `R` | Reboot instance (EC2, RDS) |
-| `D` | Delete object (S3) |
+| `D` | Delete object (S3, DynamoDB) |
 | `y` | Confirm action |
 | `n` / `Esc` | Cancel action |
+
+### S3 Object Actions
+| Key | Action |
+|-----|--------|
+| `o` | Open object (view in popup) |
+| `w` | Download object to ~/Downloads |
+| `D` | Delete object (requires confirmation) |
+
+### Object Viewer (when popup is open)
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Scroll down |
+| `k` / `↑` | Scroll up |
+| `g` / `Home` | Go to top |
+| `G` / `End` | Go to bottom |
+| `PgDown` | Page down |
+| `PgUp` | Page up |
+| `Esc` / `q` | Close viewer |
 
 ## Architecture
 
