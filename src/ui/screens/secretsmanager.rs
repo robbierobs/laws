@@ -1,5 +1,5 @@
 use ratatui::{
-    layout::{Constraint, Rect, Layout, Direction, Alignment},
+    layout::{Constraint, Rect, Layout, Direction},
     style::Style,
     text::{Line, Span},
     widgets::{Cell, Row, Paragraph, Wrap, Block, Borders},
@@ -147,6 +147,19 @@ fn build_secret_detail_lines(secret: &Secret) -> Vec<Line<'_>> {
              Span::styled("Deleted Date: ", Style::default().fg(THEME.error)),
              Span::raw(deleted),
          ]));
+     }
+
+     if let Some(versions) = &secret.secret_versions_to_stages {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled("Versions:", Style::default().fg(THEME.secondary))));
+        for (version_id, stages) in versions {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(version_id, Style::default().fg(THEME.primary)),
+                Span::raw(": "),
+                Span::raw(stages.join(", ")),
+            ]));
+        }
      }
      
      lines
