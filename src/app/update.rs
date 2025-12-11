@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use crate::event::{Event, AwsEvent};
 use super::{App, Message, GlobalMessage, ServiceAction, Service, VpcViewMode, IamViewMode, DynamoDbViewMode};
 use super::messages::{Ec2Action, S3Action, RdsAction, DynamoDbAction, VpcAction, IamAction};
+use super::task_manager::task_keys;
 
 impl App {
     /// Main message handler - processes messages and updates application state
@@ -158,13 +159,14 @@ impl App {
                 Service::EC2 => {
                     let client = clients.ec2.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::ec2::Ec2Service::new(client);
                         match service.list_instances().await {
                             Ok(instances) => { tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::EC2_REFRESH, handle);
                 }
                 Service::S3 => {
                     let client = clients.s3.clone();
@@ -215,40 +217,43 @@ impl App {
                 Service::RDS => {
                     let client = clients.rds.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::rds::RdsService::new(client);
                         match service.list_instances().await {
                             Ok(instances) => { tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::RDS_REFRESH, handle);
                 }
                 Service::DynamoDB => {
                     let client = clients.dynamodb.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::dynamodb::DynamoDbService::new(client);
                         match service.list_tables().await {
                             Ok(tables) => { tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::DYNAMODB_REFRESH, handle);
                 }
                 Service::Lambda => {
                     let client = clients.lambda.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::lambda::LambdaService::new(client);
                         match service.list_functions().await {
                             Ok(functions) => { tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::LAMBDA_REFRESH, handle);
                 }
                 Service::VPC => {
                     let client = clients.ec2.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::vpc::VpcService::new(client);
                         match service.list_vpcs().await {
                             Ok(vpcs) => { tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).ok(); }
@@ -263,11 +268,12 @@ impl App {
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::VPC_REFRESH, handle);
                 }
                 Service::IAM => {
                     let client = clients.iam.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::iam::IamService::new(client);
                         match service.list_users().await {
                             Ok(users) => { tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users))).ok(); }
@@ -282,11 +288,12 @@ impl App {
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::IAM_REFRESH, handle);
                 }
                 Service::Backup => {
                     let client = clients.backup.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::backup::BackupService::new(client);
                         match service.list_backup_vaults().await {
                             Ok(vaults) => { tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults))).ok(); }
@@ -301,11 +308,12 @@ impl App {
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::BACKUP_REFRESH, handle);
                 }
                 Service::CloudTrail => {
                     let client = clients.cloudtrail.clone();
                     let tx = event_tx.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::cloudtrail::CloudTrailService::new(client);
                         match service.list_trails().await {
                             Ok(trails) => { tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails))).ok(); }
@@ -316,6 +324,7 @@ impl App {
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
                 }
             }
         }
@@ -327,7 +336,7 @@ impl App {
             let client = clients.ec2.clone();
             let tx = event_tx;
             let action = action.to_string();
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let service = crate::aws::ec2::Ec2Service::new(client);
                 let result = match action.as_str() {
                     "start" => service.start_instance(&id).await,
@@ -340,6 +349,7 @@ impl App {
                     Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                 }
             });
+            self.tasks.spawn(task_keys::EC2_ACTION, handle);
         }
     }
 
@@ -349,7 +359,7 @@ impl App {
             let client = clients.rds.clone();
             let tx = event_tx;
             let action = action.to_string();
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let service = crate::aws::rds::RdsService::new(client);
                 let result = match action.as_str() {
                     "start" => service.start_instance(&id).await,
@@ -362,6 +372,7 @@ impl App {
                     Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                 }
             });
+            self.tasks.spawn(task_keys::RDS_ACTION, handle);
         }
     }
 
@@ -371,13 +382,14 @@ impl App {
             self.loading = true;
             let client = clients.s3.clone();
             let tx = event_tx;
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let service = crate::aws::s3::S3Service::new(client);
                 match service.list_objects(&bucket).await {
                     Ok(objects) => { tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).ok(); }
                     Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                 }
             });
+            self.tasks.spawn(task_keys::S3_OBJECTS, handle);
         }
     }
 
@@ -386,13 +398,14 @@ impl App {
             self.loading = true;
             let client = clients.s3.clone();
             let tx = event_tx;
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let service = crate::aws::s3::S3Service::new(client);
                 match service.delete_object(&bucket, &key).await {
                     Ok(_) => { tx.send(Event::Aws(AwsEvent::ActionCompleted(format!("Deleted object {}/{}", bucket, key)))).ok(); }
                     Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                 }
             });
+            self.tasks.spawn(task_keys::S3_ACTION, handle);
         }
     }
 
@@ -406,11 +419,12 @@ impl App {
             let client = clients.s3.clone();
             let tx = event_tx;
             let bucket = bucket_name.clone();
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let service = crate::aws::s3::S3Service::new(client);
                 let details = service.get_bucket_details(&bucket).await;
                 tx.send(Event::Aws(AwsEvent::S3BucketDetailsLoaded { bucket_name: bucket, details })).ok();
             });
+            self.tasks.spawn(task_keys::S3_DETAILS, handle);
         }
     }
 
@@ -476,13 +490,14 @@ impl App {
                     self.loading = true;
                     let client = clients.dynamodb.clone();
                     let tx = event_tx;
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::dynamodb::DynamoDbService::new(client);
                         match service.scan_items(&table_name, 100).await {
                             Ok(items) => { tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::DYNAMODB_ITEMS, handle);
                 }
             }
         }
@@ -493,13 +508,14 @@ impl App {
             self.loading = true;
             let client = clients.dynamodb.clone();
             let tx = event_tx;
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let service = crate::aws::dynamodb::DynamoDbService::new(client);
                 match service.scan_items(&table_name, 100).await {
                     Ok(items) => { tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items))).ok(); }
                     Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                 }
             });
+            self.tasks.spawn(task_keys::DYNAMODB_ITEMS, handle);
         }
     }
 
@@ -564,13 +580,14 @@ impl App {
                     let client = clients.iam.clone();
                     let tx = event_tx;
                     let name = user.user_name.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::iam::IamService::new(client);
                         match service.list_attached_user_policies(&name).await {
                             Ok(policies) => { tx.send(Event::Aws(AwsEvent::IamUserPoliciesLoaded(policies))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::IAM_POLICIES, handle);
                 }
             }
         }
@@ -585,13 +602,14 @@ impl App {
                     let client = clients.iam.clone();
                     let tx = event_tx;
                     let name = role.role_name.clone();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let service = crate::aws::iam::IamService::new(client);
                         match service.list_attached_role_policies(&name).await {
                             Ok(policies) => { tx.send(Event::Aws(AwsEvent::IamRolePoliciesLoaded(policies))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
                     });
+                    self.tasks.spawn(task_keys::IAM_POLICIES, handle);
                 }
             }
         }
@@ -615,13 +633,14 @@ impl App {
                         let client = clients.iam.clone();
                         let tx = event_tx;
                         let arn = arn.clone();
-                        tokio::spawn(async move {
+                        let handle = tokio::spawn(async move {
                             let service = crate::aws::iam::IamService::new(client);
                             match service.get_policy_version(&arn).await {
                                 Ok(doc) => { tx.send(Event::Aws(AwsEvent::IamPolicyDocumentLoaded(doc))).ok(); }
                                 Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                             }
                         });
+                        self.tasks.spawn(task_keys::IAM_POLICIES, handle);
                     }
                 }
             }
