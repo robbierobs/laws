@@ -269,23 +269,41 @@ execute_instance_action(service, &action, id, tx).await;
 
 ---
 
-## 8. **Configuration & Flexibility**
+## 8. **Configuration & Flexibility** ✅ COMPLETED
 
-### 8.1 Hard-coded Configuration
-**Issue**:  Tick rate, colors, layout constants likely scattered throughout
+### 8.1 Hard-coded Configuration ✅
+**Status**: Completed - Added TOML config file support.
 
-**Recommendation**: 
-- Create `Config` struct with sensible defaults
-- Add config file support (TOML/YAML in `~/.config/lazy-aws/`)
-- Make colors/theming fully customizable
+**What was done**:
+- Added `toml` dependency to Cargo.toml
+- Created `ConfigFile` struct in `src/config.rs` for persistent settings
+- Config loaded from `~/.config/lazy-aws/config.toml`
+- Added `--theme` CLI argument for theme override
+- `AppConfig::from_args()` merges CLI args with config file settings
 
-### 8.2 Theme System
-**Current**: `ui/theme.rs` likely has hard-coded colors
+**Config file example**:
+```toml
+# ~/.config/lazy-aws/config.toml
+theme = "dark"  # dark, light, monokai, nord
+tick_rate_ms = 250
+api_timeout_secs = 30
+max_s3_objects = 1000
+```
 
-**Recommendation**:
-- Support multiple built-in themes (dark, light, monokai, etc.)
-- Allow per-element color customization
-- Support theme switching at runtime
+### 8.2 Theme System ✅
+**Status**: Completed - Added 4 built-in themes.
+
+**What was done**:
+- Created `ThemePreset` enum with serialization support
+- Added 4 built-in themes:
+  - **Dark** (default) - Slate color palette
+  - **Light** - Light mode with good contrast
+  - **Monokai** - Classic Monokai color scheme
+  - **Nord** - Nord color palette
+- Theme selectable via:
+  - Config file: `theme = "monokai"`
+  - CLI: `--theme nord`
+- All themes use const fn for compile-time construction
 
 ---
 
