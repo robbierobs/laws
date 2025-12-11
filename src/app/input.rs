@@ -17,21 +17,21 @@ impl App {
     /// Reset list selection to first item for current service
     pub fn reset_selection(&mut self) {
         match self.current_service {
-            Service::EC2 => self.ec2_list_state.select(Some(0)),
+            Service::EC2 => self.services.ec2.list_state.select(Some(0)),
             Service::S3 => {
-                if self.current_bucket.is_some() {
-                    self.s3_object_list_state.select(Some(0));
+                if self.services.s3.current_bucket.is_some() {
+                    self.services.s3.object_list_state.select(Some(0));
                 } else {
-                    self.s3_list_state.select(Some(0));
+                    self.services.s3.list_state.select(Some(0));
                 }
             }
-            Service::RDS => self.rds_list_state.select(Some(0)),
-            Service::DynamoDB => self.dynamodb_list_state.select(Some(0)),
-            Service::Lambda => self.lambda_list_state.select(Some(0)),
-            Service::VPC => self.vpc_list_state.select(Some(0)),
-            Service::IAM => self.iam_list_state.select(Some(0)),
-            Service::Backup => self.backup_list_state.select(Some(0)),
-            Service::CloudTrail => self.cloudtrail_list_state.select(Some(0)),
+            Service::RDS => self.services.rds.list_state.select(Some(0)),
+            Service::DynamoDB => self.services.dynamodb.list_state.select(Some(0)),
+            Service::Lambda => self.services.lambda.list_state.select(Some(0)),
+            Service::VPC => self.services.vpc.list_state.select(Some(0)),
+            Service::IAM => self.services.iam.list_state.select(Some(0)),
+            Service::Backup => self.services.backup.list_state.select(Some(0)),
+            Service::CloudTrail => self.services.cloudtrail.list_state.select(Some(0)),
         }
     }
 
@@ -54,8 +54,8 @@ impl App {
         // Handle confirmation modal
         if self.show_confirmation {
             return match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => Some(Message::ConfirmAction),
-                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => Some(Message::CancelAction),
+                KeyCode::Char('y') | KeyCode::Char('Y') => Some(Message::confirm_action()),
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => Some(Message::cancel_action()),
                 _ => None,
             };
         }
@@ -106,33 +106,33 @@ impl App {
                 // View mode cycling
                 if key.code == KeyCode::Char('v') {
                     match self.current_service {
-                        Service::Backup | Service::CloudTrail => return Some(Message::CycleViewMode),
-                        Service::VPC if self.vpc_view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::CycleViewMode),
-                        Service::IAM if self.iam_view_mode.is_main_tab() => return Some(Message::CycleViewMode),
+                        Service::Backup | Service::CloudTrail => return Some(Message::cycle_view_mode()),
+                        Service::VPC if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::cycle_view_mode()),
+                        Service::IAM if self.services.iam.view_mode.is_main_tab() => return Some(Message::cycle_view_mode()),
                         _ => {}
                     }
                 }
 
                 // Action log toggle
                 if key.code == KeyCode::Char('A') {
-                    return Some(Message::ToggleActionLog);
+                    return Some(Message::toggle_action_log());
                 }
 
                 // Arrow navigation for view modes
                 match key.code {
                     KeyCode::Right | KeyCode::Char('l') => {
                         match self.current_service {
-                            Service::Backup | Service::CloudTrail => return Some(Message::NextView),
-                            Service::VPC if self.vpc_view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::NextView),
-                            Service::IAM if self.iam_view_mode.is_main_tab() => return Some(Message::NextView),
+                            Service::Backup | Service::CloudTrail => return Some(Message::next_view()),
+                            Service::VPC if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::next_view()),
+                            Service::IAM if self.services.iam.view_mode.is_main_tab() => return Some(Message::next_view()),
                             _ => {}
                         }
                     }
                     KeyCode::Left | KeyCode::Char('h') => {
                         match self.current_service {
-                            Service::Backup | Service::CloudTrail => return Some(Message::PreviousView),
-                            Service::VPC if self.vpc_view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::PreviousView),
-                            Service::IAM if self.iam_view_mode.is_main_tab() => return Some(Message::PreviousView),
+                            Service::Backup | Service::CloudTrail => return Some(Message::previous_view()),
+                            Service::VPC if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::previous_view()),
+                            Service::IAM if self.services.iam.view_mode.is_main_tab() => return Some(Message::previous_view()),
                             _ => {}
                         }
                     }
@@ -162,17 +162,17 @@ impl App {
 
         // Global keys
         match key.code {
-            KeyCode::Char('q') => Some(Message::Quit),
-            KeyCode::Char('1') => Some(Message::NavigateToService(Service::EC2)),
-            KeyCode::Char('2') => Some(Message::NavigateToService(Service::S3)),
-            KeyCode::Char('3') => Some(Message::NavigateToService(Service::RDS)),
-            KeyCode::Char('4') => Some(Message::NavigateToService(Service::DynamoDB)),
-            KeyCode::Char('5') => Some(Message::NavigateToService(Service::Lambda)),
-            KeyCode::Char('6') => Some(Message::NavigateToService(Service::VPC)),
-            KeyCode::Char('7') => Some(Message::NavigateToService(Service::IAM)),
-            KeyCode::Char('8') => Some(Message::NavigateToService(Service::Backup)),
-            KeyCode::Char('9') => Some(Message::NavigateToService(Service::CloudTrail)),
-            KeyCode::Char('d') => Some(Message::ToggleDetailPanel),
+            KeyCode::Char('q') => Some(Message::quit()),
+            KeyCode::Char('1') => Some(Message::navigate(Service::EC2)),
+            KeyCode::Char('2') => Some(Message::navigate(Service::S3)),
+            KeyCode::Char('3') => Some(Message::navigate(Service::RDS)),
+            KeyCode::Char('4') => Some(Message::navigate(Service::DynamoDB)),
+            KeyCode::Char('5') => Some(Message::navigate(Service::Lambda)),
+            KeyCode::Char('6') => Some(Message::navigate(Service::VPC)),
+            KeyCode::Char('7') => Some(Message::navigate(Service::IAM)),
+            KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
+            KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
+            KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
             _ => None,
         }
     }
@@ -195,32 +195,32 @@ impl App {
     fn auto_select_first_item(&mut self) {
         match self.current_service {
             Service::EC2 => {
-                if self.ec2_list_state.selected().is_none() && !self.ec2_instances.is_empty() {
-                    self.ec2_list_state.select(Some(0));
+                if self.services.ec2.list_state.selected().is_none() && !self.services.ec2.instances.is_empty() {
+                    self.services.ec2.list_state.select(Some(0));
                 }
             }
             Service::S3 => {
-                if self.current_bucket.is_some() {
-                    if self.s3_object_list_state.selected().is_none() && !self.s3_objects.is_empty() {
-                        self.s3_object_list_state.select(Some(0));
+                if self.services.s3.current_bucket.is_some() {
+                    if self.services.s3.object_list_state.selected().is_none() && !self.services.s3.objects.is_empty() {
+                        self.services.s3.object_list_state.select(Some(0));
                     }
-                } else if self.s3_list_state.selected().is_none() && !self.s3_buckets.is_empty() {
-                    self.s3_list_state.select(Some(0));
+                } else if self.services.s3.list_state.selected().is_none() && !self.services.s3.buckets.is_empty() {
+                    self.services.s3.list_state.select(Some(0));
                 }
             }
             Service::RDS => {
-                if self.rds_list_state.selected().is_none() && !self.rds_instances.is_empty() {
-                    self.rds_list_state.select(Some(0));
+                if self.services.rds.list_state.selected().is_none() && !self.services.rds.instances.is_empty() {
+                    self.services.rds.list_state.select(Some(0));
                 }
             }
             Service::DynamoDB => {
-                if self.dynamodb_list_state.selected().is_none() && !self.dynamodb_tables.is_empty() {
-                    self.dynamodb_list_state.select(Some(0));
+                if self.services.dynamodb.list_state.selected().is_none() && !self.services.dynamodb.tables.is_empty() {
+                    self.services.dynamodb.list_state.select(Some(0));
                 }
             }
             Service::Lambda => {
-                if self.lambda_list_state.selected().is_none() && !self.lambda_functions.is_empty() {
-                    self.lambda_list_state.select(Some(0));
+                if self.services.lambda.list_state.selected().is_none() && !self.services.lambda.functions.is_empty() {
+                    self.services.lambda.list_state.select(Some(0));
                 }
             }
             Service::VPC => self.auto_select_vpc(),
@@ -231,52 +231,52 @@ impl App {
     }
 
     fn auto_select_vpc(&mut self) {
-        if self.vpc_list_state.selected().is_none() {
+        if self.services.vpc.list_state.selected().is_none() {
             use crate::app::VpcViewMode;
-            let has_items = match self.vpc_view_mode {
-                VpcViewMode::Vpcs => !self.vpcs.is_empty(),
-                VpcViewMode::Subnets => !self.subnets.is_empty(),
-                VpcViewMode::SecurityGroups => !self.security_groups.is_empty(),
-                VpcViewMode::SecurityGroupRules => !self.current_sg_rules.is_empty(),
+            let has_items = match self.services.vpc.view_mode {
+                VpcViewMode::Vpcs => !self.services.vpc.vpcs.is_empty(),
+                VpcViewMode::Subnets => !self.services.vpc.subnets.is_empty(),
+                VpcViewMode::SecurityGroups => !self.services.vpc.security_groups.is_empty(),
+                VpcViewMode::SecurityGroupRules => !self.services.vpc.current_sg_rules.is_empty(),
             };
-            if has_items { self.vpc_list_state.select(Some(0)); }
+            if has_items { self.services.vpc.list_state.select(Some(0)); }
         }
     }
 
     fn auto_select_iam(&mut self) {
-        if self.iam_list_state.selected().is_none() {
+        if self.services.iam.list_state.selected().is_none() {
             use crate::app::IamViewMode;
-            let has_items = match self.iam_view_mode {
-                IamViewMode::Users => !self.iam_users.is_empty(),
-                IamViewMode::Roles => !self.iam_roles.is_empty(),
-                IamViewMode::Policies => !self.iam_policies.is_empty(),
-                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => !self.current_iam_policies.is_empty(),
+            let has_items = match self.services.iam.view_mode {
+                IamViewMode::Users => !self.services.iam.users.is_empty(),
+                IamViewMode::Roles => !self.services.iam.roles.is_empty(),
+                IamViewMode::Policies => !self.services.iam.policies.is_empty(),
+                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => !self.services.iam.current_policies.is_empty(),
                 IamViewMode::PolicyDocument => false,
             };
-            if has_items { self.iam_list_state.select(Some(0)); }
+            if has_items { self.services.iam.list_state.select(Some(0)); }
         }
     }
 
     fn auto_select_backup(&mut self) {
-        if self.backup_list_state.selected().is_none() {
+        if self.services.backup.list_state.selected().is_none() {
             use crate::app::BackupViewMode;
-            let has_items = match self.backup_view_mode {
-                BackupViewMode::Vaults => !self.backup_vaults.is_empty(),
-                BackupViewMode::Plans => !self.backup_plans.is_empty(),
-                BackupViewMode::Jobs => !self.backup_jobs.is_empty(),
+            let has_items = match self.services.backup.view_mode {
+                BackupViewMode::Vaults => !self.services.backup.vaults.is_empty(),
+                BackupViewMode::Plans => !self.services.backup.plans.is_empty(),
+                BackupViewMode::Jobs => !self.services.backup.jobs.is_empty(),
             };
-            if has_items { self.backup_list_state.select(Some(0)); }
+            if has_items { self.services.backup.list_state.select(Some(0)); }
         }
     }
 
     fn auto_select_cloudtrail(&mut self) {
-        if self.cloudtrail_list_state.selected().is_none() {
+        if self.services.cloudtrail.list_state.selected().is_none() {
             use crate::app::CloudTrailViewMode;
-            let has_items = match self.cloudtrail_view_mode {
-                CloudTrailViewMode::Trails => !self.cloudtrail_trails.is_empty(),
-                CloudTrailViewMode::Events => !self.cloudtrail_events.is_empty(),
+            let has_items = match self.services.cloudtrail.view_mode {
+                CloudTrailViewMode::Trails => !self.services.cloudtrail.trails.is_empty(),
+                CloudTrailViewMode::Events => !self.services.cloudtrail.events.is_empty(),
             };
-            if has_items { self.cloudtrail_list_state.select(Some(0)); }
+            if has_items { self.services.cloudtrail.list_state.select(Some(0)); }
         }
     }
 
@@ -287,35 +287,35 @@ impl App {
     fn handle_ec2_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                if !self.ec2_instances.is_empty() {
-                    let i = self.ec2_list_state.selected().map_or(0, |i| if i >= self.ec2_instances.len() - 1 { 0 } else { i + 1 });
-                    self.ec2_list_state.select(Some(i));
+                if !self.services.ec2.instances.is_empty() {
+                    let i = self.services.ec2.list_state.selected().map_or(0, |i| if i >= self.services.ec2.instances.len() - 1 { 0 } else { i + 1 });
+                    self.services.ec2.list_state.select(Some(i));
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if !self.ec2_instances.is_empty() {
-                    let i = self.ec2_list_state.selected().map_or(0, |i| if i == 0 { self.ec2_instances.len() - 1 } else { i - 1 });
-                    self.ec2_list_state.select(Some(i));
+                if !self.services.ec2.instances.is_empty() {
+                    let i = self.services.ec2.list_state.selected().map_or(0, |i| if i == 0 { self.services.ec2.instances.len() - 1 } else { i - 1 });
+                    self.services.ec2.list_state.select(Some(i));
                 }
             }
             KeyCode::Char('s') => {
-                if let Some(i) = self.ec2_list_state.selected() {
-                    if let Some(instance) = self.ec2_instances.get(i) {
-                        return InputResult::Action(Message::StartInstance(instance.instance_id.clone()));
+                if let Some(i) = self.services.ec2.list_state.selected() {
+                    if let Some(instance) = self.services.ec2.instances.get(i) {
+                        return InputResult::Action(Message::ec2_start(instance.instance_id.clone()));
                     }
                 }
             }
             KeyCode::Char('S') => {
-                if let Some(i) = self.ec2_list_state.selected() {
-                    if let Some(instance) = self.ec2_instances.get(i) {
-                        return InputResult::Action(Message::StopInstance(instance.instance_id.clone()));
+                if let Some(i) = self.services.ec2.list_state.selected() {
+                    if let Some(instance) = self.services.ec2.instances.get(i) {
+                        return InputResult::Action(Message::ec2_stop(instance.instance_id.clone()));
                     }
                 }
             }
             KeyCode::Char('R') => {
-                if let Some(i) = self.ec2_list_state.selected() {
-                    if let Some(instance) = self.ec2_instances.get(i) {
-                        return InputResult::Action(Message::RebootInstance(instance.instance_id.clone()));
+                if let Some(i) = self.services.ec2.list_state.selected() {
+                    if let Some(instance) = self.services.ec2.instances.get(i) {
+                        return InputResult::Action(Message::ec2_reboot(instance.instance_id.clone()));
                     }
                 }
             }
@@ -325,57 +325,57 @@ impl App {
     }
 
     fn handle_s3_input(&mut self, key: KeyEvent) -> InputResult {
-        if self.current_bucket.is_some() {
+        if self.services.s3.current_bucket.is_some() {
             match key.code {
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if !self.s3_objects.is_empty() {
-                        let i = self.s3_object_list_state.selected().map_or(0, |i| if i >= self.s3_objects.len() - 1 { 0 } else { i + 1 });
-                        self.s3_object_list_state.select(Some(i));
+                    if !self.services.s3.objects.is_empty() {
+                        let i = self.services.s3.object_list_state.selected().map_or(0, |i| if i >= self.services.s3.objects.len() - 1 { 0 } else { i + 1 });
+                        self.services.s3.object_list_state.select(Some(i));
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if !self.s3_objects.is_empty() {
-                        let i = self.s3_object_list_state.selected().map_or(0, |i| if i == 0 { self.s3_objects.len() - 1 } else { i - 1 });
-                        self.s3_object_list_state.select(Some(i));
+                    if !self.services.s3.objects.is_empty() {
+                        let i = self.services.s3.object_list_state.selected().map_or(0, |i| if i == 0 { self.services.s3.objects.len() - 1 } else { i - 1 });
+                        self.services.s3.object_list_state.select(Some(i));
                     }
                 }
                 KeyCode::Char('D') => {
-                    if let Some(i) = self.s3_object_list_state.selected() {
-                        if let Some(obj) = self.s3_objects.get(i) {
-                            if let Some(bucket) = &self.current_bucket {
-                                return InputResult::Action(Message::DeleteS3Object(bucket.clone(), obj.key.clone()));
+                    if let Some(i) = self.services.s3.object_list_state.selected() {
+                        if let Some(obj) = self.services.s3.objects.get(i) {
+                            if let Some(bucket) = &self.services.s3.current_bucket {
+                                return InputResult::Action(Message::s3_delete_object(bucket.clone(), obj.key.clone()));
                             }
                         }
                     }
                 }
-                KeyCode::Esc | KeyCode::Backspace => return InputResult::Message(Message::LeaveS3Bucket),
+                KeyCode::Esc | KeyCode::Backspace => return InputResult::Message(Message::s3_leave_bucket()),
                 _ => {}
             }
         } else {
             match key.code {
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if !self.s3_buckets.is_empty() {
-                        let i = self.s3_list_state.selected().map_or(0, |i| if i >= self.s3_buckets.len() - 1 { 0 } else { i + 1 });
-                        self.s3_list_state.select(Some(i));
+                    if !self.services.s3.buckets.is_empty() {
+                        let i = self.services.s3.list_state.selected().map_or(0, |i| if i >= self.services.s3.buckets.len() - 1 { 0 } else { i + 1 });
+                        self.services.s3.list_state.select(Some(i));
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if !self.s3_buckets.is_empty() {
-                        let i = self.s3_list_state.selected().map_or(0, |i| if i == 0 { self.s3_buckets.len() - 1 } else { i - 1 });
-                        self.s3_list_state.select(Some(i));
+                    if !self.services.s3.buckets.is_empty() {
+                        let i = self.services.s3.list_state.selected().map_or(0, |i| if i == 0 { self.services.s3.buckets.len() - 1 } else { i - 1 });
+                        self.services.s3.list_state.select(Some(i));
                     }
                 }
                 KeyCode::Enter => {
-                    if let Some(i) = self.s3_list_state.selected() {
-                        if let Some(bucket) = self.s3_buckets.get(i) {
-                            return InputResult::Message(Message::LoadS3Objects(bucket.name.clone()));
+                    if let Some(i) = self.services.s3.list_state.selected() {
+                        if let Some(bucket) = self.services.s3.buckets.get(i) {
+                            return InputResult::Message(Message::s3_load_objects(bucket.name.clone()));
                         }
                     }
                 }
                 KeyCode::Char('i') => {
-                    if let Some(i) = self.s3_list_state.selected() {
-                        if let Some(bucket) = self.s3_buckets.get(i) {
-                            return InputResult::Message(Message::LoadBucketDetails(bucket.name.clone()));
+                    if let Some(i) = self.services.s3.list_state.selected() {
+                        if let Some(bucket) = self.services.s3.buckets.get(i) {
+                            return InputResult::Message(Message::s3_load_bucket_details(bucket.name.clone()));
                         }
                     }
                 }
@@ -388,35 +388,35 @@ impl App {
     fn handle_rds_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                if !self.rds_instances.is_empty() {
-                    let i = self.rds_list_state.selected().map_or(0, |i| if i >= self.rds_instances.len() - 1 { 0 } else { i + 1 });
-                    self.rds_list_state.select(Some(i));
+                if !self.services.rds.instances.is_empty() {
+                    let i = self.services.rds.list_state.selected().map_or(0, |i| if i >= self.services.rds.instances.len() - 1 { 0 } else { i + 1 });
+                    self.services.rds.list_state.select(Some(i));
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if !self.rds_instances.is_empty() {
-                    let i = self.rds_list_state.selected().map_or(0, |i| if i == 0 { self.rds_instances.len() - 1 } else { i - 1 });
-                    self.rds_list_state.select(Some(i));
+                if !self.services.rds.instances.is_empty() {
+                    let i = self.services.rds.list_state.selected().map_or(0, |i| if i == 0 { self.services.rds.instances.len() - 1 } else { i - 1 });
+                    self.services.rds.list_state.select(Some(i));
                 }
             }
             KeyCode::Char('s') => {
-                if let Some(i) = self.rds_list_state.selected() {
-                    if let Some(inst) = self.rds_instances.get(i) {
-                        return InputResult::Action(Message::StartRdsInstance(inst.db_instance_identifier.clone()));
+                if let Some(i) = self.services.rds.list_state.selected() {
+                    if let Some(inst) = self.services.rds.instances.get(i) {
+                        return InputResult::Action(Message::rds_start(inst.db_instance_identifier.clone()));
                     }
                 }
             }
             KeyCode::Char('S') => {
-                if let Some(i) = self.rds_list_state.selected() {
-                    if let Some(inst) = self.rds_instances.get(i) {
-                        return InputResult::Action(Message::StopRdsInstance(inst.db_instance_identifier.clone()));
+                if let Some(i) = self.services.rds.list_state.selected() {
+                    if let Some(inst) = self.services.rds.instances.get(i) {
+                        return InputResult::Action(Message::rds_stop(inst.db_instance_identifier.clone()));
                     }
                 }
             }
             KeyCode::Char('R') => {
-                if let Some(i) = self.rds_list_state.selected() {
-                    if let Some(inst) = self.rds_instances.get(i) {
-                        return InputResult::Action(Message::RebootRdsInstance(inst.db_instance_identifier.clone()));
+                if let Some(i) = self.services.rds.list_state.selected() {
+                    if let Some(inst) = self.services.rds.instances.get(i) {
+                        return InputResult::Action(Message::rds_reboot(inst.db_instance_identifier.clone()));
                     }
                 }
             }
@@ -427,27 +427,27 @@ impl App {
 
     fn handle_dynamodb_input(&mut self, key: KeyEvent) -> InputResult {
         use crate::app::DynamoDbViewMode;
-        if self.dynamodb_view_mode == DynamoDbViewMode::Items {
+        if self.services.dynamodb.view_mode == DynamoDbViewMode::Items {
             // In items view
-            let len = self.dynamodb_items.len();
+            let len = self.services.dynamodb.items.len();
             match key.code {
-                KeyCode::Esc | KeyCode::Backspace => return InputResult::Message(Message::ExitDynamoDbDrillDown),
+                KeyCode::Esc | KeyCode::Backspace => return InputResult::Message(Message::dynamodb_exit_drill_down()),
                 KeyCode::Down | KeyCode::Char('j') if len > 0 => {
-                    let i = self.dynamodb_item_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
-                    self.dynamodb_item_list_state.select(Some(i));
+                    let i = self.services.dynamodb.item_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+                    self.services.dynamodb.item_list_state.select(Some(i));
                 }
                 KeyCode::Up | KeyCode::Char('k') if len > 0 => {
-                    let i = self.dynamodb_item_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
-                    self.dynamodb_item_list_state.select(Some(i));
+                    let i = self.services.dynamodb.item_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+                    self.services.dynamodb.item_list_state.select(Some(i));
                 }
                 KeyCode::Char('D') => {
                     // Delete selected item
-                    if let Some(idx) = self.dynamodb_item_list_state.selected() {
-                        if let Some(item) = self.dynamodb_items.get(idx) {
-                            if let Some(table_name) = &self.current_dynamodb_table {
+                    if let Some(idx) = self.services.dynamodb.item_list_state.selected() {
+                        if let Some(item) = self.services.dynamodb.items.get(idx) {
+                            if let Some(table_name) = &self.services.dynamodb.current_table {
                                 // Build key attributes from item
                                 let key_attrs: std::collections::HashMap<String, String> = item.attributes.clone();
-                                return InputResult::Action(Message::DeleteDynamoDbItem(
+                                return InputResult::Action(Message::dynamodb_delete_item(
                                     table_name.clone(),
                                     key_attrs,
                                 ));
@@ -457,8 +457,8 @@ impl App {
                 }
                 KeyCode::Char('r') => {
                     // Refresh items
-                    if let Some(table_name) = &self.current_dynamodb_table {
-                        return InputResult::Message(Message::LoadDynamoDbItems(table_name.clone()));
+                    if let Some(table_name) = &self.services.dynamodb.current_table {
+                        return InputResult::Message(Message::dynamodb_load_items(table_name.clone()));
                     }
                 }
                 _ => {}
@@ -467,18 +467,18 @@ impl App {
             // In tables list view
             match key.code {
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if !self.dynamodb_tables.is_empty() {
-                        let i = self.dynamodb_list_state.selected().map_or(0, |i| if i >= self.dynamodb_tables.len() - 1 { 0 } else { i + 1 });
-                        self.dynamodb_list_state.select(Some(i));
+                    if !self.services.dynamodb.tables.is_empty() {
+                        let i = self.services.dynamodb.list_state.selected().map_or(0, |i| if i >= self.services.dynamodb.tables.len() - 1 { 0 } else { i + 1 });
+                        self.services.dynamodb.list_state.select(Some(i));
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if !self.dynamodb_tables.is_empty() {
-                        let i = self.dynamodb_list_state.selected().map_or(0, |i| if i == 0 { self.dynamodb_tables.len() - 1 } else { i - 1 });
-                        self.dynamodb_list_state.select(Some(i));
+                    if !self.services.dynamodb.tables.is_empty() {
+                        let i = self.services.dynamodb.list_state.selected().map_or(0, |i| if i == 0 { self.services.dynamodb.tables.len() - 1 } else { i - 1 });
+                        self.services.dynamodb.list_state.select(Some(i));
                     }
                 }
-                KeyCode::Enter => return InputResult::Message(Message::DrillDownDynamoDbTable),
+                KeyCode::Enter => return InputResult::Message(Message::dynamodb_drill_down()),
                 _ => {}
             }
         }
@@ -488,15 +488,15 @@ impl App {
     fn handle_lambda_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                if !self.lambda_functions.is_empty() {
-                    let i = self.lambda_list_state.selected().map_or(0, |i| if i >= self.lambda_functions.len() - 1 { 0 } else { i + 1 });
-                    self.lambda_list_state.select(Some(i));
+                if !self.services.lambda.functions.is_empty() {
+                    let i = self.services.lambda.list_state.selected().map_or(0, |i| if i >= self.services.lambda.functions.len() - 1 { 0 } else { i + 1 });
+                    self.services.lambda.list_state.select(Some(i));
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if !self.lambda_functions.is_empty() {
-                    let i = self.lambda_list_state.selected().map_or(0, |i| if i == 0 { self.lambda_functions.len() - 1 } else { i - 1 });
-                    self.lambda_list_state.select(Some(i));
+                if !self.services.lambda.functions.is_empty() {
+                    let i = self.services.lambda.list_state.selected().map_or(0, |i| if i == 0 { self.services.lambda.functions.len() - 1 } else { i - 1 });
+                    self.services.lambda.list_state.select(Some(i));
                 }
             }
             _ => {}
@@ -506,26 +506,26 @@ impl App {
 
     fn handle_vpc_input(&mut self, key: KeyEvent) -> InputResult {
         use crate::app::VpcViewMode;
-        let len = match self.vpc_view_mode {
-            VpcViewMode::Vpcs => self.vpcs.len(),
-            VpcViewMode::Subnets => self.subnets.len(),
-            VpcViewMode::SecurityGroups => self.security_groups.len(),
-            VpcViewMode::SecurityGroupRules => self.current_sg_rules.len(),
+        let len = match self.services.vpc.view_mode {
+            VpcViewMode::Vpcs => self.services.vpc.vpcs.len(),
+            VpcViewMode::Subnets => self.services.vpc.subnets.len(),
+            VpcViewMode::SecurityGroups => self.services.vpc.security_groups.len(),
+            VpcViewMode::SecurityGroupRules => self.services.vpc.current_sg_rules.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
-                let i = self.vpc_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
-                self.vpc_list_state.select(Some(i));
+                let i = self.services.vpc.list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+                self.services.vpc.list_state.select(Some(i));
             }
             KeyCode::Up | KeyCode::Char('k') if len > 0 => {
-                let i = self.vpc_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
-                self.vpc_list_state.select(Some(i));
+                let i = self.services.vpc.list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+                self.services.vpc.list_state.select(Some(i));
             }
-            KeyCode::Enter if self.vpc_view_mode == VpcViewMode::SecurityGroups => return InputResult::Message(Message::DrillDownSecurityGroup),
-            KeyCode::Esc if self.vpc_view_mode == VpcViewMode::SecurityGroupRules => return InputResult::Message(Message::ExitSecurityGroupRules),
+            KeyCode::Enter if self.services.vpc.view_mode == VpcViewMode::SecurityGroups => return InputResult::Message(Message::vpc_drill_down_sg()),
+            KeyCode::Esc if self.services.vpc.view_mode == VpcViewMode::SecurityGroupRules => return InputResult::Message(Message::vpc_exit_sg_rules()),
             // Toggle between inbound and outbound rules with 't' or 'v'
-            KeyCode::Char('t') | KeyCode::Char('v') if self.vpc_view_mode == VpcViewMode::SecurityGroupRules => {
-                return InputResult::Message(Message::ToggleSgRulesDirection);
+            KeyCode::Char('t') | KeyCode::Char('v') if self.services.vpc.view_mode == VpcViewMode::SecurityGroupRules => {
+                return InputResult::Message(Message::vpc_toggle_sg_rules_direction());
             }
             _ => {}
         }
@@ -534,31 +534,31 @@ impl App {
 
     fn handle_iam_input(&mut self, key: KeyEvent) -> InputResult {
         use crate::app::IamViewMode;
-        let len = match self.iam_view_mode {
-            IamViewMode::Users => self.iam_users.len(),
-            IamViewMode::Roles => self.iam_roles.len(),
-            IamViewMode::Policies => self.iam_policies.len(),
-            IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => self.current_iam_policies.len(),
+        let len = match self.services.iam.view_mode {
+            IamViewMode::Users => self.services.iam.users.len(),
+            IamViewMode::Roles => self.services.iam.roles.len(),
+            IamViewMode::Policies => self.services.iam.policies.len(),
+            IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => self.services.iam.current_policies.len(),
             IamViewMode::PolicyDocument => 0,
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
-                let i = self.iam_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
-                self.iam_list_state.select(Some(i));
+                let i = self.services.iam.list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+                self.services.iam.list_state.select(Some(i));
             }
             KeyCode::Up | KeyCode::Char('k') if len > 0 => {
-                let i = self.iam_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
-                self.iam_list_state.select(Some(i));
+                let i = self.services.iam.list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+                self.services.iam.list_state.select(Some(i));
             }
             KeyCode::Enter => {
-                return match self.iam_view_mode {
-                    IamViewMode::Users => InputResult::Message(Message::DrillDownIamUser),
-                    IamViewMode::Roles => InputResult::Message(Message::DrillDownIamRole),
-                    IamViewMode::Policies | IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => InputResult::Message(Message::DrillDownIamPolicy),
+                return match self.services.iam.view_mode {
+                    IamViewMode::Users => InputResult::Message(Message::iam_drill_down_user()),
+                    IamViewMode::Roles => InputResult::Message(Message::iam_drill_down_role()),
+                    IamViewMode::Policies | IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => InputResult::Message(Message::iam_drill_down_policy()),
                     IamViewMode::PolicyDocument => InputResult::None,
                 };
             }
-            KeyCode::Esc if !self.iam_view_mode.is_main_tab() => return InputResult::Message(Message::ExitIamDrillDown),
+            KeyCode::Esc if !self.services.iam.view_mode.is_main_tab() => return InputResult::Message(Message::iam_exit_drill_down()),
             _ => {}
         }
         InputResult::None
@@ -566,19 +566,19 @@ impl App {
 
     fn handle_backup_input(&mut self, key: KeyEvent) -> InputResult {
         use crate::app::BackupViewMode;
-        let len = match self.backup_view_mode {
-            BackupViewMode::Vaults => self.backup_vaults.len(),
-            BackupViewMode::Plans => self.backup_plans.len(),
-            BackupViewMode::Jobs => self.backup_jobs.len(),
+        let len = match self.services.backup.view_mode {
+            BackupViewMode::Vaults => self.services.backup.vaults.len(),
+            BackupViewMode::Plans => self.services.backup.plans.len(),
+            BackupViewMode::Jobs => self.services.backup.jobs.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
-                let i = self.backup_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
-                self.backup_list_state.select(Some(i));
+                let i = self.services.backup.list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+                self.services.backup.list_state.select(Some(i));
             }
             KeyCode::Up | KeyCode::Char('k') if len > 0 => {
-                let i = self.backup_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
-                self.backup_list_state.select(Some(i));
+                let i = self.services.backup.list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+                self.services.backup.list_state.select(Some(i));
             }
             _ => {}
         }
@@ -587,18 +587,18 @@ impl App {
 
     fn handle_cloudtrail_input(&mut self, key: KeyEvent) -> InputResult {
         use crate::app::CloudTrailViewMode;
-        let len = match self.cloudtrail_view_mode {
-            CloudTrailViewMode::Trails => self.cloudtrail_trails.len(),
-            CloudTrailViewMode::Events => self.cloudtrail_events.len(),
+        let len = match self.services.cloudtrail.view_mode {
+            CloudTrailViewMode::Trails => self.services.cloudtrail.trails.len(),
+            CloudTrailViewMode::Events => self.services.cloudtrail.events.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
-                let i = self.cloudtrail_list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
-                self.cloudtrail_list_state.select(Some(i));
+                let i = self.services.cloudtrail.list_state.selected().map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+                self.services.cloudtrail.list_state.select(Some(i));
             }
             KeyCode::Up | KeyCode::Char('k') if len > 0 => {
-                let i = self.cloudtrail_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
-                self.cloudtrail_list_state.select(Some(i));
+                let i = self.services.cloudtrail.list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+                self.services.cloudtrail.list_state.select(Some(i));
             }
             _ => {}
         }

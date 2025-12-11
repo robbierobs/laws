@@ -8,7 +8,7 @@ use ratatui::{
 use crate::app::App;
 
 pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app: &mut App) {
-    if let Some(bucket_name) = app.current_bucket.clone() {
+    if let Some(bucket_name) = app.services.s3.current_bucket.clone() {
         render_objects(frame, list_area, app, &bucket_name);
         if let Some(area) = detail_area {
             render_object_details(frame, area, app);
@@ -34,7 +34,7 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.s3_buckets.iter()
+    let rows = app.services.s3.buckets.iter()
         .filter(|b| {
             if filter.is_empty() { return true; }
             b.name.to_lowercase().contains(&filter)
@@ -71,14 +71,14 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.s3_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.s3.list_state);
 }
 
 fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.s3_list_state.selected();
+    let selected = app.services.s3.list_state.selected();
     
     let content = if let Some(idx) = selected {
-        if let Some(bucket) = app.s3_buckets.get(idx) {
+        if let Some(bucket) = app.services.s3.buckets.get(idx) {
             build_bucket_detail_lines(bucket, app)
         } else {
             vec![Line::from("No bucket selected")]
@@ -118,7 +118,7 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
     ];
 
     // Check if we have cached details for this bucket
-    if let Some(details) = app.s3_bucket_details.get(&bucket.name) {
+    if let Some(details) = app.services.s3.bucket_details.get(&bucket.name) {
         if details.loading {
             lines.push(Line::from(vec![
                 Span::styled("⏳ ", Style::default().fg(THEME.warning)),
@@ -188,7 +188,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.s3_objects.iter()
+    let rows = app.services.s3.objects.iter()
         .filter(|o| {
             if filter.is_empty() { return true; }
             o.key.to_lowercase().contains(&filter)
@@ -227,15 +227,15 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.s3_object_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.s3.object_list_state);
 }
 
 fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.s3_object_list_state.selected();
+    let selected = app.services.s3.object_list_state.selected();
     
     let content = if let Some(idx) = selected {
-        if let Some(object) = app.s3_objects.get(idx) {
-            build_object_detail_lines(object, app.current_bucket.as_deref())
+        if let Some(object) = app.services.s3.objects.get(idx) {
+            build_object_detail_lines(object, app.services.s3.current_bucket.as_deref())
         } else {
             vec![Line::from("No object selected")]
         }

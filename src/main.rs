@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
     let event_tx = events.sender();
 
     // Initial data load
-    app.update(Message::RefreshData, event_tx.clone()).await;
+    app.update(Message::refresh(), event_tx.clone()).await;
 
     // Main loop
     while !app.should_quit {
@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
                     app.on_tick();
                     if app.should_refresh {
                         app.should_refresh = false;
-                        app.update(Message::RefreshData, event_tx.clone()).await;
+                        app.update(Message::refresh(), event_tx.clone()).await;
                     }
                 }
                 Event::Aws(aws_event) => {

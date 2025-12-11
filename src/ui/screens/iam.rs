@@ -22,11 +22,11 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         ])
         .split(list_area);
 
-    if !app.iam_view_mode.is_main_tab() {
-        let title = match app.iam_view_mode {
-            IamViewMode::UserAttachedPolicies => format!("Policies attached to User: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
-            IamViewMode::RoleAttachedPolicies => format!("Policies attached to Role: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
-            IamViewMode::PolicyDocument => format!("Policy Document: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
+    if !app.services.iam.view_mode.is_main_tab() {
+        let title = match app.services.iam.view_mode {
+            IamViewMode::UserAttachedPolicies => format!("Policies attached to User: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
+            IamViewMode::RoleAttachedPolicies => format!("Policies attached to Role: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
+            IamViewMode::PolicyDocument => format!("Policy Document: {}", app.services.iam.selected_entity_name.as_deref().unwrap_or("Unknown")),
             _ => "Details".to_string(),
         };
         let block = Block::default()
@@ -37,10 +37,10 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         frame.render_widget(block, chunks[0]);
     } else {
         let tabs = ["Users", "Roles", "Policies"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.iam_view_mode.to_index());
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.to_index());
     }
 
-    match app.iam_view_mode {
+    match app.services.iam.view_mode {
         IamViewMode::Users => render_user_list(frame, chunks[1], app),
         IamViewMode::Roles => render_role_list(frame, chunks[1], app),
         IamViewMode::Policies => render_policy_list(frame, chunks[1], app),
@@ -49,7 +49,7 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
     }
     
     if let Some(area) = detail_area {
-        match app.iam_view_mode {
+        match app.services.iam.view_mode {
             IamViewMode::Users => render_user_details(frame, area, app),
             IamViewMode::Roles => render_role_details(frame, area, app),
             IamViewMode::Policies => render_policy_details(frame, area, app),
@@ -70,7 +70,7 @@ fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.iam_users.iter()
+    let rows = app.services.iam.users.iter()
         .filter(|u| {
             if filter.is_empty() { return true; }
             let name = u.user_name.to_lowercase();
@@ -121,14 +121,14 @@ fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.iam_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
 }
 
 fn render_user_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.iam_list_state.selected();
+    let selected = app.services.iam.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(user) = app.iam_users.get(idx) {
+        if let Some(user) = app.services.iam.users.get(idx) {
             build_user_detail_lines(user)
         } else {
             vec![Line::from("No user selected")]
@@ -199,7 +199,7 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.iam_roles.iter()
+    let rows = app.services.iam.roles.iter()
         .filter(|r| {
             if filter.is_empty() { return true; }
             let name = r.role_name.to_lowercase();
@@ -250,14 +250,14 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.iam_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
 }
 
 fn render_role_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.iam_list_state.selected();
+    let selected = app.services.iam.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(role) = app.iam_roles.get(idx) {
+        if let Some(role) = app.services.iam.roles.get(idx) {
             build_role_detail_lines(role)
         } else {
             vec![Line::from("No role selected")]
@@ -335,7 +335,7 @@ fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.iam_policies.iter()
+    let rows = app.services.iam.policies.iter()
         .filter(|p| {
             if filter.is_empty() { return true; }
             let name = p.policy_name.to_lowercase();
@@ -386,14 +386,14 @@ fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.iam_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
 }
 
 fn render_policy_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.iam_list_state.selected();
+    let selected = app.services.iam.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(policy) = app.iam_policies.get(idx) {
+        if let Some(policy) = app.services.iam.policies.get(idx) {
             build_policy_detail_lines(policy)
         } else {
             vec![Line::from("No policy selected")]
@@ -471,7 +471,7 @@ fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.current_iam_policies.iter()
+    let rows = app.services.iam.current_policies.iter()
         .map(|policy| {
         let cells = vec![
             Cell::from(policy.policy_name.clone()),
@@ -502,11 +502,11 @@ fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.iam_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
 }
 
 fn render_policy_document(frame: &mut Frame, area: Rect, app: &App) {
-    let text = app.current_policy_document.clone();
+    let text = app.services.iam.current_policy_document.clone();
     let paragraph = Paragraph::new(text)
         .block(Block::default()
             .borders(Borders::ALL)
@@ -519,10 +519,10 @@ fn render_policy_document(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_policy_details_from_list(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.iam_list_state.selected();
+    let selected = app.services.iam.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(policy) = app.current_iam_policies.get(idx) {
+        if let Some(policy) = app.services.iam.current_policies.get(idx) {
             build_policy_detail_lines(policy)
         } else {
             vec![Line::from("No policy selected")]

@@ -4,116 +4,147 @@
 
 use tokio::sync::mpsc;
 use crate::event::{Event, AwsEvent};
-use super::{App, Message, Service, VpcViewMode, IamViewMode, DynamoDbViewMode};
+use super::{App, Message, GlobalMessage, ServiceAction, Service, VpcViewMode, IamViewMode, DynamoDbViewMode};
+use super::messages::{Ec2Action, S3Action, RdsAction, DynamoDbAction, VpcAction, IamAction};
 
 impl App {
     /// Main message handler - processes messages and updates application state
     pub fn update<'a>(&'a mut self, message: Message, event_tx: mpsc::UnboundedSender<Event>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             match message {
-                Message::Quit => self.should_quit = true,
-                Message::NavigateToService(service) => {
-                    self.current_service = service;
-                    self.sidebar.select_service(service);
-                    self.update(Message::RefreshData, event_tx).await;
-                }
-                Message::ConfirmAction => {
-                    if let Some(action) = self.pending_action.take() {
-                        self.show_confirmation = false;
-                        self.update(action, event_tx).await;
-                    }
-                }
-                Message::CancelAction => {
-                    self.pending_action = None;
-                    self.show_confirmation = false;
-                }
-                Message::RefreshData => {
-                    self.handle_refresh_data(event_tx.clone()).await;
-                }
-                Message::StartInstance(id) => {
-                    self.handle_ec2_action("start", id, event_tx.clone());
-                }
-                Message::StopInstance(id) => {
-                    self.handle_ec2_action("stop", id, event_tx.clone());
-                }
-                Message::RebootInstance(id) => {
-                    self.handle_ec2_action("reboot", id, event_tx.clone());
-                }
-                Message::LoadS3Objects(bucket) => {
-                    self.handle_load_s3_objects(bucket, event_tx.clone());
-                }
-                Message::DeleteS3Object(bucket, key) => {
-                    self.handle_delete_s3_object(bucket, key, event_tx.clone());
-                }
-                Message::LeaveS3Bucket => {
-                    self.current_bucket = None;
-                    self.s3_objects.clear();
-                }
-                Message::LoadBucketDetails(bucket_name) => {
-                    self.handle_load_bucket_details(bucket_name, event_tx.clone());
-                }
-                Message::ToggleDetailPanel => {
-                    self.detail_panel_visible = !self.detail_panel_visible;
-                }
-                Message::ToggleActionLog => {
-                    self.action_log_expanded = !self.action_log_expanded;
-                }
-                Message::CycleViewMode | Message::NextView => {
-                    self.handle_cycle_view_mode(true);
-                }
-                Message::PreviousView => {
-                    self.handle_cycle_view_mode(false);
-                }
-                Message::StartRdsInstance(id) => {
-                    self.handle_rds_action("start", id, event_tx.clone());
-                }
-                Message::StopRdsInstance(id) => {
-                    self.handle_rds_action("stop", id, event_tx.clone());
-                }
-                Message::RebootRdsInstance(id) => {
-                    self.handle_rds_action("reboot", id, event_tx.clone());
-                }
-                Message::DrillDownSecurityGroup => {
-                    self.handle_drill_down_security_group();
-                }
-                Message::ExitSecurityGroupRules => {
-                    self.vpc_view_mode = VpcViewMode::SecurityGroups;
-                    self.selected_sg_id = None;
-                    self.current_sg_rules.clear();
-                    self.vpc_list_state.select(Some(0));
-                }
-                Message::ToggleSgRulesDirection => {
-                    self.handle_toggle_sg_rules_direction();
-                }
-                Message::DrillDownIamUser => {
-                    self.handle_drill_down_iam_user(event_tx.clone());
-                }
-                Message::DrillDownIamRole => {
-                    self.handle_drill_down_iam_role(event_tx.clone());
-                }
-                Message::DrillDownIamPolicy => {
-                    self.handle_drill_down_iam_policy(event_tx.clone());
-                }
-                Message::ExitIamDrillDown => {
-                    self.handle_exit_iam_drill_down();
-                }
-                Message::DrillDownDynamoDbTable => {
-                    self.handle_drill_down_dynamodb_table(event_tx.clone());
-                }
-                Message::ExitDynamoDbDrillDown => {
-                    self.dynamodb_view_mode = DynamoDbViewMode::Tables;
-                    self.current_dynamodb_table = None;
-                    self.dynamodb_items.clear();
-                    self.dynamodb_list_state.select(Some(0));
-                }
-                Message::LoadDynamoDbItems(table_name) => {
-                    self.handle_load_dynamodb_items(table_name, event_tx.clone());
-                }
-                Message::DeleteDynamoDbItem(table_name, key_attrs) => {
-                    self.handle_delete_dynamodb_item(table_name, key_attrs, event_tx.clone());
-                }
+                Message::Global(global) => self.handle_global_message(global, event_tx).await,
+                Message::Service(service) => self.handle_service_action(service, event_tx).await,
             }
         })
+    }
+
+    /// Handle global (non-service-specific) messages
+    async fn handle_global_message(&mut self, message: GlobalMessage, event_tx: mpsc::UnboundedSender<Event>) {
+        match message {
+            GlobalMessage::Quit => self.should_quit = true,
+            GlobalMessage::Navigate(service) => {
+                self.current_service = service;
+                self.sidebar.select_service(service);
+                self.update(Message::refresh(), event_tx).await;
+            }
+            GlobalMessage::ConfirmAction => {
+                if let Some(action) = self.pending_action.take() {
+                    self.show_confirmation = false;
+                    self.update(action, event_tx).await;
+                }
+            }
+            GlobalMessage::CancelAction => {
+                self.pending_action = None;
+                self.show_confirmation = false;
+            }
+            GlobalMessage::RefreshData => {
+                self.handle_refresh_data(event_tx.clone()).await;
+            }
+            GlobalMessage::ToggleDetailPanel => {
+                self.detail_panel_visible = !self.detail_panel_visible;
+            }
+            GlobalMessage::ToggleActionLog => {
+                self.action_log_expanded = !self.action_log_expanded;
+            }
+            GlobalMessage::CycleViewMode | GlobalMessage::NextView => {
+                self.handle_cycle_view_mode(true);
+            }
+            GlobalMessage::PreviousView => {
+                self.handle_cycle_view_mode(false);
+            }
+        }
+    }
+
+    /// Handle service-specific actions
+    async fn handle_service_action(&mut self, action: ServiceAction, event_tx: mpsc::UnboundedSender<Event>) {
+        match action {
+            // EC2 actions
+            ServiceAction::Ec2(Ec2Action::Start(id)) => {
+                self.handle_ec2_action("start", id, event_tx);
+            }
+            ServiceAction::Ec2(Ec2Action::Stop(id)) => {
+                self.handle_ec2_action("stop", id, event_tx);
+            }
+            ServiceAction::Ec2(Ec2Action::Reboot(id)) => {
+                self.handle_ec2_action("reboot", id, event_tx);
+            }
+            
+            // S3 actions
+            ServiceAction::S3(S3Action::LoadObjects(bucket)) => {
+                self.handle_load_s3_objects(bucket, event_tx);
+            }
+            ServiceAction::S3(S3Action::LoadBucketDetails(bucket)) => {
+                self.handle_load_bucket_details(bucket, event_tx);
+            }
+            ServiceAction::S3(S3Action::DeleteObject { bucket, key }) => {
+                self.handle_delete_s3_object(bucket, key, event_tx);
+            }
+            ServiceAction::S3(S3Action::LeaveBucket) => {
+                self.services.s3.current_bucket = None;
+                self.services.s3.objects.clear();
+            }
+            
+            // RDS actions
+            ServiceAction::Rds(RdsAction::Start(id)) => {
+                self.handle_rds_action("start", id, event_tx);
+            }
+            ServiceAction::Rds(RdsAction::Stop(id)) => {
+                self.handle_rds_action("stop", id, event_tx);
+            }
+            ServiceAction::Rds(RdsAction::Reboot(id)) => {
+                self.handle_rds_action("reboot", id, event_tx);
+            }
+            
+            // DynamoDB actions
+            ServiceAction::DynamoDb(DynamoDbAction::DrillDownTable) => {
+                self.handle_drill_down_dynamodb_table(event_tx);
+            }
+            ServiceAction::DynamoDb(DynamoDbAction::ExitDrillDown) => {
+                self.services.dynamodb.view_mode = DynamoDbViewMode::Tables;
+                self.services.dynamodb.current_table = None;
+                self.services.dynamodb.items.clear();
+                self.services.dynamodb.list_state.select(Some(0));
+            }
+            ServiceAction::DynamoDb(DynamoDbAction::LoadItems(table_name)) => {
+                self.handle_load_dynamodb_items(table_name, event_tx);
+            }
+            ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, key_attrs }) => {
+                self.handle_delete_dynamodb_item(table_name, key_attrs, event_tx);
+            }
+            
+            // VPC actions
+            ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup) => {
+                self.handle_drill_down_security_group();
+            }
+            ServiceAction::Vpc(VpcAction::ExitSecurityGroupRules) => {
+                self.services.vpc.view_mode = VpcViewMode::SecurityGroups;
+                self.services.vpc.selected_sg_id = None;
+                self.services.vpc.current_sg_rules.clear();
+                self.services.vpc.list_state.select(Some(0));
+            }
+            ServiceAction::Vpc(VpcAction::ToggleSgRulesDirection) => {
+                self.handle_toggle_sg_rules_direction();
+            }
+            
+            // IAM actions
+            ServiceAction::Iam(IamAction::DrillDownUser) => {
+                self.handle_drill_down_iam_user(event_tx);
+            }
+            ServiceAction::Iam(IamAction::DrillDownRole) => {
+                self.handle_drill_down_iam_role(event_tx);
+            }
+            ServiceAction::Iam(IamAction::DrillDownPolicy) => {
+                self.handle_drill_down_iam_policy(event_tx);
+            }
+            ServiceAction::Iam(IamAction::ExitDrillDown) => {
+                self.handle_exit_iam_drill_down();
+            }
+            
+            // Lambda, Backup, CloudTrail - no actions currently supported
+            ServiceAction::Lambda(_) => {}
+            ServiceAction::Backup(_) => {}
+            ServiceAction::CloudTrail(_) => {}
+        }
     }
 
     // ===============================
@@ -168,7 +199,7 @@ impl App {
                         }
                     });
                     // Also refresh objects if inside a bucket
-                    if let Some(bucket) = &self.current_bucket {
+                    if let Some(bucket) = &self.services.s3.current_bucket {
                         let bucket_name = bucket.clone();
                         let client = clients.s3.clone();
                         let tx = event_tx.clone();
@@ -335,7 +366,7 @@ impl App {
     }
 
     fn handle_load_s3_objects(&mut self, bucket: String, event_tx: mpsc::UnboundedSender<Event>) {
-        self.current_bucket = Some(bucket.clone());
+        self.services.s3.current_bucket = Some(bucket.clone());
         if let Some(clients) = &self.aws_clients {
             self.loading = true;
             let client = clients.s3.clone();
@@ -369,7 +400,7 @@ impl App {
         if let Some(clients) = &self.aws_clients {
             let mut loading_details = crate::models::s3::S3BucketDetails::default();
             loading_details.loading = true;
-            self.s3_bucket_details.insert(bucket_name.clone(), loading_details);
+            self.services.s3.bucket_details.insert(bucket_name.clone(), loading_details);
             self.detail_loading = true;
             
             let client = clients.s3.clone();
@@ -386,59 +417,59 @@ impl App {
     fn handle_cycle_view_mode(&mut self, forward: bool) {
         match self.current_service {
             Service::Backup => {
-                self.backup_view_mode = if forward { self.backup_view_mode.next() } else { self.backup_view_mode.previous() };
-                self.backup_list_state.select(None);
+                self.services.backup.view_mode = if forward { self.services.backup.view_mode.next() } else { self.services.backup.view_mode.previous() };
+                self.services.backup.list_state.select(None);
             }
             Service::CloudTrail => {
-                self.cloudtrail_view_mode = if forward { self.cloudtrail_view_mode.next() } else { self.cloudtrail_view_mode.previous() };
-                self.cloudtrail_list_state.select(None);
+                self.services.cloudtrail.view_mode = if forward { self.services.cloudtrail.view_mode.next() } else { self.services.cloudtrail.view_mode.previous() };
+                self.services.cloudtrail.list_state.select(None);
             }
             Service::VPC => {
-                self.vpc_view_mode = if forward { self.vpc_view_mode.next() } else { self.vpc_view_mode.previous() };
-                self.vpc_list_state.select(None);
+                self.services.vpc.view_mode = if forward { self.services.vpc.view_mode.next() } else { self.services.vpc.view_mode.previous() };
+                self.services.vpc.list_state.select(None);
             }
             Service::IAM => {
-                self.iam_view_mode = if forward { self.iam_view_mode.next() } else { self.iam_view_mode.previous() };
-                self.iam_list_state.select(None);
+                self.services.iam.view_mode = if forward { self.services.iam.view_mode.next() } else { self.services.iam.view_mode.previous() };
+                self.services.iam.list_state.select(None);
             }
             _ => {}
         }
     }
 
     fn handle_drill_down_security_group(&mut self) {
-        if let Some(idx) = self.vpc_list_state.selected() {
-            if let Some(sg) = self.security_groups.get(idx) {
-                self.selected_sg_id = Some(sg.group_id.clone());
-                self.sg_rules_inbound = true;
-                self.current_sg_rules = sg.inbound_rules.clone();
-                self.vpc_view_mode = VpcViewMode::SecurityGroupRules;
-                self.vpc_list_state.select(Some(0));
+        if let Some(idx) = self.services.vpc.list_state.selected() {
+            if let Some(sg) = self.services.vpc.security_groups.get(idx) {
+                self.services.vpc.selected_sg_id = Some(sg.group_id.clone());
+                self.services.vpc.sg_rules_inbound = true;
+                self.services.vpc.current_sg_rules = sg.inbound_rules.clone();
+                self.services.vpc.view_mode = VpcViewMode::SecurityGroupRules;
+                self.services.vpc.list_state.select(Some(0));
             }
         }
     }
 
     fn handle_toggle_sg_rules_direction(&mut self) {
-        if let Some(sg_id) = &self.selected_sg_id {
-            if let Some(sg) = self.security_groups.iter().find(|s| &s.group_id == sg_id) {
-                self.sg_rules_inbound = !self.sg_rules_inbound;
-                self.current_sg_rules = if self.sg_rules_inbound {
+        if let Some(sg_id) = &self.services.vpc.selected_sg_id.clone() {
+            if let Some(sg) = self.services.vpc.security_groups.iter().find(|s| &s.group_id == sg_id) {
+                self.services.vpc.sg_rules_inbound = !self.services.vpc.sg_rules_inbound;
+                self.services.vpc.current_sg_rules = if self.services.vpc.sg_rules_inbound {
                     sg.inbound_rules.clone()
                 } else {
                     sg.outbound_rules.clone()
                 };
-                self.vpc_list_state.select(Some(0));
+                self.services.vpc.list_state.select(Some(0));
             }
         }
     }
 
     fn handle_drill_down_dynamodb_table(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
-        if let Some(idx) = self.dynamodb_list_state.selected() {
-            if let Some(table) = self.dynamodb_tables.get(idx) {
+        if let Some(idx) = self.services.dynamodb.list_state.selected() {
+            if let Some(table) = self.services.dynamodb.tables.get(idx) {
                 let table_name = table.table_name.clone();
-                self.current_dynamodb_table = Some(table_name.clone());
-                self.dynamodb_view_mode = DynamoDbViewMode::Items;
-                self.dynamodb_items.clear();
-                self.dynamodb_item_list_state.select(None);
+                self.services.dynamodb.current_table = Some(table_name.clone());
+                self.services.dynamodb.view_mode = DynamoDbViewMode::Items;
+                self.services.dynamodb.items.clear();
+                self.services.dynamodb.item_list_state.select(None);
                 
                 // Load items
                 if let Some(clients) = &self.aws_clients {
@@ -475,7 +506,7 @@ impl App {
     fn handle_delete_dynamodb_item(&mut self, table_name: String, key_attrs: std::collections::HashMap<String, String>, event_tx: mpsc::UnboundedSender<Event>) {
         if let Some(clients) = &self.aws_clients {
             // Get key schema from current table to figure out which attributes are keys
-            let table = self.dynamodb_tables.iter().find(|t| t.table_name == table_name);
+            let table = self.services.dynamodb.tables.iter().find(|t| t.table_name == table_name);
             if let Some(t) = table {
                 let pk_name = t.partition_key.as_ref().map(|k| k.name.clone());
                 let sk_name = t.sort_key.as_ref().map(|k| k.name.clone());
@@ -525,10 +556,10 @@ impl App {
     }
 
     fn handle_drill_down_iam_user(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
-        if let Some(idx) = self.iam_list_state.selected() {
-            if let Some(user) = self.iam_users.get(idx) {
+        if let Some(idx) = self.services.iam.list_state.selected() {
+            if let Some(user) = self.services.iam.users.get(idx) {
                 if let Some(clients) = &self.aws_clients {
-                    self.selected_iam_entity_name = Some(user.user_name.clone());
+                    self.services.iam.selected_entity_name = Some(user.user_name.clone());
                     self.loading = true;
                     let client = clients.iam.clone();
                     let tx = event_tx;
@@ -546,10 +577,10 @@ impl App {
     }
 
     fn handle_drill_down_iam_role(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
-        if let Some(idx) = self.iam_list_state.selected() {
-            if let Some(role) = self.iam_roles.get(idx) {
+        if let Some(idx) = self.services.iam.list_state.selected() {
+            if let Some(role) = self.services.iam.roles.get(idx) {
                 if let Some(clients) = &self.aws_clients {
-                    self.selected_iam_entity_name = Some(role.role_name.clone());
+                    self.services.iam.selected_entity_name = Some(role.role_name.clone());
                     self.loading = true;
                     let client = clients.iam.clone();
                     let tx = event_tx;
@@ -567,19 +598,19 @@ impl App {
     }
 
     fn handle_drill_down_iam_policy(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
-        if let Some(idx) = self.iam_list_state.selected() {
-            let policy = if self.iam_view_mode == IamViewMode::Policies {
-                self.iam_policies.get(idx)
+        if let Some(idx) = self.services.iam.list_state.selected() {
+            let policy = if self.services.iam.view_mode == IamViewMode::Policies {
+                self.services.iam.policies.get(idx)
             } else {
-                self.current_iam_policies.get(idx)
+                self.services.iam.current_policies.get(idx)
             };
             
-            self.previous_iam_view_mode = self.iam_view_mode;
+            self.services.iam.previous_view_mode = self.services.iam.view_mode;
 
             if let Some(p) = policy {
                 if let Some(arn) = &p.arn {
                     if let Some(clients) = &self.aws_clients {
-                        self.selected_iam_entity_name = Some(p.policy_name.clone());
+                        self.services.iam.selected_entity_name = Some(p.policy_name.clone());
                         self.loading = true;
                         let client = clients.iam.clone();
                         let tx = event_tx;
@@ -598,15 +629,15 @@ impl App {
     }
 
     fn handle_exit_iam_drill_down(&mut self) {
-        match self.iam_view_mode {
-            IamViewMode::UserAttachedPolicies => self.iam_view_mode = IamViewMode::Users,
-            IamViewMode::RoleAttachedPolicies => self.iam_view_mode = IamViewMode::Roles,
-            IamViewMode::PolicyDocument => self.iam_view_mode = self.previous_iam_view_mode,
+        match self.services.iam.view_mode {
+            IamViewMode::UserAttachedPolicies => self.services.iam.view_mode = IamViewMode::Users,
+            IamViewMode::RoleAttachedPolicies => self.services.iam.view_mode = IamViewMode::Roles,
+            IamViewMode::PolicyDocument => self.services.iam.view_mode = self.services.iam.previous_view_mode,
             _ => {}
         }
-        self.current_iam_policies.clear();
-        self.current_policy_document.clear();
-        self.selected_iam_entity_name = None;
-        self.iam_list_state.select(Some(0));
+        self.services.iam.current_policies.clear();
+        self.services.iam.current_policy_document.clear();
+        self.services.iam.selected_entity_name = None;
+        self.services.iam.list_state.select(Some(0));
     }
 }

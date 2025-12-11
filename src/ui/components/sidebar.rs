@@ -117,7 +117,7 @@ impl Component for Sidebar {
             }
             KeyCode::Enter => {
                 if let Some(service) = self.selected_service() {
-                    Some(Message::NavigateToService(service))
+                    Some(Message::navigate(service))
                 } else {
                     None
                 }
