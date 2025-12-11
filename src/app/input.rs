@@ -350,6 +350,8 @@ impl App {
 
         // Global keys
         match key.code {
+            KeyCode::Char('r') => Some(Message::refresh()),
+            KeyCode::Char('y') => self.handle_copy(),
             KeyCode::Char('q') => Some(Message::quit()),
             KeyCode::Char('P') => Some(Message::open_profile_switcher()),
             KeyCode::Char('1') => Some(Message::navigate(Service::EC2)),
@@ -368,6 +370,63 @@ impl App {
             KeyCode::PageDown => Some(Message::Global(GlobalMessage::DetailScrollDown)),
             _ => None,
         }
+    }
+
+    fn handle_copy(&self) -> Option<Message> {
+        let text = match self.current_service {
+            Service::EC2 => self.services.ec2.selected_instance_id(),
+            Service::S3 => {
+                if self.services.s3.current_bucket.is_some() {
+                    self.services.s3.selected_object().map(|o| o.key.clone())
+                } else {
+                    self.services.s3.selected_bucket().map(|b| b.name.clone())
+                }
+            }
+            Service::RDS => self.services.rds.selected_instance_id(),
+            Service::DynamoDB => {
+                // For tables, return table name
+                // For items, we could format as JSON, but for now let's stick to IDs/names if possible
+                // Detailed item copy is better handled in a specific view
+                self.services.dynamodb.selected_table().map(|t| t.table_name.clone())
+            }
+            Service::Lambda => self.services.lambda.selected_function().map(|f| f.function_name.clone()),
+            Service::VPC => {
+                use crate::app::VpcViewMode;
+                match self.services.vpc.view_mode {
+                    VpcViewMode::Vpcs => self.services.vpc.selected_vpc().map(|v| v.vpc_id.clone()),
+                    VpcViewMode::Subnets => self.services.vpc.selected_subnet().map(|s| s.subnet_id.clone()),
+                    VpcViewMode::SecurityGroups => self.services.vpc.selected_security_group().map(|sg| sg.group_id.clone()),
+                    VpcViewMode::SecurityGroupRules => None, // Hard to pick a single ID
+                }
+            }
+            Service::IAM => {
+                use crate::app::IamViewMode;
+                match self.services.iam.view_mode {
+                    IamViewMode::Users => self.services.iam.selected_user().map(|u| u.user_name.clone()),
+                    IamViewMode::Roles => self.services.iam.selected_role().map(|r| r.role_name.clone()),
+                    IamViewMode::Policies => self.services.iam.selected_policy().map(|p| p.policy_name.clone()),
+                    _ => None,
+                }
+            }
+            Service::Backup => {
+                use crate::app::BackupViewMode;
+                match self.services.backup.view_mode {
+                    BackupViewMode::Vaults => self.services.backup.selected_vault().map(|v| v.backup_vault_name.clone()),
+                    BackupViewMode::Plans => self.services.backup.selected_plan().map(|p| p.backup_plan_id.clone()),
+                    BackupViewMode::Jobs => self.services.backup.selected_job().map(|j| j.backup_job_id.clone()),
+                }
+            }
+            Service::CloudTrail => {
+                use crate::app::CloudTrailViewMode;
+                match self.services.cloudtrail.view_mode {
+                    CloudTrailViewMode::Trails => self.services.cloudtrail.selected_trail().map(|t| t.name.clone()),
+                    CloudTrailViewMode::Events => self.services.cloudtrail.selected_event().and_then(|e| e.event_id.clone()),
+                }
+            }
+            Service::SecretsManager => self.services.secretsmanager.selected_secret().map(|s| s.name.clone()),
+        };
+
+        text.map(Message::copy_to_clipboard)
     }
 
     /// Toggle focus between sidebar and main pane

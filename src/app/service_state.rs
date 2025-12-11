@@ -440,6 +440,11 @@ impl ServiceInputHandler for LambdaState {
                     self.list_state.select(Some(i));
                 }
             }
+            KeyCode::Char('I') => {
+                if let Some(f) = self.selected_function() {
+                    return InputResult::Action(Message::lambda_invoke(f.function_name.clone()));
+                }
+            }
             _ => {}
         }
         InputResult::None
@@ -703,6 +708,8 @@ pub struct CloudTrailState {
     pub events: Vec<CloudTrailEvent>,
     pub list_state: TableState,
     pub view_mode: CloudTrailViewMode,
+    pub selected_event_detail: Option<String>,
+    pub show_detail_modal: bool,
 }
 
 impl CloudTrailState {
@@ -735,6 +742,13 @@ impl CloudTrailState {
 
 impl ServiceInputHandler for CloudTrailState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        if self.show_detail_modal {
+            if matches!(key.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q')) {
+                return InputResult::Message(Message::cloudtrail_close_event_details());
+            }
+            return InputResult::None;
+        }
+
         use crate::app::CloudTrailViewMode;
         let len = match self.view_mode {
             CloudTrailViewMode::Trails => self.trails.len(),
@@ -748,6 +762,12 @@ impl ServiceInputHandler for CloudTrailState {
             KeyCode::Up | KeyCode::Char('k') if len > 0 => {
                 let i = self.list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
                 self.list_state.select(Some(i));
+            }
+            KeyCode::Enter | KeyCode::Char('o') if self.view_mode == CloudTrailViewMode::Events => {
+                if let Some(event) = self.selected_event() {
+                     let json = serde_json::to_string_pretty(event).unwrap_or_default();
+                     return InputResult::Message(Message::cloudtrail_show_event_details(json));
+                }
             }
             _ => {}
         }

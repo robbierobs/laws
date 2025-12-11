@@ -8,7 +8,11 @@ mod ec2;
 mod global;
 mod iam;
 pub mod instance_actions;
+
+mod lambda;
 mod rds;
+
+
 mod s3;
 mod secretsmanager;
 mod view_mode;
@@ -136,9 +140,23 @@ impl App {
             }
 
             // No-op actions for services without mutations
-            ServiceAction::Lambda(_) => {}
+            // Lambda actions
+            ServiceAction::Lambda(crate::app::messages::LambdaAction::InvokeFunction(name)) => {
+                self.handle_invoke_lambda(name, event_tx).await;
+            }
             ServiceAction::Backup(_) => {}
-            ServiceAction::CloudTrail(_) => {}
+            ServiceAction::CloudTrail(action) => {
+                match action {
+                    crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {
+                        self.services.cloudtrail.selected_event_detail = Some(json);
+                        self.services.cloudtrail.show_detail_modal = true;
+                    }
+                    crate::app::messages::CloudTrailAction::CloseEventDetails => {
+                        self.services.cloudtrail.show_detail_modal = false;
+                        self.services.cloudtrail.selected_event_detail = None;
+                    }
+                }
+            }
         }
     }
 }

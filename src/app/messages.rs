@@ -352,10 +352,10 @@ pub enum DynamoDbAction {
     DeleteItem { table_name: String, key_attrs: HashMap<String, String> },
 }
 
-/// Lambda-specific actions (placeholder for future)
+/// Lambda-specific actions
 #[derive(Debug, Clone)]
 pub enum LambdaAction {
-    // No actions currently supported
+    InvokeFunction(String),
 }
 
 /// VPC-specific actions
@@ -381,10 +381,11 @@ pub enum BackupAction {
     // No actions currently supported
 }
 
-/// CloudTrail-specific actions (placeholder for future)
+/// CloudTrail-specific actions
 #[derive(Debug, Clone)]
 pub enum CloudTrailAction {
-    // No actions currently supported
+    ShowEventDetails(String),
+    CloseEventDetails,
 }
 
 /// SecretsManager-specific actions (placeholder for future)
@@ -433,6 +434,8 @@ pub enum GlobalMessage {
     CancelProfileSwitcher,
     /// Switch to selected profile and region
     SwitchProfileRegion { profile: Option<String>, region: String, read_only: bool },
+    /// Copy text to system clipboard
+    CopyToClipboard(String),
 }
 
 /// Service-specific messages
@@ -513,9 +516,21 @@ impl Message {
     pub fn cancel_profile_switcher() -> Self {
         Message::Global(GlobalMessage::CancelProfileSwitcher)
     }
+
+    pub fn cloudtrail_show_event_details(details: String) -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::ShowEventDetails(details)))
+    }
+
+    pub fn cloudtrail_close_event_details() -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::CloseEventDetails))
+    }
     
     pub fn switch_profile_region(profile: Option<String>, region: String, read_only: bool) -> Self {
         Message::Global(GlobalMessage::SwitchProfileRegion { profile, region, read_only })
+    }
+
+    pub fn copy_to_clipboard(text: String) -> Self {
+        Message::Global(GlobalMessage::CopyToClipboard(text))
     }
     
     // EC2 message constructors
@@ -586,6 +601,11 @@ impl Message {
         Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, key_attrs }))
     }
     
+    // Lambda message constructors
+    pub fn lambda_invoke(function_name: String) -> Self {
+        Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(function_name)))
+    }
+
     // VPC message constructors
     pub fn vpc_drill_down_sg() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup))

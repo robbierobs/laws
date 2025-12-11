@@ -77,6 +77,21 @@ impl App {
                 self.handle_switch_profile_region(profile, region, read_only, event_tx)
                     .await;
             }
+            GlobalMessage::CopyToClipboard(text) => {
+                match arboard::Clipboard::new() {
+                    Ok(mut clipboard) => {
+                        if let Err(e) = clipboard.set_text(text.clone()) {
+                            self.action_log.push(format!("Failed to copy to clipboard: {}", e));
+                        } else {
+                            self.action_log.push(format!("Copied to clipboard: {}", text));
+                            // Also send a notification event if we want a popup, but action log is fine for now
+                        }
+                    }
+                    Err(e) => {
+                        self.action_log.push(format!("Failed to access clipboard: {}", e));
+                    }
+                }
+            }
         }
     }
 

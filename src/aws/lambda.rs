@@ -40,6 +40,20 @@ impl LambdaService {
         Ok(functions)
     }
 
+    pub async fn invoke_function(&self, function_name: &str) -> AppResult<String> {
+        let response = self.client
+            .invoke()
+            .function_name(function_name)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("Lambda", "invoke", function_name, e))?;
+
+        let payload = response.payload()
+            .map(|b| String::from_utf8_lossy(b.as_ref()).to_string())
+            .unwrap_or_else(|| "No payload".to_string());
+            
+        Ok(payload)
+    }
 
 }
 
