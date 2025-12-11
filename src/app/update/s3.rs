@@ -5,13 +5,12 @@
 use super::super::task_manager::task_keys;
 use super::super::App;
 use crate::event::{AwsEvent, Event};
-use tokio::sync::mpsc;
 
 impl App {
     pub(super) fn handle_load_s3_objects(
         &mut self,
         bucket: String,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         self.services.s3.current_bucket = Some(bucket.clone());
 
@@ -27,10 +26,14 @@ impl App {
             let service = crate::aws::s3::S3Service::new(client);
             match service.list_objects(&bucket).await {
                 Ok(objects) => {
-                    tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).ok();
+                    tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects)))
+                        .await
+                        .ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
                 }
             }
         });
@@ -42,7 +45,7 @@ impl App {
         &mut self,
         bucket: String,
         key: String,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -57,10 +60,14 @@ impl App {
             match service.delete_object(&bucket, &key).await {
                 Ok(_) => {
                     let msg = format!("Deleted object {}/{}", bucket, key);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).ok();
+                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                        .await
+                        .ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
                 }
             }
         });
@@ -73,7 +80,7 @@ impl App {
         bucket: String,
         key: String,
         open_mode: bool,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -87,10 +94,12 @@ impl App {
             let service = crate::aws::s3::S3Service::new(client);
             match service.get_object(&bucket, &key).await {
                 Ok(bytes) => {
-                    Self::write_s3_object(tx, key, bytes, open_mode);
+                    Self::write_s3_object(tx, key, bytes, open_mode).await;
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
                 }
             }
         });
@@ -98,8 +107,8 @@ impl App {
         self.tasks.spawn(task_keys::S3_ACTION, handle);
     }
 
-    fn write_s3_object(
-        tx: mpsc::UnboundedSender<Event>,
+    async fn write_s3_object(
+        tx: crate::app::EventSender,
         key: String,
         bytes: Vec<u8>,
         open_mode: bool,
@@ -121,6 +130,7 @@ impl App {
                 "Failed to create directory: {}",
                 e
             ))))
+            .await
             .ok();
             return;
         }
@@ -141,12 +151,14 @@ impl App {
                         path: path_str,
                         content,
                     }))
+                    .await
                     .ok();
                 } else {
                     tx.send(Event::Aws(AwsEvent::S3ObjectDownloaded {
                         key,
                         path: path_str,
                     }))
+                    .await
                     .ok();
                 }
             }
@@ -155,6 +167,7 @@ impl App {
                     "Failed to write file: {}",
                     e
                 ))))
+                .await
                 .ok();
             }
         }
@@ -163,7 +176,7 @@ impl App {
     pub(super) fn handle_load_bucket_details(
         &mut self,
         bucket_name: String,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -188,6 +201,7 @@ impl App {
                 bucket_name: bucket,
                 details,
             }))
+            .await
             .ok();
         });
 

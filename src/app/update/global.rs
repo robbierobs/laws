@@ -6,14 +6,13 @@ use super::super::task_manager::task_keys;
 use super::super::{App, GlobalMessage, InputMode, Message, Service};
 use crate::aws::traits::AwsService;
 use crate::event::{AwsEvent, Event};
-use tokio::sync::mpsc;
 
 impl App {
     /// Handle global (non-service-specific) messages
     pub(super) async fn handle_global_message(
         &mut self,
         message: GlobalMessage,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         match message {
             GlobalMessage::Quit => self.should_quit = true,
@@ -107,7 +106,7 @@ impl App {
         profile: Option<String>,
         region: String,
         read_only: bool,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         self.input_mode = InputMode::Normal;
 
@@ -189,7 +188,7 @@ impl App {
         }
     }
 
-    pub(super) async fn handle_refresh_data(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
+    pub(super) async fn handle_refresh_data(&mut self, event_tx: crate::app::EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
         };
@@ -205,10 +204,10 @@ impl App {
                     match service.list().await {
                         Ok(instances) => {
                             tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -226,10 +225,10 @@ impl App {
                     match service.list_instances().await {
                         Ok(instances) => {
                             tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -243,10 +242,10 @@ impl App {
                     match service.list_tables().await {
                         Ok(tables) => {
                             tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -260,10 +259,10 @@ impl App {
                     match service.list_functions().await {
                         Ok(functions) => {
                             tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -276,27 +275,27 @@ impl App {
                     let service = crate::aws::vpc::VpcService::new(client);
                     match service.list_vpcs().await {
                         Ok(vpcs) => {
-                            tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).ok();
+                            tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.list_subnets(None).await {
                         Ok(subnets) => {
-                            tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets))).ok();
+                            tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.list_security_groups(None).await {
                         Ok(sgs) => {
                             tx.send(Event::Aws(AwsEvent::SecurityGroupsLoaded(sgs)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -309,27 +308,27 @@ impl App {
                     let service = crate::aws::iam::IamService::new(client);
                     match service.list_users().await {
                         Ok(users) => {
-                            tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users))).ok();
+                            tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.list_roles().await {
                         Ok(roles) => {
-                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles))).ok();
+                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.list_policies().await {
                         Ok(policies) => {
                             tx.send(Event::Aws(AwsEvent::IamPoliciesLoaded(policies)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -343,26 +342,26 @@ impl App {
                     match service.list_backup_vaults().await {
                         Ok(vaults) => {
                             tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.list_backup_plans().await {
                         Ok(plans) => {
-                            tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans))).ok();
+                            tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.list_backup_jobs().await {
                         Ok(jobs) => {
-                            tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs))).ok();
+                            tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs))).await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -377,19 +376,19 @@ impl App {
                     match service.list_trails().await {
                         Ok(trails) => {
                             tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                     match service.lookup_events(limit).await {
                         Ok(events) => {
                             tx.send(Event::Aws(AwsEvent::CloudTrailEventsLoaded(events)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -403,10 +402,10 @@ impl App {
                     match service.list_secrets().await {
                         Ok(secrets) => {
                             tx.send(Event::Aws(AwsEvent::SecretsManagerSecretsLoaded(secrets)))
-                                .ok();
+                                .await.ok();
                         }
                         Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                         }
                     }
                 });
@@ -418,7 +417,7 @@ impl App {
     async fn refresh_s3(
         &mut self,
         clients: &crate::aws::client::AwsClients,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let client = clients.s3.clone();
         let tx = event_tx.clone();
@@ -431,7 +430,7 @@ impl App {
                 Ok(buckets) => {
                     let bucket_names: Vec<String> =
                         buckets.iter().map(|b| b.name.clone()).collect();
-                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).ok();
+                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).await.ok();
 
                     // Load details with rate limiting
                     let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
@@ -455,12 +454,12 @@ impl App {
                                     bucket_name: name,
                                     details,
                                 }))
-                                .ok();
+                                .await.ok();
                         });
                     }
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });
@@ -474,10 +473,10 @@ impl App {
                 let service = crate::aws::s3::S3Service::new(client);
                 match service.list_objects(&bucket_name).await {
                     Ok(objects) => {
-                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).ok();
+                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects))).await.ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                     }
                 }
             });

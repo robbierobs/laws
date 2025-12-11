@@ -30,6 +30,9 @@ pub use view_mode::ViewMode;
 // Re-export from service_state (for external use - suppressed unused warning)
 #[allow(unused_imports)]
 pub use service_state::ServiceStates;
+
+/// Type alias for bounded event sender (used throughout update handlers)
+pub type EventSender = crate::event::EventSender;
 // Re-export TaskManager (for external use)
 #[allow(unused_imports)]
 pub use task_manager::TaskManager;

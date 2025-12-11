@@ -17,15 +17,13 @@ use super::messages::{
     DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
 };
 use super::{App, Message, ServiceAction};
-use crate::event::Event;
-use tokio::sync::mpsc;
 
 impl App {
     /// Main message handler - processes messages and updates application state
     pub fn update<'a>(
         &'a mut self,
         message: Message,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             match message {
@@ -39,7 +37,7 @@ impl App {
     async fn handle_service_action(
         &mut self,
         action: ServiceAction,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         match action {
             // EC2 actions

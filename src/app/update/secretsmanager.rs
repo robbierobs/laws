@@ -5,13 +5,12 @@
 use super::super::task_manager::task_keys;
 use super::super::App;
 use crate::event::{AwsEvent, Event};
-use tokio::sync::mpsc;
 
 impl App {
     pub(super) fn handle_get_secret_value(
         &mut self,
         arn: String,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -26,10 +25,10 @@ impl App {
             match service.get_secret_value(&arn).await {
                 Ok(value) => {
                     tx.send(Event::Aws(AwsEvent::SecretsManagerSecretValueLoaded(value)))
-                        .ok();
+                        .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });

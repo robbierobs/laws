@@ -6,12 +6,11 @@ use super::super::task_manager::task_keys;
 use super::super::{App, DynamoDbViewMode};
 use crate::event::{AwsEvent, Event};
 use std::collections::HashMap;
-use tokio::sync::mpsc;
 
 impl App {
     pub(super) fn handle_drill_down_dynamodb_table(
         &mut self,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(idx) = self.services.dynamodb.list_state.selected() else {
             return;
@@ -41,10 +40,10 @@ impl App {
             match service.scan_items(&table_name, limit).await {
                 Ok(items) => {
                     tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items)))
-                        .ok();
+                        .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });
@@ -62,7 +61,7 @@ impl App {
     pub(super) fn handle_load_dynamodb_items(
         &mut self,
         table_name: String,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -78,10 +77,10 @@ impl App {
             match service.scan_items(&table_name, limit).await {
                 Ok(items) => {
                     tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items)))
-                        .ok();
+                        .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });
@@ -93,7 +92,7 @@ impl App {
         &mut self,
         table_name: String,
         key_attrs: HashMap<String, String>,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -151,10 +150,10 @@ impl App {
             match service.delete_item(&tbl, key).await {
                 Ok(_) => {
                     let msg = format!("Deleted item from {}", tbl);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).ok();
+                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });

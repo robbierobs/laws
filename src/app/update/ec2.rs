@@ -5,14 +5,13 @@
 use super::super::task_manager::task_keys;
 use super::super::App;
 use crate::event::{AwsEvent, Event};
-use tokio::sync::mpsc;
 
 impl App {
     pub(super) fn handle_ec2_action(
         &mut self,
         action: &str,
         id: String,
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: crate::app::EventSender,
     ) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -35,10 +34,10 @@ impl App {
             match result {
                 Ok(_) => {
                     let msg = format!("{}ed instance {}", action.trim_end_matches('e'), id);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).ok();
+                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });

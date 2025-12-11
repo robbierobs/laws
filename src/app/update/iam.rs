@@ -5,10 +5,9 @@
 use super::super::task_manager::task_keys;
 use super::super::{App, IamViewMode};
 use crate::event::{AwsEvent, Event};
-use tokio::sync::mpsc;
 
 impl App {
-    pub(super) fn handle_drill_down_iam_user(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
+    pub(super) fn handle_drill_down_iam_user(&mut self, event_tx: crate::app::EventSender) {
         let Some(idx) = self.services.iam.list_state.selected() else {
             return;
         };
@@ -33,10 +32,10 @@ impl App {
             match service.list_attached_user_policies(&name).await {
                 Ok(policies) => {
                     tx.send(Event::Aws(AwsEvent::IamUserPoliciesLoaded(policies)))
-                        .ok();
+                        .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });
@@ -44,7 +43,7 @@ impl App {
         self.tasks.spawn(task_keys::IAM_POLICIES, handle);
     }
 
-    pub(super) fn handle_drill_down_iam_role(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
+    pub(super) fn handle_drill_down_iam_role(&mut self, event_tx: crate::app::EventSender) {
         let Some(idx) = self.services.iam.list_state.selected() else {
             return;
         };
@@ -69,10 +68,10 @@ impl App {
             match service.list_attached_role_policies(&name).await {
                 Ok(policies) => {
                     tx.send(Event::Aws(AwsEvent::IamRolePoliciesLoaded(policies)))
-                        .ok();
+                        .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });
@@ -80,7 +79,7 @@ impl App {
         self.tasks.spawn(task_keys::IAM_POLICIES, handle);
     }
 
-    pub(super) fn handle_drill_down_iam_policy(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
+    pub(super) fn handle_drill_down_iam_policy(&mut self, event_tx: crate::app::EventSender) {
         let Some(idx) = self.services.iam.list_state.selected() else {
             return;
         };
@@ -117,10 +116,10 @@ impl App {
             match service.get_policy_version(&arn).await {
                 Ok(doc) => {
                     tx.send(Event::Aws(AwsEvent::IamPolicyDocumentLoaded(doc)))
-                        .ok();
+                        .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok();
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
                 }
             }
         });
