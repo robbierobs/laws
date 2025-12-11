@@ -290,20 +290,28 @@ api_timeout_secs = 30
 max_s3_objects = 1000
 ```
 
-### 8.2 Theme System ✅
-**Status**: Completed - Added 4 built-in themes.
+### 8.2 Theme System ✅ (Partial)
+**Status**: Theme definitions complete, runtime switching not yet implemented.
 
 **What was done**:
 - Created `ThemePreset` enum with serialization support
-- Added 4 built-in themes:
-  - **Dark** (default) - Slate color palette
+- Added 4 built-in themes (all colors defined):
+  - **Dark** (default/current) - Original Slate color palette
   - **Light** - Light mode with good contrast
   - **Monokai** - Classic Monokai color scheme
   - **Nord** - Nord color palette
-- Theme selectable via:
-  - Config file: `theme = "monokai"`
-  - CLI: `--theme nord`
+- Config file and CLI support for theme selection
 - All themes use const fn for compile-time construction
+
+**Current Theme (Dark - Slate palette)**:
+- Background: Slate 900 (dark blue-gray)
+- Foreground: Slate 200 (light gray)  
+- Primary: Sky 400 (bright blue)
+- Success: Green 400
+- Warning: Yellow 400
+- Error: Red 400
+
+**Note**: Runtime theme switching would require passing theme through context to 100+ call sites. The current implementation uses a global `THEME` constant for optimal performance. Theme selection at startup could be added in a future refactor.
 
 ---
 

@@ -123,8 +123,23 @@ impl Theme {
     }
 }
 
-/// Global theme instance - default to dark theme
-/// This is replaced at runtime based on configuration
+/// Global theme instance - the Dark theme (Slate color palette)
+/// 
+/// This is the original theme that has been used since the beginning.
+/// Runtime theme switching is not currently supported - the THEME constant
+/// is used directly throughout the codebase for optimal performance.
+/// 
+/// Color palette:
+/// - Background: Slate 900 (dark blue-gray)
+/// - Foreground: Slate 200 (light gray)
+/// - Primary: Sky 400 (bright blue)
+/// - Secondary: Purple 500
+/// - Success: Green 400
+/// - Warning: Yellow 400
+/// - Error: Red 400
+/// - Muted: Slate 400
+/// - Border: Slate 700
+/// - Selection: Slate 800 bg with Sky 400 text
 pub const THEME: Theme = Theme::dark();
 
 #[cfg(test)]
