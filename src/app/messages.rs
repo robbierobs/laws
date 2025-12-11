@@ -195,6 +195,7 @@ pub enum DynamoDbViewMode {
 }
 
 impl DynamoDbViewMode {
+    #[allow(dead_code)]
     pub fn to_index(self) -> usize {
         self as usize
     }
@@ -218,6 +219,10 @@ pub enum S3Action {
     LoadObjects(String),
     LoadBucketDetails(String),
     DeleteObject { bucket: String, key: String },
+    /// Download object to ~/Downloads directory
+    DownloadObject { bucket: String, key: String },
+    /// Open object (download to temp dir and display in terminal/viewer)
+    OpenObject { bucket: String, key: String },
     LeaveBucket,
 }
 
@@ -304,6 +309,7 @@ pub enum GlobalMessage {
 
 /// Service-specific messages
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ServiceAction {
     Ec2(Ec2Action),
     S3(S3Action),
@@ -395,6 +401,14 @@ impl Message {
     
     pub fn s3_delete_object(bucket: String, key: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key }))
+    }
+    
+    pub fn s3_download_object(bucket: String, key: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::DownloadObject { bucket, key }))
+    }
+    
+    pub fn s3_open_object(bucket: String, key: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::OpenObject { bucket, key }))
     }
     
     pub fn s3_leave_bucket() -> Self {

@@ -85,6 +85,7 @@ impl Default for AppConfig {
 
 impl AppConfig {
     /// Create a new AppConfig with default values
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }

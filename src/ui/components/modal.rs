@@ -43,6 +43,92 @@ pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_descripti
     frame.render_widget(paragraph, area);
 }
 
+/// Render a modal to display S3 object content
+pub fn render_object_viewer_modal(
+    frame: &mut Frame,
+    area: Rect,
+    object_key: &str,
+    object_path: Option<&str>,
+    content: Option<&str>,
+    scroll_offset: u16,
+) {
+    let title = format!(" {} ", object_key);
+    let block = Block::default()
+        .title(title)
+        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.primary));
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    // Show file path
+    if let Some(path) = object_path {
+        lines.push(Line::from(vec![
+            Span::styled("📁 Path: ", Style::default().fg(THEME.secondary)),
+            Span::styled(path, Style::default().fg(THEME.muted)),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("─".repeat(60), Style::default().fg(THEME.border)),
+        ]));
+        lines.push(Line::from(""));
+    }
+
+    // Show content
+    if let Some(text_content) = content {
+        // Check if content is likely binary
+        let is_binary = text_content.chars().any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t');
+        
+        if is_binary {
+            lines.push(Line::from(vec![
+                Span::styled("⚠️  Binary file - cannot display content", Style::default().fg(THEME.warning)),
+            ]));
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled("File saved to path shown above.", Style::default().fg(THEME.muted)),
+            ]));
+        } else {
+            // Add line numbers and content
+            for (i, line) in text_content.lines().enumerate() {
+                lines.push(Line::from(vec![
+                    Span::styled(format!("{:4} │ ", i + 1), Style::default().fg(THEME.muted)),
+                    Span::raw(line.to_string()),
+                ]));
+            }
+        }
+    } else {
+        lines.push(Line::from(vec![
+            Span::styled("📦 Binary file or large file - cannot display content inline", Style::default().fg(THEME.warning)),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("File has been saved to the path shown above.", Style::default().fg(THEME.muted)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Use an external viewer to open it.", Style::default().fg(THEME.muted)),
+        ]));
+    }
+
+    // Add footer with controls
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("─".repeat(60), Style::default().fg(THEME.border)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("j/k: Scroll   ", Style::default().fg(THEME.secondary)),
+        Span::styled("Esc/q: Close", Style::default().fg(THEME.secondary)),
+    ]));
+
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .scroll((scroll_offset, 0));
+
+    let popup_area = centered_rect(80, 80, area);
+    
+    frame.render_widget(Clear, popup_area); // Clear background
+    frame.render_widget(paragraph, popup_area);
+}
+
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)

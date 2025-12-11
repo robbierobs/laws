@@ -51,6 +51,47 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Message> {
         self.error_message = None;
 
+        // Handle S3 object viewer popup
+        if self.services.s3.show_object_viewer {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.services.s3.show_object_viewer = false;
+                    self.services.s3.opened_object_content = None;
+                    self.services.s3.opened_object_path = None;
+                    self.services.s3.opened_object_key = None;
+                    self.services.s3.viewer_scroll_offset = 0;
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.services.s3.viewer_scroll_offset = 
+                        self.services.s3.viewer_scroll_offset.saturating_add(1);
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.services.s3.viewer_scroll_offset = 
+                        self.services.s3.viewer_scroll_offset.saturating_sub(1);
+                }
+                KeyCode::Char('g') | KeyCode::Home => {
+                    self.services.s3.viewer_scroll_offset = 0;
+                }
+                KeyCode::Char('G') | KeyCode::End => {
+                    // Scroll to end - approximate based on content length
+                    if let Some(content) = &self.services.s3.opened_object_content {
+                        let line_count = content.lines().count() as u16;
+                        self.services.s3.viewer_scroll_offset = line_count.saturating_sub(10);
+                    }
+                }
+                KeyCode::PageDown => {
+                    self.services.s3.viewer_scroll_offset = 
+                        self.services.s3.viewer_scroll_offset.saturating_add(20);
+                }
+                KeyCode::PageUp => {
+                    self.services.s3.viewer_scroll_offset = 
+                        self.services.s3.viewer_scroll_offset.saturating_sub(20);
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         // Handle confirmation modal
         if self.show_confirmation {
             return match key.code {
@@ -344,6 +385,26 @@ impl App {
                         if let Some(obj) = self.services.s3.objects.get(i) {
                             if let Some(bucket) = &self.services.s3.current_bucket {
                                 return InputResult::Action(Message::s3_delete_object(bucket.clone(), obj.key.clone()));
+                            }
+                        }
+                    }
+                }
+                KeyCode::Char('o') => {
+                    // Open object - download to temp and view
+                    if let Some(i) = self.services.s3.object_list_state.selected() {
+                        if let Some(obj) = self.services.s3.objects.get(i) {
+                            if let Some(bucket) = &self.services.s3.current_bucket {
+                                return InputResult::Message(Message::s3_open_object(bucket.clone(), obj.key.clone()));
+                            }
+                        }
+                    }
+                }
+                KeyCode::Char('w') => {
+                    // Download/Write object to ~/Downloads
+                    if let Some(i) = self.services.s3.object_list_state.selected() {
+                        if let Some(obj) = self.services.s3.objects.get(i) {
+                            if let Some(bucket) = &self.services.s3.current_bucket {
+                                return InputResult::Message(Message::s3_download_object(bucket.clone(), obj.key.clone()));
                             }
                         }
                     }

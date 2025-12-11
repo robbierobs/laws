@@ -177,5 +177,26 @@ impl S3Service {
             .await?;
         Ok(())
     }
+
+    /// Download an object from S3 and return its contents as bytes
+    pub async fn get_object(&self, bucket_name: &str, key: &str) -> anyhow::Result<Vec<u8>> {
+        let response = self.client
+            .get_object()
+            .bucket(bucket_name)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get object s3://{}/{}: {}", bucket_name, key, e))?;
+
+        let bytes = response
+            .body
+            .collect()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to read object body: {}", e))?
+            .into_bytes()
+            .to_vec();
+
+        Ok(bytes)
+    }
 }
 

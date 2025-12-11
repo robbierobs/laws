@@ -134,3 +134,40 @@ lazy-aws/
   - When buckets are loaded, details are fetched automatically in the background.
   - Rate limiting: Semaphore limits to 3 concurrent requests, 100ms delay per request, max 20 buckets.
   - UI shows "⏳ Loading bucket details..." until data arrives.
+
+### 6.8 S3 Object Download & Open
+- **Feature**: Download S3 objects to local filesystem or view them in a popup.
+- **Implementation**:
+  - **Messages**: `S3Action::DownloadObject` and `S3Action::OpenObject` in `src/app/messages.rs`.
+  - **Keybindings**: 
+    - `o` (when viewing objects): Open object in popup viewer.
+    - `w` (when viewing objects): Download object to `~/Downloads`.
+  - **Download Handler** (`src/app/update.rs → handle_download_s3_object`):
+    - Downloads via `S3Service::get_object()`.
+    - For `download`: Saves to `~/Downloads` directory (using `dirs` crate).
+    - For `open`: Saves to temp directory (`/tmp/lazy_aws/`).
+    - Sends `AwsEvent::S3ObjectDownloaded` or `AwsEvent::S3ObjectOpened`.
+  - **Events** (`src/app/events.rs`):
+    - `S3ObjectOpened` sets `show_object_viewer = true` and stores content.
+  - **Popup Viewer**:
+    - `S3State` fields: `show_object_viewer`, `opened_object_content`, `opened_object_key`, `viewer_scroll_offset`.
+    - Rendered via `render_object_viewer_modal()` in `src/ui/components/modal.rs`.
+    - Supports scrolling (j/k, PgUp/PgDown, g/G), closes with Esc/q.
+    - Shows line numbers for text files, warning for binary files.
+
+### 6.9 Service State Organization
+- **Pattern**: Each AWS service has its own state struct in `src/app/service_state.rs`.
+- **Implementation**:
+  - `Ec2State`, `S3State`, `RdsState`, `DynamoDbState`, `LambdaState`, `VpcState`, `IamState`, `BackupState`, `CloudTrailState`.
+  - All organized under `ServiceStates` container in `App.services`.
+  - Each state struct contains: data vectors, `TableState` for selection, view mode, and service-specific fields.
+  - Helper methods like `selected_instance()`, `selected_bucket()`, `is_viewing_objects()`.
+
+### 6.10 Task Manager
+- **Feature**: Track and manage async AWS operations.
+- **Implementation**:
+  - `TaskManager` in `src/app/task_manager.rs`.
+  - `spawn(key, handle)`: Track a task with a unique key.
+  - `cancel_all()`: Cancel all running tasks on shutdown.
+  - `cancel_service(prefix)`: Cancel all tasks for a specific service.
+  - Predefined task keys: `task_keys::EC2_REFRESH`, `task_keys::S3_ACTION`, etc.

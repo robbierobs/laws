@@ -63,6 +63,16 @@ pub struct S3State {
     pub objects: Vec<S3Object>,
     pub object_list_state: TableState,
     pub bucket_details: HashMap<String, S3BucketDetails>,
+    /// Content of the last opened object (if it's text)
+    pub opened_object_content: Option<String>,
+    /// Path to the last opened object file
+    pub opened_object_path: Option<String>,
+    /// Key of the opened object (for display in popup title)
+    pub opened_object_key: Option<String>,
+    /// Whether to show the object viewer popup
+    pub show_object_viewer: bool,
+    /// Scroll offset for the object viewer
+    pub viewer_scroll_offset: u16,
 }
 
 impl S3State {
