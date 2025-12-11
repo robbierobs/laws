@@ -131,6 +131,9 @@ struct App {
     // Profile switcher state
     available_profiles: Vec<String>,
     available_regions: Vec<String>,
+    
+    // Configuration
+    config: AppConfig,
 }
 
 struct ServiceStates {
@@ -166,10 +169,12 @@ src/
 │   ├── events.rs           # AWS event handling
 │   ├── service_state.rs    # Per-service state structs (~15KB)
 │   ├── task_manager.rs     # Async task tracking
-│   └── filtered_list.rs    # Filter logic for resource lists
+│   ├── filtered_list.rs    # Filter logic for resource lists
+│   └── view_mode.rs        # Generic ViewMode trait for multi-tab services
 │
-├── aws/                    # AWS SDK wrappers (11 files)
+├── aws/                    # AWS SDK wrappers (12 files)
 │   ├── client.rs           # AwsClients initialization, endpoint_url handling
+│   ├── traits.rs           # AwsService trait definition
 │   ├── ec2.rs              # Ec2Service: list, start, stop, reboot
 │   ├── s3.rs               # S3Service: list buckets/objects, get/delete object
 │   ├── rds.rs              # RdsService: list, start, stop, reboot
@@ -419,7 +424,7 @@ When working on this project, adopt the following persona:
 
 ### 7.6 Multi-View Navigation
 - Services like VPC, IAM, Backup have multiple views
-- `ViewMode` enums with `next()`/`previous()` methods
+- Implements `ViewMode` trait (`next()`, `prev()`, `label()`, `iterator()`)
 - Keys: `v` cycles, `h/l` navigate, tabs shown at top
 
 ### 7.7 Status Coloring
@@ -429,8 +434,13 @@ When working on this project, adopt the following persona:
 
 ### 7.8 Auto-Loading Details
 - S3 bucket details fetched automatically after listing
-- Rate limiting: Semaphore (3 concurrent), 100ms delay, max 20 buckets
+- Rate limiting controlled by `AppConfig` (concurrency, delay)
 - UI shows loading indicator until complete
+
+### 7.9 Centralized Configuration
+- `AppConfig` struct in `src/config.rs`
+- Defines magic numbers: tick rate, API limits, UI layout percentages
+- Initialized in `App::new()` and accessed via `self.config`
 
 ---
 
