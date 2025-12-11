@@ -17,13 +17,13 @@ use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
+use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
 use crate::models::lambda::{LambdaFunction, LambdaFunctionDetails};
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
-use crate::models::ecs::{EcsCluster, EcsService};
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -60,6 +60,8 @@ pub enum AwsEvent {
     SecretsManagerSecretValueLoaded(String),
     EcsClustersLoaded(Vec<EcsCluster>),
     EcsServicesLoaded(Vec<EcsService>),
+    EcsTasksLoaded(Vec<EcsTask>),
+    EcsTaskDefinitionLoaded(EcsTaskDefinition),
     /// S3 object was downloaded to a file path
     S3ObjectDownloaded {
         key: String,

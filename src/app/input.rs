@@ -511,16 +511,29 @@ impl App {
                 .selected_secret()
                 .map(|s| s.name.clone()),
             Service::ECS => {
-                if self.services.ecs.view_mode == crate::app::messages::EcsViewMode::Clusters {
-                    self.services
+                use crate::app::EcsViewMode;
+                match self.services.ecs.view_mode {
+                    EcsViewMode::Clusters => self
+                        .services
                         .ecs
                         .selected_cluster()
-                        .map(|c| c.cluster_arn.clone())
-                } else {
-                    self.services
+                        .map(|c| c.cluster_arn.clone()),
+                    EcsViewMode::Services => self
+                        .services
                         .ecs
                         .selected_service()
-                        .map(|s| s.service_arn.clone())
+                        .map(|s| s.service_arn.clone()),
+                    EcsViewMode::Tasks => self
+                        .services
+                        .ecs
+                        .selected_task()
+                        .map(|t| t.task_arn.clone()),
+                    EcsViewMode::TaskDefinition => self
+                        .services
+                        .ecs
+                        .current_task_definition
+                        .as_ref()
+                        .map(|td| td.task_definition_arn.clone()),
                 }
             }
         };

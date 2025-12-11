@@ -13,7 +13,7 @@ use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
-use crate::models::ecs::{EcsCluster, EcsService};
+use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
@@ -1234,11 +1234,23 @@ mod tests {
 /// State for ECS service
 #[derive(Default)]
 pub struct EcsState {
+    // Data
     pub clusters: Vec<EcsCluster>,
     pub services: Vec<EcsService>,
+    pub tasks: Vec<EcsTask>,
+    pub current_task_definition: Option<EcsTaskDefinition>,
+
+    // Navigation state
     pub list_state: TableState,
     pub view_mode: EcsViewMode,
+
+    // Drill-down tracking
     pub selected_cluster_arn: Option<String>,
+    pub selected_service_arn: Option<String>,
+    pub selected_service_name: Option<String>,
+
+    // Detail panel scroll
+    pub detail_scroll_offset: usize,
 }
 
 impl EcsState {
@@ -1246,6 +1258,7 @@ impl EcsState {
         Self::default()
     }
 
+    /// Get the currently selected cluster (only valid in Clusters view)
     pub fn selected_cluster(&self) -> Option<&EcsCluster> {
         if self.view_mode != EcsViewMode::Clusters {
             return None;
@@ -1255,6 +1268,7 @@ impl EcsState {
             .and_then(|i| self.clusters.get(i))
     }
 
+    /// Get the currently selected service (only valid in Services view)
     pub fn selected_service(&self) -> Option<&EcsService> {
         if self.view_mode != EcsViewMode::Services {
             return None;
@@ -1263,55 +1277,213 @@ impl EcsState {
             .selected()
             .and_then(|i| self.services.get(i))
     }
+
+    /// Get the currently selected task (only valid in Tasks view)
+    pub fn selected_task(&self) -> Option<&EcsTask> {
+        if self.view_mode != EcsViewMode::Tasks {
+            return None;
+        }
+        self.list_state.selected().and_then(|i| self.tasks.get(i))
+    }
+
+    /// Get count for current view
+    fn current_list_len(&self) -> usize {
+        match self.view_mode {
+            EcsViewMode::Clusters => self.clusters.len(),
+            EcsViewMode::Services => self.services.len(),
+            EcsViewMode::Tasks => self.tasks.len(),
+            EcsViewMode::TaskDefinition => 0,
+        }
+    }
+
+    /// Navigate up in the list
+    fn nav_up(&mut self) {
+        let len = self.current_list_len();
+        if len > 0 {
+            let i = self
+                .list_state
+                .selected()
+                .map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
+            self.list_state.select(Some(i));
+        }
+    }
+
+    /// Navigate down in the list
+    fn nav_down(&mut self) {
+        let len = self.current_list_len();
+        if len > 0 {
+            let i = self
+                .list_state
+                .selected()
+                .map_or(0, |i| if i >= len - 1 { 0 } else { i + 1 });
+            self.list_state.select(Some(i));
+        }
+    }
+
+    /// Clear tasks and services when navigating back
+    pub fn clear_services(&mut self) {
+        self.services.clear();
+        self.selected_service_arn = None;
+        self.selected_service_name = None;
+    }
+
+    pub fn clear_tasks(&mut self) {
+        self.tasks.clear();
+        self.current_task_definition = None;
+    }
 }
 
 impl ServiceInputHandler for EcsState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        match self.view_mode {
+            EcsViewMode::Clusters => self.handle_clusters_input(key),
+            EcsViewMode::Services => self.handle_services_input(key),
+            EcsViewMode::Tasks => self.handle_tasks_input(key),
+            EcsViewMode::TaskDefinition => self.handle_task_definition_input(key),
+        }
+    }
+}
+
+impl EcsState {
+    fn handle_clusters_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                let items_len = match self.view_mode {
-                    EcsViewMode::Clusters => self.clusters.len(),
-                    EcsViewMode::Services => self.services.len(),
-                };
-                if items_len > 0 {
-                    let i = self.list_state.selected().map_or(0, |i| {
-                        if i >= items_len - 1 {
-                            0
-                        } else {
-                            i + 1
-                        }
-                    });
-                    self.list_state.select(Some(i));
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                let items_len = match self.view_mode {
-                    EcsViewMode::Clusters => self.clusters.len(),
-                    EcsViewMode::Services => self.services.len(),
-                };
-                if items_len > 0 {
-                    let i = self.list_state.selected().map_or(0, |i| {
-                        if i == 0 {
-                            items_len - 1
-                        } else {
-                            i - 1
-                        }
-                    });
-                    self.list_state.select(Some(i));
-                }
-            }
+            KeyCode::Down | KeyCode::Char('j') => self.nav_down(),
+            KeyCode::Up | KeyCode::Char('k') => self.nav_up(),
             KeyCode::Enter => {
-                if let EcsViewMode::Clusters = self.view_mode {
-                    if let Some(cluster) = self.selected_cluster() {
-                        return InputResult::Message(Message::ecs_view_services(
-                            cluster.cluster_arn.clone(),
-                        ));
+                if let Some(cluster) = self.selected_cluster() {
+                    return InputResult::Message(Message::ecs_view_services(
+                        cluster.cluster_arn.clone(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+        InputResult::None
+    }
+
+    fn handle_services_input(&mut self, key: KeyEvent) -> InputResult {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => self.nav_down(),
+            KeyCode::Up | KeyCode::Char('k') => self.nav_up(),
+            KeyCode::Enter => {
+                // Drill into tasks for this service
+                if let Some(service) = self.selected_service() {
+                    return InputResult::Message(Message::ecs_view_tasks(
+                        service.service_arn.clone(),
+                    ));
+                }
+            }
+            KeyCode::Esc | KeyCode::Backspace => {
+                return InputResult::Message(Message::ecs_back_to_clusters());
+            }
+            // 't' - View task definition for this service
+            KeyCode::Char('t') => {
+                if let Some(service) = self.selected_service() {
+                    if let Some(td) = &service.task_definition {
+                        return InputResult::Message(Message::ecs_view_task_definition(td.clone()));
                     }
                 }
             }
-            KeyCode::Esc => {
-                if let EcsViewMode::Services = self.view_mode {
-                    return InputResult::Message(Message::ecs_back_to_clusters());
+            // 'd' - Force new deployment
+            KeyCode::Char('d') => {
+                if let (Some(cluster_arn), Some(service)) =
+                    (&self.selected_cluster_arn, self.selected_service())
+                {
+                    return InputResult::Action(Message::ecs_force_new_deployment(
+                        cluster_arn.clone(),
+                        service.service_name.clone(),
+                    ));
+                }
+            }
+            // '+' - Scale up
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                if let (Some(cluster_arn), Some(service)) =
+                    (&self.selected_cluster_arn, self.selected_service())
+                {
+                    let new_count = service.desired_count + 1;
+                    return InputResult::Action(Message::ecs_update_desired_count(
+                        cluster_arn.clone(),
+                        service.service_name.clone(),
+                        new_count,
+                    ));
+                }
+            }
+            // '-' - Scale down
+            KeyCode::Char('-') => {
+                if let (Some(cluster_arn), Some(service)) =
+                    (&self.selected_cluster_arn, self.selected_service())
+                {
+                    let new_count = (service.desired_count - 1).max(0);
+                    return InputResult::Action(Message::ecs_update_desired_count(
+                        cluster_arn.clone(),
+                        service.service_name.clone(),
+                        new_count,
+                    ));
+                }
+            }
+            _ => {}
+        }
+        InputResult::None
+    }
+
+    fn handle_tasks_input(&mut self, key: KeyEvent) -> InputResult {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => self.nav_down(),
+            KeyCode::Up | KeyCode::Char('k') => self.nav_up(),
+            KeyCode::Esc | KeyCode::Backspace => {
+                return InputResult::Message(Message::ecs_back_to_services());
+            }
+            // 't' - View task definition for this task
+            KeyCode::Char('t') | KeyCode::Enter => {
+                if let Some(task) = self.selected_task() {
+                    return InputResult::Message(Message::ecs_view_task_definition(
+                        task.task_definition_arn.clone(),
+                    ));
+                }
+            }
+            // 'S' - Stop task
+            KeyCode::Char('S') => {
+                if let (Some(cluster_arn), Some(task)) =
+                    (&self.selected_cluster_arn, self.selected_task())
+                {
+                    return InputResult::Action(Message::ecs_stop_task(
+                        cluster_arn.clone(),
+                        task.task_arn.clone(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+        InputResult::None
+    }
+
+    fn handle_task_definition_input(&mut self, key: KeyEvent) -> InputResult {
+        match key.code {
+            KeyCode::Esc | KeyCode::Backspace => {
+                return InputResult::Message(Message::ecs_back_to_tasks());
+            }
+            // Scroll in detail view
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.detail_scroll_offset = self.detail_scroll_offset.saturating_add(1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.detail_scroll_offset = self.detail_scroll_offset.saturating_sub(1);
+            }
+            KeyCode::PageDown => {
+                self.detail_scroll_offset = self.detail_scroll_offset.saturating_add(10);
+            }
+            KeyCode::PageUp => {
+                self.detail_scroll_offset = self.detail_scroll_offset.saturating_sub(10);
+            }
+            KeyCode::Home | KeyCode::Char('g') => {
+                self.detail_scroll_offset = 0;
+            }
+            // 'X' - Deregister task definition
+            KeyCode::Char('X') | KeyCode::Delete => {
+                if let Some(td) = &self.current_task_definition {
+                    return InputResult::Action(Message::ecs_deregister_task_definition(
+                        td.task_definition_arn.clone(),
+                    ));
                 }
             }
             _ => {}

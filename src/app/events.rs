@@ -1,9 +1,9 @@
 //! AWS event handling
-//! 
+//!
 //! Processes async events from AWS service calls and updates application state.
 
-use crate::event::AwsEvent;
 use super::{App, IamViewMode};
+use crate::event::AwsEvent;
 
 impl App {
     /// Handle async AWS events and update state accordingly
@@ -21,7 +21,10 @@ impl App {
                 self.services.s3.objects = objects;
                 self.loading = false;
             }
-            AwsEvent::S3BucketDetailsLoaded { bucket_name, details } => {
+            AwsEvent::S3BucketDetailsLoaded {
+                bucket_name,
+                details,
+            } => {
                 self.services.s3.bucket_details.insert(bucket_name, details);
                 self.detail_loading = false;
             }
@@ -44,8 +47,14 @@ impl App {
                 self.services.lambda.functions = functions;
                 self.loading = false;
             }
-            AwsEvent::LambdaFunctionDetailsLoaded { function_name, details } => {
-                self.services.lambda.function_details.insert(function_name, details);
+            AwsEvent::LambdaFunctionDetailsLoaded {
+                function_name,
+                details,
+            } => {
+                self.services
+                    .lambda
+                    .function_details
+                    .insert(function_name, details);
             }
             AwsEvent::VpcsLoaded(vpcs) => {
                 self.services.vpc.vpcs = vpcs;
@@ -128,9 +137,21 @@ impl App {
                 }
                 self.loading = false;
             }
+            AwsEvent::EcsTasksLoaded(tasks) => {
+                self.services.ecs.tasks = tasks;
+                if !self.services.ecs.tasks.is_empty() {
+                    self.services.ecs.list_state.select(Some(0));
+                }
+                self.loading = false;
+            }
+            AwsEvent::EcsTaskDefinitionLoaded(task_definition) => {
+                self.services.ecs.current_task_definition = Some(task_definition);
+                self.loading = false;
+            }
             AwsEvent::S3ObjectDownloaded { key, path } => {
                 self.loading = false;
-                self.action_log.push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));
+                self.action_log
+                    .push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));
             }
             AwsEvent::S3ObjectOpened { key, path, content } => {
                 self.loading = false;

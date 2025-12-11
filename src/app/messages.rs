@@ -277,11 +277,31 @@ pub enum EcsViewMode {
     #[default]
     Clusters = 0,
     Services = 1,
+    Tasks = 2,
+    TaskDefinition = 3,
+}
+
+#[allow(dead_code)]
+impl EcsViewMode {
+    /// Returns true if this is a main tab that supports cycling
+    pub fn is_main_tab(&self) -> bool {
+        matches!(self, Self::Clusters)
+    }
+
+    /// Returns true if we're in a drilled-down view
+    pub fn is_drill_down(&self) -> bool {
+        !self.is_main_tab()
+    }
 }
 
 impl ViewMode for EcsViewMode {
     fn all() -> &'static [Self] {
-        &[Self::Clusters, Self::Services]
+        &[
+            Self::Clusters,
+            Self::Services,
+            Self::Tasks,
+            Self::TaskDefinition,
+        ]
     }
 
     fn index(&self) -> usize {
@@ -292,6 +312,8 @@ impl ViewMode for EcsViewMode {
         match i {
             0 => Self::Clusters,
             1 => Self::Services,
+            2 => Self::Tasks,
+            3 => Self::TaskDefinition,
             _ => Self::Clusters,
         }
     }
@@ -300,6 +322,8 @@ impl ViewMode for EcsViewMode {
         match self {
             Self::Clusters => "Clusters",
             Self::Services => "Services",
+            Self::Tasks => "Tasks",
+            Self::TaskDefinition => "Task Definition",
         }
     }
 }
@@ -457,8 +481,33 @@ pub enum SecretsManagerAction {
 /// ECS-specific actions
 #[derive(Debug, Clone)]
 pub enum EcsAction {
-    ViewServices(String), // cluster_arn
+    // Navigation
+    ViewServices(String),       // cluster_arn
+    ViewTasks(String),          // service_arn
+    ViewTaskDefinition(String), // task_definition_arn
     BackToClusters,
+    BackToServices,
+    BackToTasks,
+
+    // Service actions
+    UpdateDesiredCount {
+        cluster_arn: String,
+        service_name: String,
+        desired_count: i32,
+    },
+    ForceNewDeployment {
+        cluster_arn: String,
+        service_name: String,
+    },
+
+    // Task actions
+    StopTask {
+        cluster_arn: String,
+        task_arn: String,
+    },
+
+    // Task definition actions
+    DeregisterTaskDefinition(String), // task_definition_arn
 }
 
 // ============================================================================
@@ -776,8 +825,58 @@ impl Message {
         Message::Service(ServiceAction::Ecs(EcsAction::ViewServices(cluster_arn)))
     }
 
+    pub fn ecs_view_tasks(service_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::ViewTasks(service_arn)))
+    }
+
+    pub fn ecs_view_task_definition(task_definition_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::ViewTaskDefinition(
+            task_definition_arn,
+        )))
+    }
+
     pub fn ecs_back_to_clusters() -> Self {
         Message::Service(ServiceAction::Ecs(EcsAction::BackToClusters))
+    }
+
+    pub fn ecs_back_to_services() -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::BackToServices))
+    }
+
+    pub fn ecs_back_to_tasks() -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::BackToTasks))
+    }
+
+    pub fn ecs_update_desired_count(
+        cluster_arn: String,
+        service_name: String,
+        desired_count: i32,
+    ) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::UpdateDesiredCount {
+            cluster_arn,
+            service_name,
+            desired_count,
+        }))
+    }
+
+    pub fn ecs_force_new_deployment(cluster_arn: String, service_name: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::ForceNewDeployment {
+            cluster_arn,
+            service_name,
+        }))
+    }
+
+    pub fn ecs_stop_task(cluster_arn: String, task_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::StopTask {
+            cluster_arn,
+            task_arn,
+        }))
+    }
+
+    pub fn ecs_deregister_task_definition(task_definition_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(
+            task_definition_arn,
+        )))
     }
 }
 
