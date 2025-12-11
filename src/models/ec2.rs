@@ -122,3 +122,104 @@ impl crate::models::Filterable for Ec2Instance {
         self.public_ip.as_deref().unwrap_or("").to_lowercase().contains(filter)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Filterable;
+
+    #[test]
+    fn test_instance_state_display_running() {
+        assert_eq!(InstanceState::Running.to_string(), "Running");
+    }
+
+    #[test]
+    fn test_instance_state_display_stopped() {
+        assert_eq!(InstanceState::Stopped.to_string(), "Stopped");
+    }
+
+    #[test]
+    fn test_instance_state_display_pending() {
+        assert_eq!(InstanceState::Pending.to_string(), "Pending");
+    }
+
+    #[test]
+    fn test_instance_state_display_terminated() {
+        assert_eq!(InstanceState::Terminated.to_string(), "Terminated");
+    }
+
+    #[test]
+    fn test_instance_state_display_unknown() {
+        let state = InstanceState::Unknown("custom-state".to_string());
+        assert_eq!(state.to_string(), "custom-state");
+    }
+
+    #[test]
+    fn test_instance_state_all_variants() {
+        // Ensure all variants have a displayable representation
+        let states = vec![
+            InstanceState::Pending,
+            InstanceState::Running,
+            InstanceState::ShuttingDown,
+            InstanceState::Terminated,
+            InstanceState::Stopping,
+            InstanceState::Stopped,
+            InstanceState::Unknown("test".to_string()),
+        ];
+        
+        for state in states {
+            let display = state.to_string();
+            assert!(!display.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_ec2_instance_matches_filter_by_id() {
+        let instance = Ec2Instance {
+            instance_id: "i-12345abc".to_string(),
+            name: Some("web-server".to_string()),
+            state: InstanceState::Running,
+            instance_type: "t2.micro".to_string(),
+            public_ip: Some("1.2.3.4".to_string()),
+            private_ip: None,
+            launch_time: None,
+            subnet_id: None,
+            vpc_id: None,
+            security_groups: vec![],
+            availability_zone: None,
+            platform: None,
+            architecture: None,
+            ami_id: None,
+            key_name: None,
+            monitoring_state: None,
+        };
+
+        assert!(instance.matches_filter("12345"));
+        assert!(instance.matches_filter("i-12345abc"));
+    }
+
+    #[test]
+    fn test_ec2_instance_matches_filter_by_name() {
+        let instance = Ec2Instance {
+            instance_id: "i-abc".to_string(),
+            name: Some("production-web".to_string()),
+            state: InstanceState::Running,
+            instance_type: "t2.micro".to_string(),
+            public_ip: None,
+            private_ip: None,
+            launch_time: None,
+            subnet_id: None,
+            vpc_id: None,
+            security_groups: vec![],
+            availability_zone: None,
+            platform: None,
+            architecture: None,
+            ami_id: None,
+            key_name: None,
+            monitoring_state: None,
+        };
+
+        assert!(instance.matches_filter("production"));
+        assert!(instance.matches_filter("web"));
+    }
+}

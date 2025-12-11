@@ -255,3 +255,68 @@ impl App {
         self.tasks.cancel_all();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_cache_default() {
+        let cache = RenderCache::default();
+        assert!(cache.aws_info.is_empty());
+    }
+
+    #[test]
+    fn test_render_cache_get_aws_info() {
+        let mut cache = RenderCache::default();
+        let result = cache.get_aws_info(Some("my-profile"), "us-east-1");
+        assert_eq!(result, "[my-profile@us-east-1]");
+    }
+
+    #[test]
+    fn test_render_cache_default_profile() {
+        let mut cache = RenderCache::default();
+        let result = cache.get_aws_info(None, "eu-west-1");
+        assert_eq!(result, "[default@eu-west-1]");
+    }
+
+    #[test]
+    fn test_render_cache_caching() {
+        let mut cache = RenderCache::default();
+        
+        // First call should create the string
+        let result1 = cache.get_aws_info(Some("profile"), "us-east-1");
+        assert_eq!(result1, "[profile@us-east-1]");
+        
+        // Second call with same values should return cached version
+        let result2 = cache.get_aws_info(Some("profile"), "us-east-1");
+        assert_eq!(result2, "[profile@us-east-1]");
+    }
+
+    #[test]
+    fn test_render_cache_invalidation_on_profile_change() {
+        let mut cache = RenderCache::default();
+        
+        cache.get_aws_info(Some("profile1"), "us-east-1");
+        let result = cache.get_aws_info(Some("profile2"), "us-east-1");
+        assert_eq!(result, "[profile2@us-east-1]");
+    }
+
+    #[test]
+    fn test_render_cache_invalidation_on_region_change() {
+        let mut cache = RenderCache::default();
+        
+        cache.get_aws_info(Some("profile"), "us-east-1");
+        let result = cache.get_aws_info(Some("profile"), "eu-west-1");
+        assert_eq!(result, "[profile@eu-west-1]");
+    }
+
+    #[test]
+    fn test_render_cache_profile_none_to_some() {
+        let mut cache = RenderCache::default();
+        
+        cache.get_aws_info(None, "us-east-1");
+        let result = cache.get_aws_info(Some("new-profile"), "us-east-1");
+        assert_eq!(result, "[new-profile@us-east-1]");
+    }
+}
