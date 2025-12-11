@@ -1,23 +1,9 @@
 use crate::models::rds::RdsInstance;
+use crate::utils::error::format_sdk_error;
 use aws_sdk_rds::Client;
 
 pub struct RdsService {
     client: Client,
-}
-
-fn format_rds_error<E: std::fmt::Debug>(e: aws_sdk_rds::error::SdkError<E>, action: &str, identifier: &str) -> anyhow::Error {
-    let msg = if let Some(svc_err) = e.as_service_error() {
-        let code = format!("{:?}", svc_err).split('{').next().unwrap_or("Unknown").trim().to_string();
-        format!("RDS {} failed for '{}': {}", action, identifier, code)
-    } else {
-        let err_str = format!("{}", e);
-        if err_str.contains("Unhandled") || err_str.contains("unhandled") {
-            format!("RDS {} for '{}': Not supported (LocalStack limitation?)", action, identifier)
-        } else {
-            format!("RDS {} failed for '{}': {}", action, identifier, err_str)
-        }
-    };
-    anyhow::anyhow!(msg)
 }
 
 impl RdsService {
@@ -30,7 +16,7 @@ impl RdsService {
             .describe_db_instances()
             .send()
             .await
-            .map_err(|e| format_rds_error(e, "describe", "all"))?;
+            .map_err(|e| format_sdk_error("RDS", "describe", "all", e))?;
 
         let instances = response
             .db_instances()
@@ -47,7 +33,7 @@ impl RdsService {
             .db_instance_identifier(db_instance_identifier)
             .send()
             .await
-            .map_err(|e| format_rds_error(e, "start", db_instance_identifier))?;
+            .map_err(|e| format_sdk_error("RDS", "start", db_instance_identifier, e))?;
         Ok(())
     }
 
@@ -57,7 +43,7 @@ impl RdsService {
             .db_instance_identifier(db_instance_identifier)
             .send()
             .await
-            .map_err(|e| format_rds_error(e, "stop", db_instance_identifier))?;
+            .map_err(|e| format_sdk_error("RDS", "stop", db_instance_identifier, e))?;
         Ok(())
     }
 
@@ -67,7 +53,7 @@ impl RdsService {
             .db_instance_identifier(db_instance_identifier)
             .send()
             .await
-            .map_err(|e| format_rds_error(e, "reboot", db_instance_identifier))?;
+            .map_err(|e| format_sdk_error("RDS", "reboot", db_instance_identifier, e))?;
         Ok(())
     }
 
