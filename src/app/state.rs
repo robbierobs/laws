@@ -203,16 +203,35 @@ impl App {
         
         if self.show_confirmation {
             if let Some(action) = &self.pending_action {
-                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction};
+                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction, LambdaAction, VpcAction, IamAction, CloudTrailAction, SecretsManagerAction};
                 let description = match action {
                     Message::Service(ServiceAction::Ec2(Ec2Action::Start(id))) => format!("Start EC2 Instance {}", id),
                     Message::Service(ServiceAction::Ec2(Ec2Action::Stop(id))) => format!("Stop EC2 Instance {}", id),
                     Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(id))) => format!("Reboot EC2 Instance {}", id),
+                    Message::Service(ServiceAction::Ec2(Ec2Action::Terminate(id))) => format!("Terminate EC2 Instance {}", id),
+
                     Message::Service(ServiceAction::Rds(RdsAction::Start(id))) => format!("Start RDS Instance {}", id),
                     Message::Service(ServiceAction::Rds(RdsAction::Stop(id))) => format!("Stop RDS Instance {}", id),
                     Message::Service(ServiceAction::Rds(RdsAction::Reboot(id))) => format!("Reboot RDS Instance {}", id),
+                    Message::Service(ServiceAction::Rds(RdsAction::Delete(id))) => format!("Delete RDS Instance {}", id),
+
                     Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key })) => format!("Delete S3 Object s3://{}/{}", bucket, key),
+
                     Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, .. })) => format!("Delete item from DynamoDB table {}", table_name),
+
+                    Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(name))) => format!("Invoke Lambda Function {}", name),
+                    Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(name))) => format!("Delete Lambda Function {}", name),
+
+                    Message::Service(ServiceAction::Vpc(VpcAction::DeleteSecurityGroup(id))) => format!("Delete Security Group {}", id),
+
+                    Message::Service(ServiceAction::Iam(IamAction::DeleteUser(name))) => format!("Delete IAM User {}", name),
+                    Message::Service(ServiceAction::Iam(IamAction::DeleteRole(name))) => format!("Delete IAM Role {}", name),
+                    Message::Service(ServiceAction::Iam(IamAction::DeletePolicy(arn))) => format!("Delete IAM Policy {}", arn),
+
+                    Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(name))) => format!("Delete CloudTrail Trail {}", name),
+
+                    Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn))) => format!("Delete Secret {}", arn),
+
                     _ => "Unknown Action".to_string(),
                 };
                 crate::ui::components::modal::render_confirmation_modal(frame, frame.area(), &description);
