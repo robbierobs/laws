@@ -23,6 +23,7 @@ use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
+use crate::models::ecs::{EcsCluster, EcsService};
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -57,6 +58,8 @@ pub enum AwsEvent {
     CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
     SecretsManagerSecretsLoaded(Vec<Secret>),
     SecretsManagerSecretValueLoaded(String),
+    EcsClustersLoaded(Vec<EcsCluster>),
+    EcsServicesLoaded(Vec<EcsService>),
     /// S3 object was downloaded to a file path
     S3ObjectDownloaded {
         key: String,

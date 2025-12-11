@@ -117,6 +117,17 @@ impl App {
                 self.services.secretsmanager.show_secret_modal = true;
                 self.loading = false;
             }
+            AwsEvent::EcsClustersLoaded(clusters) => {
+                self.services.ecs.clusters = clusters;
+                self.loading = false;
+            }
+            AwsEvent::EcsServicesLoaded(services) => {
+                self.services.ecs.services = services;
+                if !self.services.ecs.services.is_empty() {
+                    self.services.ecs.list_state.select(Some(0));
+                }
+                self.loading = false;
+            }
             AwsEvent::S3ObjectDownloaded { key, path } => {
                 self.loading = false;
                 self.action_log.push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));

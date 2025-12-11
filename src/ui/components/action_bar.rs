@@ -112,6 +112,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("X", "Delete"),
             ]);
         }
+        Service::ECS => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+                ("Enter", "Services"),
+                ("Esc", "Back"),
+            ]);
+        }
     }
 
     let spans: Vec<Span> = actions

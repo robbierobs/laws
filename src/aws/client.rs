@@ -13,6 +13,7 @@ use aws_sdk_iam::Client as IamClient;
 use aws_sdk_backup::Client as BackupClient;
 use aws_sdk_cloudtrail::Client as CloudTrailClient;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
+use aws_sdk_ecs::Client as EcsClient;
 use std::time::Duration;
 
 /// Default maximum retry attempts for AWS API calls
@@ -32,6 +33,7 @@ pub struct AwsClients {
     pub backup: BackupClient,
     pub cloudtrail: CloudTrailClient,
     pub secretsmanager: SecretsManagerClient,
+    pub ecs: EcsClient,
 }
 
 impl AwsClients {
@@ -112,6 +114,7 @@ impl AwsClients {
             backup: BackupClient::new(&config),
             cloudtrail: CloudTrailClient::new(&config),
             secretsmanager: SecretsManagerClient::new(&config),
+            ecs: EcsClient::new(&config),
         })
     }
 }

@@ -267,6 +267,7 @@ pub mod task_keys {
     pub const BACKUP_REFRESH: &str = "backup:refresh";
     pub const CLOUDTRAIL_REFRESH: &str = "cloudtrail:refresh";
     pub const SECRETSMANAGER_REFRESH: &str = "secretsmanager:refresh";
+    pub const ECS_REFRESH: &str = "ecs:refresh";
 
     // Action tasks
     pub const EC2_ACTION: &str = "ec2:action";

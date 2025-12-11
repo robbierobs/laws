@@ -4,8 +4,8 @@
 //! - `Message::Global` for app-wide operations (navigation, quit, UI toggles)
 //! - `Message::Service` for service-specific actions
 
-use std::collections::HashMap;
 use crate::app::ViewMode;
+use std::collections::HashMap;
 
 /// AWS Service types supported by the application
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +20,7 @@ pub enum Service {
     Backup,
     CloudTrail,
     SecretsManager,
+    ECS,
 }
 
 impl Service {
@@ -35,6 +36,7 @@ impl Service {
             Service::Backup => "Backup",
             Service::CloudTrail => "CloudTrail",
             Service::SecretsManager => "SecretsManager",
+            Service::ECS => "ECS",
         }
     }
 
@@ -50,6 +52,7 @@ impl Service {
             Self::Backup,
             Self::CloudTrail,
             Self::SecretsManager,
+            Self::ECS,
         ]
         .iter()
         .copied()
@@ -87,7 +90,7 @@ impl ViewMode for VpcViewMode {
             _ => Self::Vpcs,
         }
     }
-    
+
     fn label(&self) -> &'static str {
         match self {
             Self::Vpcs => "VPCs",
@@ -154,7 +157,7 @@ impl ViewMode for IamViewMode {
             _ => Self::Users,
         }
     }
-    
+
     fn label(&self) -> &'static str {
         match self {
             Self::Users => "Users",
@@ -221,7 +224,7 @@ impl ViewMode for BackupViewMode {
             _ => Self::Vaults,
         }
     }
-    
+
     fn label(&self) -> &'static str {
         match self {
             Self::Vaults => "Vaults",
@@ -257,7 +260,7 @@ impl ViewMode for CloudTrailViewMode {
             _ => Self::Trails,
         }
     }
-    
+
     fn label(&self) -> &'static str {
         match self {
             Self::Trails => "Trails",
@@ -267,6 +270,39 @@ impl ViewMode for CloudTrailViewMode {
 }
 
 // to_index(), next(), previous() removed, use ViewMode trait methods instead
+
+/// View mode for ECS service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum EcsViewMode {
+    #[default]
+    Clusters = 0,
+    Services = 1,
+}
+
+impl ViewMode for EcsViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Clusters, Self::Services]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Clusters,
+            1 => Self::Services,
+            _ => Self::Clusters,
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Clusters => "Clusters",
+            Self::Services => "Services",
+        }
+    }
+}
 
 /// View mode for DynamoDB service
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -291,7 +327,7 @@ impl ViewMode for DynamoDbViewMode {
             _ => Self::Tables,
         }
     }
-    
+
     fn label(&self) -> &'static str {
         match self {
             Self::Tables => "Tables",
@@ -328,11 +364,20 @@ pub enum Ec2Action {
 pub enum S3Action {
     LoadObjects(String),
     LoadBucketDetails(String),
-    DeleteObject { bucket: String, key: String },
+    DeleteObject {
+        bucket: String,
+        key: String,
+    },
     /// Download object to ~/Downloads directory
-    DownloadObject { bucket: String, key: String },
+    DownloadObject {
+        bucket: String,
+        key: String,
+    },
     /// Open object (download to temp dir and display in terminal/viewer)
-    OpenObject { bucket: String, key: String },
+    OpenObject {
+        bucket: String,
+        key: String,
+    },
     LeaveBucket,
 }
 
@@ -352,7 +397,10 @@ pub enum DynamoDbAction {
     DrillDownTable,
     ExitDrillDown,
     LoadItems(String),
-    DeleteItem { table_name: String, key_attrs: HashMap<String, String> },
+    DeleteItem {
+        table_name: String,
+        key_attrs: HashMap<String, String>,
+    },
 }
 
 /// Lambda-specific actions
@@ -406,6 +454,13 @@ pub enum SecretsManagerAction {
     DeleteSecret(String),
 }
 
+/// ECS-specific actions
+#[derive(Debug, Clone)]
+pub enum EcsAction {
+    ViewServices(String), // cluster_arn
+    BackToClusters,
+}
+
 // ============================================================================
 // Message Hierarchy
 // ============================================================================
@@ -444,7 +499,11 @@ pub enum GlobalMessage {
     /// Cancel profile switcher
     CancelProfileSwitcher,
     /// Switch to selected profile and region
-    SwitchProfileRegion { profile: Option<String>, region: String, read_only: bool },
+    SwitchProfileRegion {
+        profile: Option<String>,
+        region: String,
+        read_only: bool,
+    },
     /// Copy text to system clipboard
     CopyToClipboard(String),
 }
@@ -463,6 +522,7 @@ pub enum ServiceAction {
     Backup(BackupAction),
     CloudTrail(CloudTrailAction),
     SecretsManager(SecretsManagerAction),
+    Ecs(EcsAction),
 }
 
 /// Main application message type (Elm Architecture style)
@@ -483,150 +543,169 @@ impl Message {
     pub fn navigate(service: Service) -> Self {
         Message::Global(GlobalMessage::Navigate(service))
     }
-    
+
     pub fn quit() -> Self {
         Message::Global(GlobalMessage::Quit)
     }
-    
+
     pub fn refresh() -> Self {
         Message::Global(GlobalMessage::RefreshData)
     }
-    
+
     pub fn toggle_detail_panel() -> Self {
         Message::Global(GlobalMessage::ToggleDetailPanel)
     }
-    
+
     pub fn toggle_action_log() -> Self {
         Message::Global(GlobalMessage::ToggleActionLog)
     }
-    
+
     pub fn cycle_view_mode() -> Self {
         Message::Global(GlobalMessage::CycleViewMode)
     }
-    
+
     pub fn next_view() -> Self {
         Message::Global(GlobalMessage::NextView)
     }
-    
+
     pub fn previous_view() -> Self {
         Message::Global(GlobalMessage::PreviousView)
     }
-    
+
     pub fn confirm_action() -> Self {
         Message::Global(GlobalMessage::ConfirmAction)
     }
-    
+
     pub fn cancel_action() -> Self {
         Message::Global(GlobalMessage::CancelAction)
     }
-    
+
     pub fn open_profile_switcher() -> Self {
         Message::Global(GlobalMessage::OpenProfileSwitcher)
     }
-    
+
     pub fn cancel_profile_switcher() -> Self {
         Message::Global(GlobalMessage::CancelProfileSwitcher)
     }
 
     pub fn cloudtrail_show_event_details(details: String) -> Self {
-        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::ShowEventDetails(details)))
+        Message::Service(ServiceAction::CloudTrail(
+            CloudTrailAction::ShowEventDetails(details),
+        ))
     }
 
     pub fn cloudtrail_close_event_details() -> Self {
-        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::CloseEventDetails))
+        Message::Service(ServiceAction::CloudTrail(
+            CloudTrailAction::CloseEventDetails,
+        ))
     }
-    
+
     pub fn switch_profile_region(profile: Option<String>, region: String, read_only: bool) -> Self {
-        Message::Global(GlobalMessage::SwitchProfileRegion { profile, region, read_only })
+        Message::Global(GlobalMessage::SwitchProfileRegion {
+            profile,
+            region,
+            read_only,
+        })
     }
 
     pub fn copy_to_clipboard(text: String) -> Self {
         Message::Global(GlobalMessage::CopyToClipboard(text))
     }
-    
+
     // EC2 message constructors
     pub fn ec2_start(instance_id: String) -> Self {
         Message::Service(ServiceAction::Ec2(Ec2Action::Start(instance_id)))
     }
-    
+
     pub fn ec2_stop(instance_id: String) -> Self {
         Message::Service(ServiceAction::Ec2(Ec2Action::Stop(instance_id)))
     }
-    
+
     pub fn ec2_reboot(instance_id: String) -> Self {
         Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(instance_id)))
     }
-    
+
     pub fn ec2_terminate(instance_id: String) -> Self {
         Message::Service(ServiceAction::Ec2(Ec2Action::Terminate(instance_id)))
     }
-    
+
     // S3 message constructors
     pub fn s3_load_objects(bucket: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::LoadObjects(bucket)))
     }
-    
+
     pub fn s3_load_bucket_details(bucket: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::LoadBucketDetails(bucket)))
     }
-    
+
     pub fn s3_delete_object(bucket: String, key: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key }))
     }
-    
+
     pub fn s3_download_object(bucket: String, key: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::DownloadObject { bucket, key }))
     }
-    
+
     pub fn s3_open_object(bucket: String, key: String) -> Self {
         Message::Service(ServiceAction::S3(S3Action::OpenObject { bucket, key }))
     }
-    
+
     pub fn s3_leave_bucket() -> Self {
         Message::Service(ServiceAction::S3(S3Action::LeaveBucket))
     }
-    
+
     // RDS message constructors
     pub fn rds_start(instance_id: String) -> Self {
         Message::Service(ServiceAction::Rds(RdsAction::Start(instance_id)))
     }
-    
+
     pub fn rds_stop(instance_id: String) -> Self {
         Message::Service(ServiceAction::Rds(RdsAction::Stop(instance_id)))
     }
-    
+
     pub fn rds_reboot(instance_id: String) -> Self {
         Message::Service(ServiceAction::Rds(RdsAction::Reboot(instance_id)))
     }
-    
+
     // DynamoDB message constructors
     pub fn dynamodb_drill_down() -> Self {
         Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DrillDownTable))
     }
-    
+
     pub fn dynamodb_exit_drill_down() -> Self {
         Message::Service(ServiceAction::DynamoDb(DynamoDbAction::ExitDrillDown))
     }
-    
+
     pub fn dynamodb_load_items(table_name: String) -> Self {
-        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::LoadItems(table_name)))
+        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::LoadItems(
+            table_name,
+        )))
     }
-    
+
     pub fn dynamodb_delete_item(table_name: String, key_attrs: HashMap<String, String>) -> Self {
-        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, key_attrs }))
+        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem {
+            table_name,
+            key_attrs,
+        }))
     }
-    
+
     // Lambda message constructors
     pub fn lambda_invoke(function_name: String) -> Self {
-        Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(function_name)))
+        Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(
+            function_name,
+        )))
     }
 
     pub fn lambda_delete(function_name: String) -> Self {
-        Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(function_name)))
+        Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(
+            function_name,
+        )))
     }
 
     pub fn lambda_load_details(function_name: String) -> Self {
-        Message::Service(ServiceAction::Lambda(LambdaAction::LoadFunctionDetails(function_name)))
+        Message::Service(ServiceAction::Lambda(LambdaAction::LoadFunctionDetails(
+            function_name,
+        )))
     }
 
     // RDS message constructors
@@ -638,11 +717,11 @@ impl Message {
     pub fn vpc_drill_down_sg() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup))
     }
-    
+
     pub fn vpc_exit_sg_rules() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::ExitSecurityGroupRules))
     }
-    
+
     pub fn vpc_toggle_sg_rules_direction() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::ToggleSgRulesDirection))
     }
@@ -650,20 +729,20 @@ impl Message {
     pub fn vpc_delete_security_group(group_id: String) -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::DeleteSecurityGroup(group_id)))
     }
-    
+
     // IAM message constructors
     pub fn iam_drill_down_user() -> Self {
         Message::Service(ServiceAction::Iam(IamAction::DrillDownUser))
     }
-    
+
     pub fn iam_drill_down_role() -> Self {
         Message::Service(ServiceAction::Iam(IamAction::DrillDownRole))
     }
-    
+
     pub fn iam_drill_down_policy() -> Self {
         Message::Service(ServiceAction::Iam(IamAction::DrillDownPolicy))
     }
-    
+
     pub fn iam_exit_drill_down() -> Self {
         Message::Service(ServiceAction::Iam(IamAction::ExitDrillDown))
     }
@@ -681,11 +760,24 @@ impl Message {
     }
 
     pub fn cloudtrail_delete_trail(name: String) -> Self {
-        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(name)))
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(
+            name,
+        )))
     }
 
     pub fn secretsmanager_delete_secret(arn: String) -> Self {
-        Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn)))
+        Message::Service(ServiceAction::SecretsManager(
+            SecretsManagerAction::DeleteSecret(arn),
+        ))
+    }
+
+    // ECS message constructors
+    pub fn ecs_view_services(cluster_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::ViewServices(cluster_arn)))
+    }
+
+    pub fn ecs_back_to_clusters() -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::BackToClusters))
     }
 }
 
@@ -707,7 +799,7 @@ pub enum InputMode {
     Filtering,
     /// Profile switcher modal - selecting profile
     ProfileSwitcherProfile,
-    /// Profile switcher modal - selecting region  
+    /// Profile switcher modal - selecting region
     ProfileSwitcherRegion,
 }
 
@@ -727,7 +819,7 @@ mod tests {
     #[test]
     fn test_service_iterator() {
         let services: Vec<Service> = Service::iterator().collect();
-        assert_eq!(services.len(), 10); // All 10 services
+        assert_eq!(services.len(), 11); // All 11 services
         assert!(services.contains(&Service::EC2));
         assert!(services.contains(&Service::SecretsManager));
     }
@@ -753,19 +845,34 @@ mod tests {
         let start = Message::ec2_start("i-123".to_string());
         let stop = Message::ec2_stop("i-456".to_string());
         let reboot = Message::ec2_reboot("i-789".to_string());
-        
-        matches!(start, Message::Service(ServiceAction::Ec2(Ec2Action::Start(_))));
-        matches!(stop, Message::Service(ServiceAction::Ec2(Ec2Action::Stop(_))));
-        matches!(reboot, Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(_))));
+
+        matches!(
+            start,
+            Message::Service(ServiceAction::Ec2(Ec2Action::Start(_)))
+        );
+        matches!(
+            stop,
+            Message::Service(ServiceAction::Ec2(Ec2Action::Stop(_)))
+        );
+        matches!(
+            reboot,
+            Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(_)))
+        );
     }
 
     #[test]
     fn test_message_rds_actions() {
         let start = Message::rds_start("db-123".to_string());
         let stop = Message::rds_stop("db-456".to_string());
-        
-        matches!(start, Message::Service(ServiceAction::Rds(RdsAction::Start(_))));
-        matches!(stop, Message::Service(ServiceAction::Rds(RdsAction::Stop(_))));
+
+        matches!(
+            start,
+            Message::Service(ServiceAction::Rds(RdsAction::Start(_)))
+        );
+        matches!(
+            stop,
+            Message::Service(ServiceAction::Rds(RdsAction::Stop(_)))
+        );
     }
 
     #[test]
@@ -773,7 +880,7 @@ mod tests {
         let mode = VpcViewMode::Vpcs;
         assert_eq!(mode.next(), VpcViewMode::Subnets);
         assert_eq!(mode.next().next(), VpcViewMode::SecurityGroups);
-        
+
         // Should wrap around
         let sg_mode = VpcViewMode::SecurityGroups;
         assert_eq!(sg_mode.next(), VpcViewMode::Vpcs);

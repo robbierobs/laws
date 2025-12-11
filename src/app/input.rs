@@ -1,12 +1,13 @@
 //! Keyboard input handling
-//! 
+//!
 //! Handles all keyboard events and translates them to messages.
 
-use crossterm::event::{KeyCode, KeyEvent};
-use super::{App, Message, Service, Focus, InputMode, VpcViewMode, GlobalMessage, InputResult, ServiceInputHandler};
+use super::{
+    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ServiceInputHandler,
+    VpcViewMode,
+};
 use crate::ui::components::Component;
-
-
+use crossterm::event::{KeyCode, KeyEvent};
 
 impl App {
     /// Reset list selection to first item for current service
@@ -28,6 +29,7 @@ impl App {
             Service::Backup => self.services.backup.list_state.select(Some(0)),
             Service::CloudTrail => self.services.cloudtrail.list_state.select(Some(0)),
             Service::SecretsManager => self.services.secretsmanager.list_state.select(Some(0)),
+            Service::ECS => self.services.ecs.list_state.select(Some(0)),
         }
     }
 
@@ -58,11 +60,11 @@ impl App {
                     self.services.s3.viewer_scroll_offset = 0;
                 }
                 KeyCode::Char('j') | KeyCode::Down => {
-                    self.services.s3.viewer_scroll_offset = 
+                    self.services.s3.viewer_scroll_offset =
                         self.services.s3.viewer_scroll_offset.saturating_add(1);
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    self.services.s3.viewer_scroll_offset = 
+                    self.services.s3.viewer_scroll_offset =
                         self.services.s3.viewer_scroll_offset.saturating_sub(1);
                 }
                 KeyCode::Char('g') | KeyCode::Home => {
@@ -76,11 +78,11 @@ impl App {
                     }
                 }
                 KeyCode::PageDown => {
-                    self.services.s3.viewer_scroll_offset = 
+                    self.services.s3.viewer_scroll_offset =
                         self.services.s3.viewer_scroll_offset.saturating_add(20);
                 }
                 KeyCode::PageUp => {
-                    self.services.s3.viewer_scroll_offset = 
+                    self.services.s3.viewer_scroll_offset =
                         self.services.s3.viewer_scroll_offset.saturating_sub(20);
                 }
                 _ => {}
@@ -92,7 +94,9 @@ impl App {
         if self.show_confirmation {
             return match key.code {
                 KeyCode::Char('y') | KeyCode::Char('Y') => Some(Message::confirm_action()),
-                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => Some(Message::cancel_action()),
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
+                    Some(Message::cancel_action())
+                }
                 _ => None,
             };
         }
@@ -122,7 +126,7 @@ impl App {
                 }
                 return None;
             }
-            
+
             // Normal navigation mode
             match key.code {
                 KeyCode::Esc => {
@@ -139,14 +143,25 @@ impl App {
                 KeyCode::Enter => {
                     // Store selected profile and move to region selection
                     let filtered = self.filtered_profiles();
-                    let selected = filtered.get(self.profile_switcher_index)
-                        .map(|s| if *s == "default" { None } else { Some((*s).clone()) })
+                    let selected = filtered
+                        .get(self.profile_switcher_index)
+                        .map(|s| {
+                            if *s == "default" {
+                                None
+                            } else {
+                                Some((*s).clone())
+                            }
+                        })
                         .unwrap_or(None);
                     self.pending_profile = selected;
                     self.profile_filter.clear();
                     self.input_mode = InputMode::ProfileSwitcherRegion;
                     // Pre-select current region in region list
-                    if let Some(idx) = self.filtered_regions().iter().position(|r| *r == &self.region) {
+                    if let Some(idx) = self
+                        .filtered_regions()
+                        .iter()
+                        .position(|r| *r == &self.region)
+                    {
                         self.region_switcher_index = idx;
                     } else {
                         self.region_switcher_index = 0;
@@ -156,7 +171,7 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => {
                     let filtered_len = self.filtered_profiles().len();
                     if filtered_len > 0 {
-                        self.profile_switcher_index = 
+                        self.profile_switcher_index =
                             (self.profile_switcher_index + 1) % filtered_len;
                     }
                 }
@@ -200,7 +215,7 @@ impl App {
                 }
                 return None;
             }
-            
+
             // Normal navigation mode
             match key.code {
                 KeyCode::Esc => {
@@ -216,7 +231,8 @@ impl App {
                     // Confirm and switch profile/region
                     let profile = self.pending_profile.clone();
                     let filtered = self.filtered_regions();
-                    let region = filtered.get(self.region_switcher_index)
+                    let region = filtered
+                        .get(self.region_switcher_index)
                         .cloned()
                         .cloned()
                         .unwrap_or_else(|| "us-east-1".to_string());
@@ -228,7 +244,7 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => {
                     let filtered_len = self.filtered_regions().len();
                     if filtered_len > 0 {
-                        self.region_switcher_index = 
+                        self.region_switcher_index =
                             (self.region_switcher_index + 1) % filtered_len;
                     }
                 }
@@ -293,9 +309,17 @@ impl App {
                 // View mode cycling
                 if key.code == KeyCode::Char('v') {
                     match self.current_service {
-                        Service::Backup | Service::CloudTrail => return Some(Message::cycle_view_mode()),
-                        Service::VPC if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::cycle_view_mode()),
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => return Some(Message::cycle_view_mode()),
+                        Service::Backup | Service::CloudTrail => {
+                            return Some(Message::cycle_view_mode())
+                        }
+                        Service::VPC
+                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
+                        {
+                            return Some(Message::cycle_view_mode())
+                        }
+                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
+                            return Some(Message::cycle_view_mode())
+                        }
                         _ => {}
                     }
                 }
@@ -307,22 +331,32 @@ impl App {
 
                 // Arrow navigation for view modes
                 match key.code {
-                    KeyCode::Right | KeyCode::Char('l') => {
-                        match self.current_service {
-                            Service::Backup | Service::CloudTrail => return Some(Message::next_view()),
-                            Service::VPC if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::next_view()),
-                            Service::IAM if self.services.iam.view_mode.is_main_tab() => return Some(Message::next_view()),
-                            _ => {}
+                    KeyCode::Right | KeyCode::Char('l') => match self.current_service {
+                        Service::Backup | Service::CloudTrail => return Some(Message::next_view()),
+                        Service::VPC
+                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
+                        {
+                            return Some(Message::next_view())
                         }
-                    }
-                    KeyCode::Left | KeyCode::Char('h') => {
-                        match self.current_service {
-                            Service::Backup | Service::CloudTrail => return Some(Message::previous_view()),
-                            Service::VPC if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::previous_view()),
-                            Service::IAM if self.services.iam.view_mode.is_main_tab() => return Some(Message::previous_view()),
-                            _ => {}
+                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
+                            return Some(Message::next_view())
                         }
-                    }
+                        _ => {}
+                    },
+                    KeyCode::Left | KeyCode::Char('h') => match self.current_service {
+                        Service::Backup | Service::CloudTrail => {
+                            return Some(Message::previous_view())
+                        }
+                        Service::VPC
+                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
+                        {
+                            return Some(Message::previous_view())
+                        }
+                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
+                            return Some(Message::previous_view())
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 }
 
@@ -338,6 +372,7 @@ impl App {
                     Service::Backup => self.services.backup.handle_input(key),
                     Service::CloudTrail => self.services.cloudtrail.handle_input(key),
                     Service::SecretsManager => self.services.secretsmanager.handle_input(key),
+                    Service::ECS => self.services.ecs.handle_input(key),
                 };
 
                 match result {
@@ -387,43 +422,107 @@ impl App {
                 // For tables, return table name
                 // For items, we could format as JSON, but for now let's stick to IDs/names if possible
                 // Detailed item copy is better handled in a specific view
-                self.services.dynamodb.selected_table().map(|t| t.table_name.clone())
+                self.services
+                    .dynamodb
+                    .selected_table()
+                    .map(|t| t.table_name.clone())
             }
-            Service::Lambda => self.services.lambda.selected_function().map(|f| f.function_name.clone()),
+            Service::Lambda => self
+                .services
+                .lambda
+                .selected_function()
+                .map(|f| f.function_name.clone()),
             Service::VPC => {
                 use crate::app::VpcViewMode;
                 match self.services.vpc.view_mode {
                     VpcViewMode::Vpcs => self.services.vpc.selected_vpc().map(|v| v.vpc_id.clone()),
-                    VpcViewMode::Subnets => self.services.vpc.selected_subnet().map(|s| s.subnet_id.clone()),
-                    VpcViewMode::SecurityGroups => self.services.vpc.selected_security_group().map(|sg| sg.group_id.clone()),
+                    VpcViewMode::Subnets => self
+                        .services
+                        .vpc
+                        .selected_subnet()
+                        .map(|s| s.subnet_id.clone()),
+                    VpcViewMode::SecurityGroups => self
+                        .services
+                        .vpc
+                        .selected_security_group()
+                        .map(|sg| sg.group_id.clone()),
                     VpcViewMode::SecurityGroupRules => None, // Hard to pick a single ID
                 }
             }
             Service::IAM => {
                 use crate::app::IamViewMode;
                 match self.services.iam.view_mode {
-                    IamViewMode::Users => self.services.iam.selected_user().map(|u| u.user_name.clone()),
-                    IamViewMode::Roles => self.services.iam.selected_role().map(|r| r.role_name.clone()),
-                    IamViewMode::Policies => self.services.iam.selected_policy().map(|p| p.policy_name.clone()),
+                    IamViewMode::Users => self
+                        .services
+                        .iam
+                        .selected_user()
+                        .map(|u| u.user_name.clone()),
+                    IamViewMode::Roles => self
+                        .services
+                        .iam
+                        .selected_role()
+                        .map(|r| r.role_name.clone()),
+                    IamViewMode::Policies => self
+                        .services
+                        .iam
+                        .selected_policy()
+                        .map(|p| p.policy_name.clone()),
                     _ => None,
                 }
             }
             Service::Backup => {
                 use crate::app::BackupViewMode;
                 match self.services.backup.view_mode {
-                    BackupViewMode::Vaults => self.services.backup.selected_vault().map(|v| v.backup_vault_name.clone()),
-                    BackupViewMode::Plans => self.services.backup.selected_plan().map(|p| p.backup_plan_id.clone()),
-                    BackupViewMode::Jobs => self.services.backup.selected_job().map(|j| j.backup_job_id.clone()),
+                    BackupViewMode::Vaults => self
+                        .services
+                        .backup
+                        .selected_vault()
+                        .map(|v| v.backup_vault_name.clone()),
+                    BackupViewMode::Plans => self
+                        .services
+                        .backup
+                        .selected_plan()
+                        .map(|p| p.backup_plan_id.clone()),
+                    BackupViewMode::Jobs => self
+                        .services
+                        .backup
+                        .selected_job()
+                        .map(|j| j.backup_job_id.clone()),
                 }
             }
             Service::CloudTrail => {
                 use crate::app::CloudTrailViewMode;
                 match self.services.cloudtrail.view_mode {
-                    CloudTrailViewMode::Trails => self.services.cloudtrail.selected_trail().map(|t| t.name.clone()),
-                    CloudTrailViewMode::Events => self.services.cloudtrail.selected_event().and_then(|e| e.event_id.clone()),
+                    CloudTrailViewMode::Trails => self
+                        .services
+                        .cloudtrail
+                        .selected_trail()
+                        .map(|t| t.name.clone()),
+                    CloudTrailViewMode::Events => self
+                        .services
+                        .cloudtrail
+                        .selected_event()
+                        .and_then(|e| e.event_id.clone()),
                 }
             }
-            Service::SecretsManager => self.services.secretsmanager.selected_secret().map(|s| s.name.clone()),
+            Service::SecretsManager => self
+                .services
+                .secretsmanager
+                .selected_secret()
+                .map(|s| s.name.clone()),
+            Service::ECS => {
+                if self.services.ecs.view_mode == crate::app::messages::EcsViewMode::Clusters {
+                    self.services
+                        .ecs
+                        .selected_cluster()
+                        .map(|c| c.cluster_arn.clone())
+                } else {
+                    self.services
+                        .ecs
+                        .selected_service()
+                        .map(|s| s.service_arn.clone())
+                }
+            }
         };
 
         text.map(Message::copy_to_clipboard)
@@ -447,31 +546,43 @@ impl App {
     fn auto_select_first_item(&mut self) {
         match self.current_service {
             Service::EC2 => {
-                if self.services.ec2.list_state.selected().is_none() && !self.services.ec2.instances.is_empty() {
+                if self.services.ec2.list_state.selected().is_none()
+                    && !self.services.ec2.instances.is_empty()
+                {
                     self.services.ec2.list_state.select(Some(0));
                 }
             }
             Service::S3 => {
                 if self.services.s3.current_bucket.is_some() {
-                    if self.services.s3.object_list_state.selected().is_none() && !self.services.s3.objects.is_empty() {
+                    if self.services.s3.object_list_state.selected().is_none()
+                        && !self.services.s3.objects.is_empty()
+                    {
                         self.services.s3.object_list_state.select(Some(0));
                     }
-                } else if self.services.s3.list_state.selected().is_none() && !self.services.s3.buckets.is_empty() {
+                } else if self.services.s3.list_state.selected().is_none()
+                    && !self.services.s3.buckets.is_empty()
+                {
                     self.services.s3.list_state.select(Some(0));
                 }
             }
             Service::RDS => {
-                if self.services.rds.list_state.selected().is_none() && !self.services.rds.instances.is_empty() {
+                if self.services.rds.list_state.selected().is_none()
+                    && !self.services.rds.instances.is_empty()
+                {
                     self.services.rds.list_state.select(Some(0));
                 }
             }
             Service::DynamoDB => {
-                if self.services.dynamodb.list_state.selected().is_none() && !self.services.dynamodb.tables.is_empty() {
+                if self.services.dynamodb.list_state.selected().is_none()
+                    && !self.services.dynamodb.tables.is_empty()
+                {
                     self.services.dynamodb.list_state.select(Some(0));
                 }
             }
             Service::Lambda => {
-                if self.services.lambda.list_state.selected().is_none() && !self.services.lambda.functions.is_empty() {
+                if self.services.lambda.list_state.selected().is_none()
+                    && !self.services.lambda.functions.is_empty()
+                {
                     self.services.lambda.list_state.select(Some(0));
                 }
             }
@@ -480,8 +591,17 @@ impl App {
             Service::Backup => self.auto_select_backup(),
             Service::CloudTrail => self.auto_select_cloudtrail(),
             Service::SecretsManager => {
-                if self.services.secretsmanager.list_state.selected().is_none() && !self.services.secretsmanager.secrets.is_empty() {
+                if self.services.secretsmanager.list_state.selected().is_none()
+                    && !self.services.secretsmanager.secrets.is_empty()
+                {
                     self.services.secretsmanager.list_state.select(Some(0));
+                }
+            }
+            Service::ECS => {
+                if self.services.ecs.list_state.selected().is_none()
+                    && !self.services.ecs.clusters.is_empty()
+                {
+                    self.services.ecs.list_state.select(Some(0));
                 }
             }
         }
@@ -496,7 +616,9 @@ impl App {
                 VpcViewMode::SecurityGroups => !self.services.vpc.security_groups.is_empty(),
                 VpcViewMode::SecurityGroupRules => !self.services.vpc.current_sg_rules.is_empty(),
             };
-            if has_items { self.services.vpc.list_state.select(Some(0)); }
+            if has_items {
+                self.services.vpc.list_state.select(Some(0));
+            }
         }
     }
 
@@ -507,10 +629,14 @@ impl App {
                 IamViewMode::Users => !self.services.iam.users.is_empty(),
                 IamViewMode::Roles => !self.services.iam.roles.is_empty(),
                 IamViewMode::Policies => !self.services.iam.policies.is_empty(),
-                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => !self.services.iam.current_policies.is_empty(),
+                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => {
+                    !self.services.iam.current_policies.is_empty()
+                }
                 IamViewMode::PolicyDocument => false,
             };
-            if has_items { self.services.iam.list_state.select(Some(0)); }
+            if has_items {
+                self.services.iam.list_state.select(Some(0));
+            }
         }
     }
 
@@ -522,7 +648,9 @@ impl App {
                 BackupViewMode::Plans => !self.services.backup.plans.is_empty(),
                 BackupViewMode::Jobs => !self.services.backup.jobs.is_empty(),
             };
-            if has_items { self.services.backup.list_state.select(Some(0)); }
+            if has_items {
+                self.services.backup.list_state.select(Some(0));
+            }
         }
     }
 
@@ -533,27 +661,13 @@ impl App {
                 CloudTrailViewMode::Trails => !self.services.cloudtrail.trails.is_empty(),
                 CloudTrailViewMode::Events => !self.services.cloudtrail.events.is_empty(),
             };
-            if has_items { self.services.cloudtrail.list_state.select(Some(0)); }
+            if has_items {
+                self.services.cloudtrail.list_state.select(Some(0));
+            }
         }
     }
 
     // ====================================
     // Service-specific input handlers
     // ====================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

@@ -18,6 +18,7 @@ mod s3;
 mod secretsmanager;
 mod view_mode;
 mod vpc;
+mod ecs;
 
 use super::messages::{
     DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
@@ -187,6 +188,9 @@ impl App {
                         self.handle_delete_trail(name, event_tx);
                     }
                 }
+            }
+            ServiceAction::Ecs(action) => {
+                self.handle_ecs_action(action, event_tx).await;
             }
         }
     }
