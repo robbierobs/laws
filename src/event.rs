@@ -42,6 +42,10 @@ pub enum AwsEvent {
     BackupJobsLoaded(Vec<BackupJob>),
     CloudTrailTrailsLoaded(Vec<Trail>),
     CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
+    /// S3 object was downloaded to a file path
+    S3ObjectDownloaded { key: String, path: String },
+    /// S3 object was downloaded and ready to open (with content for text files)
+    S3ObjectOpened { key: String, path: String, content: Option<String> },
     ActionCompleted(String), // Message to display
     Error(String),
 }

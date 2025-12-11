@@ -48,6 +48,7 @@ impl DynamoDbItem {
     }
     
     /// Get the first few attribute values for display
+    #[allow(dead_code)]
     pub fn preview(&self, max_attrs: usize) -> String {
         let mut parts: Vec<String> = self.attributes
             .iter()

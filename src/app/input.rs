@@ -348,6 +348,26 @@ impl App {
                         }
                     }
                 }
+                KeyCode::Char('o') => {
+                    // Open object - download to temp and view
+                    if let Some(i) = self.services.s3.object_list_state.selected() {
+                        if let Some(obj) = self.services.s3.objects.get(i) {
+                            if let Some(bucket) = &self.services.s3.current_bucket {
+                                return InputResult::Message(Message::s3_open_object(bucket.clone(), obj.key.clone()));
+                            }
+                        }
+                    }
+                }
+                KeyCode::Char('w') => {
+                    // Download/Write object to ~/Downloads
+                    if let Some(i) = self.services.s3.object_list_state.selected() {
+                        if let Some(obj) = self.services.s3.objects.get(i) {
+                            if let Some(bucket) = &self.services.s3.current_bucket {
+                                return InputResult::Message(Message::s3_download_object(bucket.clone(), obj.key.clone()));
+                            }
+                        }
+                    }
+                }
                 KeyCode::Esc | KeyCode::Backspace => return InputResult::Message(Message::s3_leave_bucket()),
                 _ => {}
             }

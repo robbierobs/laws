@@ -30,6 +30,8 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             if app.services.s3.current_bucket.is_some() {
                 actions.extend_from_slice(&[
                     ("j/k", "Navigate"),
+                    ("o", "Open"),
+                    ("w", "Download"),
                     ("Esc", "Back"),
                 ]);
             } else {

@@ -105,6 +105,17 @@ impl App {
                 self.services.cloudtrail.events = events;
                 self.loading = false;
             }
+            AwsEvent::S3ObjectDownloaded { key, path } => {
+                self.loading = false;
+                self.action_log.push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));
+            }
+            AwsEvent::S3ObjectOpened { key, path, content } => {
+                self.loading = false;
+                // Store the opened content for display
+                self.services.s3.opened_object_content = content;
+                self.services.s3.opened_object_path = Some(path.clone());
+                self.action_log.push(format!("[SUCCESS] Opened '{}' at {}", key, path));
+            }
             AwsEvent::ActionCompleted(msg) => {
                 self.loading = false;
                 self.action_log.push(format!("[SUCCESS] {}", msg));

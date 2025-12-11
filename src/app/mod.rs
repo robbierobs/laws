@@ -26,9 +26,12 @@ pub use messages::{
     VpcViewMode, IamViewMode, BackupViewMode, CloudTrailViewMode, DynamoDbViewMode,
 };
 pub use state::App;
-// Re-export from service_state (only what's needed externally)
+// Re-export from service_state (for external use - suppressed unused warning)
+#[allow(unused_imports)]
 pub use service_state::ServiceStates;
-// Re-export TaskManager
+// Re-export TaskManager (for external use)
+#[allow(unused_imports)]
 pub use task_manager::TaskManager;
-// Re-export FilteredList
+// Re-export FilteredList (for external use)
+#[allow(unused_imports)]
 pub use filtered_list::FilteredList;

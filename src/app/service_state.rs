@@ -63,6 +63,10 @@ pub struct S3State {
     pub objects: Vec<S3Object>,
     pub object_list_state: TableState,
     pub bucket_details: HashMap<String, S3BucketDetails>,
+    /// Content of the last opened object (if it's text)
+    pub opened_object_content: Option<String>,
+    /// Path to the last opened object file
+    pub opened_object_path: Option<String>,
 }
 
 impl S3State {
