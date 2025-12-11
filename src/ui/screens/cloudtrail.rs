@@ -26,8 +26,7 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             ])
             .split(area);
 
-        let tabs_list = crate::app::CloudTrailViewMode::all();
-        let tabs: Vec<&str> = tabs_list.iter().map(|m| m.label()).collect();
+        let tabs: Vec<&str> = crate::app::CloudTrailViewMode::iterator().map(|m| m.label()).collect();
         crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.index());
 
         match app.services.cloudtrail.view_mode {

@@ -36,8 +36,7 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
                 .border_style(Style::default().fg(THEME.border));
             frame.render_widget(block, chunks[0]);
         } else {
-            let tabs_list = crate::app::VpcViewMode::all();
-            let tabs: Vec<&str> = tabs_list.iter().map(|m| m.label()).collect();
+            let tabs: Vec<&str> = crate::app::VpcViewMode::iterator().map(|m| m.label()).collect();
             crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.vpc.view_mode.index());
         }
 

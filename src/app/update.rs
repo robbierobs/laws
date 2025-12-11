@@ -286,7 +286,8 @@ impl App {
                     let tx = event_tx.clone();
                     let handle = tokio::spawn(async move {
                         let service = crate::aws::ec2::Ec2Service::new(client);
-                        match service.list_instances().await {
+                        use crate::aws::traits::AwsService; // Use trait for listing
+                        match service.list().await {
                             Ok(instances) => { tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
