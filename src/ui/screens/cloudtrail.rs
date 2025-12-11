@@ -22,9 +22,9 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         .split(list_area);
 
     let tabs = ["Trails", "Events"];
-    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.cloudtrail_view_mode.to_index());
+    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.to_index());
 
-    match app.cloudtrail_view_mode {
+    match app.services.cloudtrail.view_mode {
         CloudTrailViewMode::Trails => {
             render_trail_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
@@ -51,7 +51,7 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.cloudtrail_trails.iter()
+    let rows = app.services.cloudtrail.trails.iter()
         .filter(|t| {
             if filter.is_empty() { return true; }
             let name = t.name.to_lowercase();
@@ -97,14 +97,14 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.cloudtrail_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.cloudtrail.list_state);
 }
 
 fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.cloudtrail_list_state.selected();
+    let selected = app.services.cloudtrail.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(trail) = app.cloudtrail_trails.get(idx) {
+        if let Some(trail) = app.services.cloudtrail.trails.get(idx) {
             build_trail_detail_lines(trail)
         } else {
             vec![Line::from("No trail selected")]
@@ -229,7 +229,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.cloudtrail_events.iter()
+    let rows = app.services.cloudtrail.events.iter()
         .filter(|e| {
             if filter.is_empty() { return true; }
             let name = e.event_name.as_deref().unwrap_or("").to_lowercase();
@@ -277,14 +277,14 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.cloudtrail_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.cloudtrail.list_state);
 }
 
 fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.cloudtrail_list_state.selected();
+    let selected = app.services.cloudtrail.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(event) = app.cloudtrail_events.get(idx) {
+        if let Some(event) = app.services.cloudtrail.events.get(idx) {
             build_event_detail_lines(event)
         } else {
             vec![Line::from("No event selected")]

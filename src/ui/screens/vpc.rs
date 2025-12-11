@@ -22,8 +22,8 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         ])
         .split(list_area);
 
-    if app.vpc_view_mode == VpcViewMode::SecurityGroupRules {
-        let title = format!("Rules for {}", app.selected_sg_id.as_deref().unwrap_or("Unknown"));
+    if app.services.vpc.view_mode == VpcViewMode::SecurityGroupRules {
+        let title = format!("Rules for {}", app.services.vpc.selected_sg_id.as_deref().unwrap_or("Unknown"));
         let block = Block::default()
             .borders(Borders::ALL)
             .title(title)
@@ -32,10 +32,10 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         frame.render_widget(block, chunks[0]);
     } else {
         let tabs = ["VPCs", "Subnets", "Security Groups"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.vpc_view_mode.to_index());
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.vpc.view_mode.to_index());
     }
 
-    match app.vpc_view_mode {
+    match app.services.vpc.view_mode {
         VpcViewMode::Vpcs => render_vpc_list(frame, chunks[1], app),
         VpcViewMode::Subnets => render_subnet_list(frame, chunks[1], app),
         VpcViewMode::SecurityGroups => render_security_group_list(frame, chunks[1], app),
@@ -43,7 +43,7 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
     }
     
     if let Some(area) = detail_area {
-        match app.vpc_view_mode {
+        match app.services.vpc.view_mode {
             VpcViewMode::Vpcs => render_vpc_details(frame, area, app),
             VpcViewMode::Subnets => render_subnet_details(frame, area, app),
             VpcViewMode::SecurityGroups => render_security_group_details(frame, area, app),
@@ -63,7 +63,7 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.vpcs.iter()
+    let rows = app.services.vpc.vpcs.iter()
         .filter(|v| {
             if filter.is_empty() { return true; }
             let id = v.vpc_id.to_lowercase();
@@ -114,7 +114,7 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.vpc_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
 }
 
 fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -128,7 +128,7 @@ fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.subnets.iter()
+    let rows = app.services.vpc.subnets.iter()
         .filter(|s| {
             if filter.is_empty() { return true; }
             let id = s.subnet_id.to_lowercase();
@@ -180,7 +180,7 @@ fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.vpc_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
 }
 
 fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -194,7 +194,7 @@ fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.security_groups.iter()
+    let rows = app.services.vpc.security_groups.iter()
         .filter(|sg| {
             if filter.is_empty() { return true; }
             let id = sg.group_id.to_lowercase();
@@ -240,7 +240,7 @@ fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.vpc_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
 }
 
 fn render_sg_rules_list(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -253,7 +253,7 @@ fn render_sg_rules_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .height(1)
         .bottom_margin(1);
 
-    let rows = app.current_sg_rules.iter()
+    let rows = app.services.vpc.current_sg_rules.iter()
         .map(|rule| {
         let cells = vec![
             Cell::from(rule.protocol.clone()),
@@ -265,7 +265,7 @@ fn render_sg_rules_list(frame: &mut Frame, area: Rect, app: &mut App) {
         Row::new(cells).height(1)
     });
 
-    let direction = if app.sg_rules_inbound { "Inbound" } else { "Outbound" };
+    let direction = if app.services.vpc.sg_rules_inbound { "Inbound" } else { "Outbound" };
     let title = format!("{} Rules (t: toggle direction, Esc: back)", direction);
     let block = Block::default()
         .borders(Borders::ALL)
@@ -290,14 +290,14 @@ fn render_sg_rules_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.vpc_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
 }
 
 fn render_vpc_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.vpc_list_state.selected();
+    let selected = app.services.vpc.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(vpc) = app.vpcs.get(idx) {
+        if let Some(vpc) = app.services.vpc.vpcs.get(idx) {
             build_vpc_detail_lines(vpc, app)
         } else {
             vec![Line::from("No VPC selected")]
@@ -317,10 +317,10 @@ fn render_vpc_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_subnet_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.vpc_list_state.selected();
+    let selected = app.services.vpc.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(subnet) = app.subnets.get(idx) {
+        if let Some(subnet) = app.services.vpc.subnets.get(idx) {
             build_subnet_detail_lines(subnet)
         } else {
             vec![Line::from("No Subnet selected")]
@@ -340,10 +340,10 @@ fn render_subnet_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_security_group_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.vpc_list_state.selected();
+    let selected = app.services.vpc.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(sg) = app.security_groups.get(idx) {
+        if let Some(sg) = app.services.vpc.security_groups.get(idx) {
             build_security_group_detail_lines(sg)
         } else {
             vec![Line::from("No Security Group selected")]
@@ -363,10 +363,10 @@ fn render_security_group_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_sg_rule_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.vpc_list_state.selected();
+    let selected = app.services.vpc.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(rule) = app.current_sg_rules.get(idx) {
+        if let Some(rule) = app.services.vpc.current_sg_rules.get(idx) {
             build_sg_rule_detail_lines(rule)
         } else {
             vec![Line::from("No Rule selected")]
@@ -394,8 +394,8 @@ fn build_vpc_detail_lines<'a>(vpc: &Vpc, app: &App) -> Vec<Line<'a>> {
     let dhcp = vpc.dhcp_options_id.clone().unwrap_or_else(|| "-".to_string());
 
     // Count related resources
-    let subnet_count = app.subnets.iter().filter(|s| s.vpc_id.as_deref() == Some(&vpc.vpc_id)).count();
-    let sg_count = app.security_groups.iter().filter(|sg| sg.vpc_id.as_deref() == Some(&vpc.vpc_id)).count();
+    let subnet_count = app.services.vpc.subnets.iter().filter(|s| s.vpc_id.as_deref() == Some(&vpc.vpc_id)).count();
+    let sg_count = app.services.vpc.security_groups.iter().filter(|sg| sg.vpc_id.as_deref() == Some(&vpc.vpc_id)).count();
 
     vec![
         Line::from(vec![

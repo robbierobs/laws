@@ -44,22 +44,50 @@ impl S3Service {
             Err(e) => {
                 // Extract more details from the error
                 let msg = if let Some(svc_err) = e.as_service_error() {
-                    let code = svc_err.meta().code().unwrap_or("Unknown");
-                    let message = svc_err.meta().message().unwrap_or("No message");
+                    let code = svc_err.meta().code().unwrap_or("");
+                    let message = svc_err.meta().message().unwrap_or("");
                     
                     // Check for redirect error (bucket in different region)
                     if code == "PermanentRedirect" || code == "301" {
                         format!("Bucket '{}' is in a different region. Try running with --region <bucket-region>", bucket_name)
-                    } else {
+                    } else if !code.is_empty() && !message.is_empty() {
+                        // Both code and message available
                         format!("S3 error for '{}': {} - {}", bucket_name, code, message)
+                    } else if !code.is_empty() {
+                        // Only code available
+                        format!("S3 error for '{}': {}", bucket_name, code)
+                    } else if !message.is_empty() {
+                        // Only message available
+                        format!("S3 error for '{}': {}", bucket_name, message)
+                    } else {
+                        // Neither code nor message - use full debug output
+                        format!("S3 error for '{}': {:?}", bucket_name, svc_err)
                     }
                 } else {
-                    // Check if it's a redirect by looking at the error string
+                    // Not a service error - check for common patterns
                     let err_str = format!("{:?}", e);
                     if err_str.contains("PermanentRedirect") || err_str.contains("301") {
                         format!("Bucket '{}' is in a different region. Try running with --region <bucket-region>", bucket_name)
+                    } else if err_str.contains("NoSuchBucket") {
+                        format!("Bucket '{}' does not exist", bucket_name)
+                    } else if err_str.contains("AccessDenied") {
+                        format!("Access denied to bucket '{}'. Check your IAM permissions.", bucket_name)
+                    } else if err_str.contains("InvalidAccessKeyId") || err_str.contains("SignatureDoesNotMatch") {
+                        format!("Invalid AWS credentials when accessing bucket '{}'", bucket_name)
+                    } else if err_str.contains("XmlDecodeError") || err_str.contains("invalid XML") {
+                        // LocalStack compatibility issue
+                        format!("Bucket '{}' returned invalid XML response. This may be a LocalStack limitation - try upgrading LocalStack or checking if the bucket exists.", bucket_name)
+                    } else if err_str.contains("Unhandled") {
+                        // Generic unhandled error - likely LocalStack
+                        format!("Bucket '{}' returned an unhandled error. This may be a LocalStack limitation.", bucket_name)
                     } else {
-                        format!("S3 error for '{}': {}", bucket_name, e)
+                        // Use Display for cleaner output, but include Debug if empty
+                        let display_msg = format!("{}", e);
+                        if display_msg.is_empty() || display_msg == "service error" {
+                            format!("S3 error for '{}': {:?}", bucket_name, e)
+                        } else {
+                            format!("S3 error for '{}': {}", bucket_name, display_msg)
+                        }
                     }
                 };
                 Err(anyhow::anyhow!(msg))

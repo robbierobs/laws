@@ -49,6 +49,7 @@ pub enum AwsEvent {
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,
     _tx: mpsc::UnboundedSender<Event>,
+    _task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl EventHandler {
@@ -57,20 +58,24 @@ impl EventHandler {
         let event_tx = tx.clone();
 
         // Spawn input handling task
-        tokio::spawn(async move {
+        let task_handle = tokio::spawn(async move {
             let tick_rate = Duration::from_millis(tick_rate);
             loop {
                 let event_available = event::poll(tick_rate).unwrap_or(false);
                 if event_available {
                     if let Ok(CrosstermEvent::Key(key)) = event::read() {
-                        event_tx.send(Event::Key(key)).unwrap_or(());
+                        if event_tx.send(Event::Key(key)).is_err() {
+                            break; // Channel closed, exit task
+                        }
                     }
                 }
-                event_tx.send(Event::Tick).ok();
+                if event_tx.send(Event::Tick).is_err() {
+                    break; // Channel closed, exit task
+                }
             }
         });
 
-        Self { rx, _tx: tx }
+        Self { rx, _tx: tx, _task_handle: task_handle }
     }
 
     pub async fn next(&mut self) -> Option<Event> {
@@ -79,5 +84,11 @@ impl EventHandler {
 
     pub fn sender(&self) -> mpsc::UnboundedSender<Event> {
         self._tx.clone()
+    }
+}
+
+impl Drop for EventHandler {
+    fn drop(&mut self) {
+        self._task_handle.abort();
     }
 }

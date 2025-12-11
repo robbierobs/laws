@@ -31,7 +31,7 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.ec2_instances.iter()
+    let rows = app.services.ec2.instances.iter()
         .filter(|i| {
             if filter.is_empty() { return true; }
             let name = i.name.as_deref().unwrap_or("").to_lowercase();
@@ -85,18 +85,12 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
     // Use app state for selection
-    frame.render_stateful_widget(t, area, &mut app.ec2_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.ec2.list_state);
 }
 
 fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.ec2_list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(instance) = app.ec2_instances.get(idx) {
-            build_instance_detail_lines(instance)
-        } else {
-            vec![Line::from("No instance selected")]
-        }
+    let content: Vec<Line> = if let Some(instance) = app.services.ec2.selected_instance() {
+        build_instance_detail_lines(instance)
     } else {
         vec![Line::from("Select an instance to view details (use j/k to navigate)")]
     };

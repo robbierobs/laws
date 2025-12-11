@@ -102,36 +102,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         (body_chunks[1], None)
     };
 
-    // Render the current service screen
-    match app.current_service {
-        crate::app::Service::EC2 => {
-            crate::ui::screens::ec2::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::S3 => {
-            crate::ui::screens::s3::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::RDS => {
-            crate::ui::screens::rds::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::DynamoDB => {
-            crate::ui::screens::dynamodb::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::Lambda => {
-            crate::ui::screens::lambda::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::VPC => {
-            crate::ui::screens::vpc::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::IAM => {
-            crate::ui::screens::iam::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::Backup => {
-            crate::ui::screens::backup::render(frame, list_area, detail_area, app);
-        }
-        crate::app::Service::CloudTrail => {
-            crate::ui::screens::cloudtrail::render(frame, list_area, detail_area, app);
-        }
-    }
+    // Render the current service screen using polymorphic dispatch
+    let screen = crate::ui::screens::get_screen(app.current_service);
+    screen.render(frame, list_area, detail_area, app);
 
     // Footer / Action Bar with last action hint
     if app.input_mode == crate::app::InputMode::Filtering {

@@ -29,7 +29,7 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.lambda_functions.iter()
+    let rows = app.services.lambda.functions.iter()
         .filter(|f| {
             if filter.is_empty() { return true; }
             let name = f.function_name.to_lowercase();
@@ -80,18 +80,12 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.lambda_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.lambda.list_state);
 }
 
 fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.lambda_list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(func) = app.lambda_functions.get(idx) {
-            build_function_detail_lines(func)
-        } else {
-            vec![Line::from("No function selected")]
-        }
+    let content: Vec<Line> = if let Some(func) = app.services.lambda.selected_function() {
+        build_function_detail_lines(func)
     } else {
         vec![Line::from("Select a Lambda function to view details (use j/k to navigate)")]
     };

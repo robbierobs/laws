@@ -7,3 +7,4 @@ pub mod vpc;
 pub mod iam;
 pub mod backup;
 pub mod cloudtrail;
+pub mod ids;

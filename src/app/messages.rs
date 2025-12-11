@@ -1,4 +1,10 @@
 //! Message and enum definitions for the application state machine
+//!
+//! This module uses a hierarchical message structure:
+//! - `Message::Global` for app-wide operations (navigation, quit, UI toggles)
+//! - `Message::Service` for service-specific actions
+
+use std::collections::HashMap;
 
 /// AWS Service types supported by the application
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +52,10 @@ impl Service {
     }
 }
 
+// ============================================================================
+// View Mode Enums
+// ============================================================================
+
 /// View mode for VPC service
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub enum VpcViewMode {
@@ -57,27 +67,24 @@ pub enum VpcViewMode {
 }
 
 impl VpcViewMode {
-    /// Get the next view mode (wraps to first after last)
     pub fn next(self) -> Self {
         match self {
             Self::Vpcs => Self::Subnets,
             Self::Subnets => Self::SecurityGroups,
-            Self::SecurityGroups => Self::Vpcs, // Wrap around, skip rules
-            Self::SecurityGroupRules => Self::SecurityGroupRules, // Stay in rules view
+            Self::SecurityGroups => Self::Vpcs,
+            Self::SecurityGroupRules => Self::SecurityGroupRules,
         }
     }
 
-    /// Get the previous view mode (wraps to last before first)
     pub fn previous(self) -> Self {
         match self {
             Self::Vpcs => Self::SecurityGroups,
             Self::Subnets => Self::Vpcs,
             Self::SecurityGroups => Self::Subnets,
-            Self::SecurityGroupRules => Self::SecurityGroupRules, // Stay in rules view
+            Self::SecurityGroupRules => Self::SecurityGroupRules,
         }
     }
 
-    /// Convert to index for tab display
     pub fn to_index(self) -> usize {
         self as usize
     }
@@ -96,32 +103,28 @@ pub enum IamViewMode {
 }
 
 impl IamViewMode {
-    /// Get the next view mode (wraps to first after last, for main tabs only)
     pub fn next(self) -> Self {
         match self {
             Self::Users => Self::Roles,
             Self::Roles => Self::Policies,
-            Self::Policies => Self::Users, // Wrap around
-            _ => self, // Drill-down views don't cycle
+            Self::Policies => Self::Users,
+            _ => self,
         }
     }
 
-    /// Get the previous view mode (wraps to last before first, for main tabs only)
     pub fn previous(self) -> Self {
         match self {
             Self::Users => Self::Policies,
             Self::Roles => Self::Users,
             Self::Policies => Self::Roles,
-            _ => self, // Drill-down views don't cycle
+            _ => self,
         }
     }
 
-    /// Convert to index for tab display
     pub fn to_index(self) -> usize {
         self as usize
     }
 
-    /// Check if this is a main tab view (not a drill-down)
     pub fn is_main_tab(self) -> bool {
         matches!(self, Self::Users | Self::Roles | Self::Policies)
     }
@@ -137,7 +140,6 @@ pub enum BackupViewMode {
 }
 
 impl BackupViewMode {
-    /// Get the next view mode (wraps to first after last)
     pub fn next(self) -> Self {
         match self {
             Self::Vaults => Self::Plans,
@@ -146,7 +148,6 @@ impl BackupViewMode {
         }
     }
 
-    /// Get the previous view mode (wraps to last before first)
     pub fn previous(self) -> Self {
         match self {
             Self::Vaults => Self::Jobs,
@@ -155,7 +156,6 @@ impl BackupViewMode {
         }
     }
 
-    /// Convert to index for tab display
     pub fn to_index(self) -> usize {
         self as usize
     }
@@ -170,7 +170,6 @@ pub enum CloudTrailViewMode {
 }
 
 impl CloudTrailViewMode {
-    /// Get the next view mode (wraps to first after last)
     pub fn next(self) -> Self {
         match self {
             Self::Trails => Self::Events,
@@ -178,12 +177,10 @@ impl CloudTrailViewMode {
         }
     }
 
-    /// Get the previous view mode (wraps to last before first)
     pub fn previous(self) -> Self {
-        self.next() // Same as next for 2 items
+        self.next()
     }
 
-    /// Convert to index for tab display
     pub fn to_index(self) -> usize {
         self as usize
     }
@@ -198,67 +195,286 @@ pub enum DynamoDbViewMode {
 }
 
 impl DynamoDbViewMode {
-    /// Convert to index for tab display
     pub fn to_index(self) -> usize {
         self as usize
     }
 }
 
-/// Application messages for the update loop (Elm Architecture style)
-pub enum Message {
-    // Navigation
-    NavigateToService(Service),
+// ============================================================================
+// Per-Service Action Enums
+// ============================================================================
 
-    // Actions
-    RefreshData,
-    ConfirmAction,
-    CancelAction,
-    StartInstance(String),
-    StopInstance(String),
-    RebootInstance(String),
-    LoadS3Objects(String),
-    LoadBucketDetails(String),
-    DeleteS3Object(String, String), // bucket, key
-    LeaveS3Bucket,
-    // RDS actions
-    StartRdsInstance(String),
-    StopRdsInstance(String),
-    RebootRdsInstance(String),
-
-    // UI
-    ToggleDetailPanel,
-    CycleViewMode,
-    NextView,
-    PreviousView,
-    ToggleActionLog,
-    Quit,
-
-    // VPC Specific
-    DrillDownSecurityGroup,
-    ExitSecurityGroupRules,
-    ToggleSgRulesDirection, // Switch between inbound and outbound
-
-    // IAM Specific
-    DrillDownIamUser,
-    DrillDownIamRole,
-    DrillDownIamPolicy,
-    ExitIamDrillDown,
-
-    // DynamoDB Specific
-    DrillDownDynamoDbTable,
-    ExitDynamoDbDrillDown,
-    LoadDynamoDbItems(String), // table_name
-    DeleteDynamoDbItem(String, std::collections::HashMap<String, String>), // table_name, key attributes
+/// EC2-specific actions
+#[derive(Debug, Clone)]
+pub enum Ec2Action {
+    Start(String),
+    Stop(String),
+    Reboot(String),
 }
 
+/// S3-specific actions
+#[derive(Debug, Clone)]
+pub enum S3Action {
+    LoadObjects(String),
+    LoadBucketDetails(String),
+    DeleteObject { bucket: String, key: String },
+    LeaveBucket,
+}
+
+/// RDS-specific actions
+#[derive(Debug, Clone)]
+pub enum RdsAction {
+    Start(String),
+    Stop(String),
+    Reboot(String),
+}
+
+/// DynamoDB-specific actions
+#[derive(Debug, Clone)]
+pub enum DynamoDbAction {
+    DrillDownTable,
+    ExitDrillDown,
+    LoadItems(String),
+    DeleteItem { table_name: String, key_attrs: HashMap<String, String> },
+}
+
+/// Lambda-specific actions (placeholder for future)
+#[derive(Debug, Clone)]
+pub enum LambdaAction {
+    // No actions currently supported
+}
+
+/// VPC-specific actions
+#[derive(Debug, Clone)]
+pub enum VpcAction {
+    DrillDownSecurityGroup,
+    ExitSecurityGroupRules,
+    ToggleSgRulesDirection,
+}
+
+/// IAM-specific actions
+#[derive(Debug, Clone)]
+pub enum IamAction {
+    DrillDownUser,
+    DrillDownRole,
+    DrillDownPolicy,
+    ExitDrillDown,
+}
+
+/// Backup-specific actions (placeholder for future)
+#[derive(Debug, Clone)]
+pub enum BackupAction {
+    // No actions currently supported
+}
+
+/// CloudTrail-specific actions (placeholder for future)
+#[derive(Debug, Clone)]
+pub enum CloudTrailAction {
+    // No actions currently supported
+}
+
+// ============================================================================
+// Message Hierarchy
+// ============================================================================
+
+/// Global application messages (not service-specific)
+#[derive(Debug, Clone)]
+pub enum GlobalMessage {
+    /// Navigate to a specific service
+    Navigate(Service),
+    /// Quit the application
+    Quit,
+    /// Refresh data for current service
+    RefreshData,
+    /// Toggle detail panel visibility
+    ToggleDetailPanel,
+    /// Toggle action log visibility
+    ToggleActionLog,
+    /// Cycle through view modes (for services with tabs)
+    CycleViewMode,
+    /// Move to next view
+    NextView,
+    /// Move to previous view
+    PreviousView,
+    /// Confirm pending action
+    ConfirmAction,
+    /// Cancel pending action
+    CancelAction,
+}
+
+/// Service-specific messages
+#[derive(Debug, Clone)]
+pub enum ServiceAction {
+    Ec2(Ec2Action),
+    S3(S3Action),
+    Rds(RdsAction),
+    DynamoDb(DynamoDbAction),
+    Lambda(LambdaAction),
+    Vpc(VpcAction),
+    Iam(IamAction),
+    Backup(BackupAction),
+    CloudTrail(CloudTrailAction),
+}
+
+/// Main application message type (Elm Architecture style)
+#[derive(Debug, Clone)]
+pub enum Message {
+    /// Global app-wide messages
+    Global(GlobalMessage),
+    /// Service-specific actions
+    Service(ServiceAction),
+}
+
+// ============================================================================
+// Helper implementations for convenience construction
+// ============================================================================
+
+impl Message {
+    // Global message constructors
+    pub fn navigate(service: Service) -> Self {
+        Message::Global(GlobalMessage::Navigate(service))
+    }
+    
+    pub fn quit() -> Self {
+        Message::Global(GlobalMessage::Quit)
+    }
+    
+    pub fn refresh() -> Self {
+        Message::Global(GlobalMessage::RefreshData)
+    }
+    
+    pub fn toggle_detail_panel() -> Self {
+        Message::Global(GlobalMessage::ToggleDetailPanel)
+    }
+    
+    pub fn toggle_action_log() -> Self {
+        Message::Global(GlobalMessage::ToggleActionLog)
+    }
+    
+    pub fn cycle_view_mode() -> Self {
+        Message::Global(GlobalMessage::CycleViewMode)
+    }
+    
+    pub fn next_view() -> Self {
+        Message::Global(GlobalMessage::NextView)
+    }
+    
+    pub fn previous_view() -> Self {
+        Message::Global(GlobalMessage::PreviousView)
+    }
+    
+    pub fn confirm_action() -> Self {
+        Message::Global(GlobalMessage::ConfirmAction)
+    }
+    
+    pub fn cancel_action() -> Self {
+        Message::Global(GlobalMessage::CancelAction)
+    }
+    
+    // EC2 message constructors
+    pub fn ec2_start(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Ec2(Ec2Action::Start(instance_id)))
+    }
+    
+    pub fn ec2_stop(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Ec2(Ec2Action::Stop(instance_id)))
+    }
+    
+    pub fn ec2_reboot(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(instance_id)))
+    }
+    
+    // S3 message constructors
+    pub fn s3_load_objects(bucket: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::LoadObjects(bucket)))
+    }
+    
+    pub fn s3_load_bucket_details(bucket: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::LoadBucketDetails(bucket)))
+    }
+    
+    pub fn s3_delete_object(bucket: String, key: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key }))
+    }
+    
+    pub fn s3_leave_bucket() -> Self {
+        Message::Service(ServiceAction::S3(S3Action::LeaveBucket))
+    }
+    
+    // RDS message constructors
+    pub fn rds_start(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Rds(RdsAction::Start(instance_id)))
+    }
+    
+    pub fn rds_stop(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Rds(RdsAction::Stop(instance_id)))
+    }
+    
+    pub fn rds_reboot(instance_id: String) -> Self {
+        Message::Service(ServiceAction::Rds(RdsAction::Reboot(instance_id)))
+    }
+    
+    // DynamoDB message constructors
+    pub fn dynamodb_drill_down() -> Self {
+        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DrillDownTable))
+    }
+    
+    pub fn dynamodb_exit_drill_down() -> Self {
+        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::ExitDrillDown))
+    }
+    
+    pub fn dynamodb_load_items(table_name: String) -> Self {
+        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::LoadItems(table_name)))
+    }
+    
+    pub fn dynamodb_delete_item(table_name: String, key_attrs: HashMap<String, String>) -> Self {
+        Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, key_attrs }))
+    }
+    
+    // VPC message constructors
+    pub fn vpc_drill_down_sg() -> Self {
+        Message::Service(ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup))
+    }
+    
+    pub fn vpc_exit_sg_rules() -> Self {
+        Message::Service(ServiceAction::Vpc(VpcAction::ExitSecurityGroupRules))
+    }
+    
+    pub fn vpc_toggle_sg_rules_direction() -> Self {
+        Message::Service(ServiceAction::Vpc(VpcAction::ToggleSgRulesDirection))
+    }
+    
+    // IAM message constructors
+    pub fn iam_drill_down_user() -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::DrillDownUser))
+    }
+    
+    pub fn iam_drill_down_role() -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::DrillDownRole))
+    }
+    
+    pub fn iam_drill_down_policy() -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::DrillDownPolicy))
+    }
+    
+    pub fn iam_exit_drill_down() -> Self {
+        Message::Service(ServiceAction::Iam(IamAction::ExitDrillDown))
+    }
+}
+
+// ============================================================================
+// UI State Enums
+// ============================================================================
+
 /// Which pane has focus
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
     Sidebar,
     Main,
 }
 
 /// Current input mode
-#[derive(PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
     Normal,
     Filtering,

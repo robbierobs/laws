@@ -22,9 +22,9 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         .split(list_area);
 
     let tabs = ["Vaults", "Plans", "Jobs"];
-    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.backup_view_mode.to_index());
+    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.backup.view_mode.to_index());
 
-    match app.backup_view_mode {
+    match app.services.backup.view_mode {
         BackupViewMode::Vaults => {
             render_vault_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
@@ -57,7 +57,7 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.backup_vaults.iter()
+    let rows = app.services.backup.vaults.iter()
         .filter(|v| {
             if filter.is_empty() { return true; }
             v.backup_vault_name.to_lowercase().contains(&filter)
@@ -100,14 +100,14 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.backup_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.backup.list_state);
 }
 
 fn render_vault_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.backup_list_state.selected();
+    let selected = app.services.backup.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(vault) = app.backup_vaults.get(idx) {
+        if let Some(vault) = app.services.backup.vaults.get(idx) {
             build_vault_detail_lines(vault)
         } else {
             vec![Line::from("No vault selected")]
@@ -185,7 +185,7 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.backup_plans.iter()
+    let rows = app.services.backup.plans.iter()
         .filter(|p| {
             if filter.is_empty() { return true; }
             let name = p.backup_plan_name.to_lowercase();
@@ -230,14 +230,14 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.backup_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.backup.list_state);
 }
 
 fn render_plan_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.backup_list_state.selected();
+    let selected = app.services.backup.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(plan) = app.backup_plans.get(idx) {
+        if let Some(plan) = app.services.backup.plans.get(idx) {
             build_plan_detail_lines(plan)
         } else {
             vec![Line::from("No plan selected")]
@@ -308,7 +308,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.backup_jobs.iter()
+    let rows = app.services.backup.jobs.iter()
         .filter(|j| {
             if filter.is_empty() { return true; }
             let id = j.backup_job_id.to_lowercase();
@@ -356,14 +356,14 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.backup_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.backup.list_state);
 }
 
 fn render_job_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.backup_list_state.selected();
+    let selected = app.services.backup.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(job) = app.backup_jobs.get(idx) {
+        if let Some(job) = app.services.backup.jobs.get(idx) {
             build_job_detail_lines(job)
         } else {
             vec![Line::from("No job selected")]

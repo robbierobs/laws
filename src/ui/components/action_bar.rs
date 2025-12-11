@@ -27,7 +27,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             ]);
         }
         Service::S3 => {
-            if app.current_bucket.is_some() {
+            if app.services.s3.current_bucket.is_some() {
                 actions.extend_from_slice(&[
                     ("j/k", "Navigate"),
                     ("Esc", "Back"),

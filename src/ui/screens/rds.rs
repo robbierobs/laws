@@ -29,7 +29,7 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
         .bottom_margin(1);
 
     let filter = app.filter_input.to_lowercase();
-    let rows = app.rds_instances.iter()
+    let rows = app.services.rds.instances.iter()
         .filter(|i| {
             if filter.is_empty() { return true; }
             let id = i.db_instance_identifier.to_lowercase();
@@ -79,18 +79,12 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     .block(block)
     .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
 
-    frame.render_stateful_widget(t, area, &mut app.rds_list_state);
+    frame.render_stateful_widget(t, area, &mut app.services.rds.list_state);
 }
 
 fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
-    let selected = app.rds_list_state.selected();
-    
-    let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(instance) = app.rds_instances.get(idx) {
-            build_instance_detail_lines(instance)
-        } else {
-            vec![Line::from("No instance selected")]
-        }
+    let content: Vec<Line> = if let Some(instance) = app.services.rds.selected_instance() {
+        build_instance_detail_lines(instance)
     } else {
         vec![Line::from("Select an RDS instance to view details (use j/k to navigate)")]
     };
