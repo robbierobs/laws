@@ -90,6 +90,7 @@ impl Default for ConfigFile {
     }
 }
 
+#[allow(dead_code)]
 impl ConfigFile {
     /// Get the config file path
     pub fn config_path() -> Option<PathBuf> {
@@ -248,6 +249,7 @@ impl Default for AppConfig {
     }
 }
 
+#[allow(dead_code)]
 impl AppConfig {
     /// Create a new AppConfig from config file with CLI overrides
     pub fn from_args(args: &Args) -> Self {

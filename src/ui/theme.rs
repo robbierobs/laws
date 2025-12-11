@@ -16,6 +16,7 @@ pub enum ThemePreset {
     Nord,
 }
 
+#[allow(dead_code)]
 impl ThemePreset {
     /// Get the theme corresponding to this preset
     pub const fn theme(&self) -> Theme {
@@ -48,6 +49,7 @@ pub struct Theme {
     pub selection_fg: Color,
 }
 
+#[allow(dead_code)]
 impl Theme {
     /// Default dark theme (Slate color palette)
     pub const fn dark() -> Self {
