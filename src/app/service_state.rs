@@ -17,6 +17,7 @@ use crate::models::iam::{IamPolicy, IamRole, IamUser};
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
+use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{SecurityGroup, SecurityGroupRule, Subnet, Vpc};
 
 use super::{BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, IamViewMode, VpcViewMode};
@@ -754,6 +755,78 @@ impl ServiceInputHandler for CloudTrailState {
     }
 }
 
+
+
+// ============================================================================
+// Secrets Manager State
+// ============================================================================
+
+/// State for Secrets Manager service
+#[derive(Default)]
+pub struct SecretsManagerState {
+    pub secrets: Vec<Secret>,
+    pub list_state: TableState,
+    pub secret_value: Option<String>,
+    pub show_secret_modal: bool,
+}
+
+impl SecretsManagerState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Get the currently selected secret, if any
+    pub fn selected_secret(&self) -> Option<&Secret> {
+        self.list_state
+            .selected()
+            .and_then(|i| self.secrets.get(i))
+    }
+}
+
+impl ServiceInputHandler for SecretsManagerState {
+    fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        if self.show_secret_modal {
+            if matches!(key.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q')) {
+                 return InputResult::Message(crate::app::Message::Service(
+                     crate::app::ServiceAction::SecretsManager(
+                         crate::app::messages::SecretsManagerAction::CloseSecretValue
+                     )
+                 ));
+            }
+            return InputResult::None;
+        }
+
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                 if !self.secrets.is_empty() {
+                     let i = self.list_state.selected().map_or(0, |i| if i >= self.secrets.len() - 1 { 0 } else { i + 1 });
+                     self.list_state.select(Some(i));
+                 }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                 if !self.secrets.is_empty() {
+                     let i = self.list_state.selected().map_or(0, |i| if i == 0 { self.secrets.len() - 1 } else { i - 1 });
+                     self.list_state.select(Some(i));
+                 }
+            }
+            KeyCode::Char('s') | KeyCode::Enter => {
+                if let Some(secret) = self.selected_secret() {
+                    if let Some(arn) = &secret.arn {
+                        return InputResult::Message(crate::app::Message::Service(
+                             crate::app::ServiceAction::SecretsManager(
+                                 crate::app::messages::SecretsManagerAction::GetSecretValue(arn.clone())
+                             )
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        InputResult::None
+    }
+}
+
 // ============================================================================
 // Service States Container
 // ============================================================================
@@ -773,6 +846,7 @@ pub struct ServiceStates {
     pub iam: IamState,
     pub backup: BackupState,
     pub cloudtrail: CloudTrailState,
+    pub secretsmanager: SecretsManagerState,
 }
 
 impl ServiceStates {
@@ -787,6 +861,7 @@ impl ServiceStates {
             iam: IamState::new(),
             backup: BackupState::new(),
             cloudtrail: CloudTrailState::new(),
+            secretsmanager: SecretsManagerState::new(),
         }
     }
 }

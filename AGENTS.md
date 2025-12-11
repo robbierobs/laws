@@ -10,7 +10,7 @@ This document defines the personas, workflows, and standards for AI agents worki
 
 ### 1.1 Project Statistics
 - **~11,000 lines** of Rust code
-- **9 AWS services** supported
+- **10 AWS services** supported
 - **65 source files** across 5 major modules
 - **30+ unit tests**
 

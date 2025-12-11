@@ -19,6 +19,7 @@ pub enum Service {
     IAM,
     Backup,
     CloudTrail,
+    SecretsManager,
 }
 
 impl Service {
@@ -33,6 +34,7 @@ impl Service {
             Service::IAM => "IAM",
             Service::Backup => "Backup",
             Service::CloudTrail => "CloudTrail",
+            Service::SecretsManager => "SecretsManager",
         }
     }
 
@@ -47,6 +49,7 @@ impl Service {
             Self::IAM,
             Self::Backup,
             Self::CloudTrail,
+            Self::SecretsManager,
         ]
         .iter()
         .copied()
@@ -384,6 +387,13 @@ pub enum CloudTrailAction {
     // No actions currently supported
 }
 
+/// SecretsManager-specific actions (placeholder for future)
+#[derive(Debug, Clone)]
+pub enum SecretsManagerAction {
+    GetSecretValue(String),
+    CloseSecretValue,
+}
+
 // ============================================================================
 // Message Hierarchy
 // ============================================================================
@@ -438,6 +448,7 @@ pub enum ServiceAction {
     Iam(IamAction),
     Backup(BackupAction),
     CloudTrail(CloudTrailAction),
+    SecretsManager(SecretsManagerAction),
 }
 
 /// Main application message type (Elm Architecture style)

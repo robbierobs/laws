@@ -111,12 +111,14 @@ pub mod task_keys {
     pub const IAM_POLICIES: &str = "iam:policies";
     pub const BACKUP_REFRESH: &str = "backup:refresh";
     pub const CLOUDTRAIL_REFRESH: &str = "cloudtrail:refresh";
+    pub const SECRETSMANAGER_REFRESH: &str = "secretsmanager:refresh";
     
     // Action tasks
     pub const EC2_ACTION: &str = "ec2:action";
     pub const RDS_ACTION: &str = "rds:action";
     pub const S3_ACTION: &str = "s3:action";
     pub const DYNAMODB_ACTION: &str = "dynamodb:action";
+    pub const SECRETSMANAGER_ACTION: &str = "secretsmanager:action";
 }
 
 #[cfg(test)]

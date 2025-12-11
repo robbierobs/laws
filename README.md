@@ -19,6 +19,7 @@ A terminal user interface (TUI) for managing AWS resources, built with Rust and 
 | **IAM** | View users/roles/policies, view attached policies and policy documents |
 | **Backup** | View backup vaults, plans, and jobs |
 | **CloudTrail** | View trails and recent events |
+| **Secrets Manager** | List secrets with details (ARN, Description, Dates) |
 
 ### Highlights
 
