@@ -64,14 +64,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
+use crate::models::Filterable;
+
 fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.iam.users.iter()
         .filter(|u| {
             if filter.is_empty() { return true; }
-            let name = u.user_name.to_lowercase();
-            let id = u.user_id.to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            u.matches_filter(&filter)
         })
         .map(|user| {
             let path = user.path.clone().unwrap_or_else(|| "/".to_string());
@@ -180,9 +180,7 @@ fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.iam.roles.iter()
         .filter(|r| {
             if filter.is_empty() { return true; }
-            let name = r.role_name.to_lowercase();
-            let id = r.role_id.to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            r.matches_filter(&filter)
         })
         .map(|role| {
             let path = role.path.clone().unwrap_or_else(|| "/".to_string());
@@ -298,9 +296,7 @@ fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.iam.policies.iter()
         .filter(|p| {
             if filter.is_empty() { return true; }
-            let name = p.policy_name.to_lowercase();
-            let id = p.policy_id.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            p.matches_filter(&filter)
         })
         .map(|policy| {
             let created = policy.create_date.clone()

@@ -100,3 +100,11 @@ impl Ec2Instance {
         }
     }
 }
+
+impl crate::models::Filterable for Ec2Instance {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.instance_id.to_lowercase().contains(filter) ||
+        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.public_ip.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}

@@ -4,7 +4,7 @@
 
 use tokio::sync::mpsc;
 use crate::event::{Event, AwsEvent};
-use super::{App, Message, GlobalMessage, ServiceAction, Service, VpcViewMode, IamViewMode, DynamoDbViewMode};
+use super::{App, Message, GlobalMessage, ServiceAction, Service, VpcViewMode, IamViewMode, DynamoDbViewMode, ViewMode};
 use super::messages::{Ec2Action, S3Action, RdsAction, DynamoDbAction, VpcAction, IamAction};
 use super::task_manager::task_keys;
 
@@ -622,19 +622,19 @@ impl App {
     fn handle_cycle_view_mode(&mut self, forward: bool) {
         match self.current_service {
             Service::Backup => {
-                self.services.backup.view_mode = if forward { self.services.backup.view_mode.next() } else { self.services.backup.view_mode.previous() };
+                self.services.backup.view_mode = if forward { self.services.backup.view_mode.next() } else { self.services.backup.view_mode.prev() };
                 self.services.backup.list_state.select(None);
             }
             Service::CloudTrail => {
-                self.services.cloudtrail.view_mode = if forward { self.services.cloudtrail.view_mode.next() } else { self.services.cloudtrail.view_mode.previous() };
+                self.services.cloudtrail.view_mode = if forward { self.services.cloudtrail.view_mode.next() } else { self.services.cloudtrail.view_mode.prev() };
                 self.services.cloudtrail.list_state.select(None);
             }
             Service::VPC => {
-                self.services.vpc.view_mode = if forward { self.services.vpc.view_mode.next() } else { self.services.vpc.view_mode.previous() };
+                self.services.vpc.view_mode = if forward { self.services.vpc.view_mode.next() } else { self.services.vpc.view_mode.prev() };
                 self.services.vpc.list_state.select(None);
             }
             Service::IAM => {
-                self.services.iam.view_mode = if forward { self.services.iam.view_mode.next() } else { self.services.iam.view_mode.previous() };
+                self.services.iam.view_mode = if forward { self.services.iam.view_mode.next() } else { self.services.iam.view_mode.prev() };
                 self.services.iam.list_state.select(None);
             }
             _ => {}

@@ -8,3 +8,7 @@ pub mod iam;
 pub mod backup;
 pub mod cloudtrail;
 pub mod ids;
+
+pub trait Filterable {
+    fn matches_filter(&self, filter: &str) -> bool;
+}

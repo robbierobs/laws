@@ -57,15 +57,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
+use crate::models::Filterable;
+
 fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.vpc.vpcs.iter()
         .filter(|v| {
             if filter.is_empty() { return true; }
-            let id = v.vpc_id.to_lowercase();
-            let name = v.name.as_deref().unwrap_or("").to_lowercase();
-            let cidr = v.cidr_block.as_deref().unwrap_or("").to_lowercase();
-            id.contains(&filter) || name.contains(&filter) || cidr.contains(&filter)
+            v.matches_filter(&filter)
         })
         .map(|vpc| {
             let state_color = vpc.state_color();
@@ -109,10 +108,7 @@ fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.vpc.subnets.iter()
         .filter(|s| {
             if filter.is_empty() { return true; }
-            let id = s.subnet_id.to_lowercase();
-            let name = s.name.as_deref().unwrap_or("").to_lowercase();
-            let vpc_id = s.vpc_id.as_deref().unwrap_or("").to_lowercase();
-            id.contains(&filter) || name.contains(&filter) || vpc_id.contains(&filter)
+            s.matches_filter(&filter)
         })
         .map(|subnet| {
             let name = subnet.name.clone().unwrap_or_else(|| "-".to_string());
@@ -157,10 +153,7 @@ fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.vpc.security_groups.iter()
         .filter(|sg| {
             if filter.is_empty() { return true; }
-            let id = sg.group_id.to_lowercase();
-            let name = sg.group_name.to_lowercase();
-            let vpc_id = sg.vpc_id.as_deref().unwrap_or("").to_lowercase();
-            id.contains(&filter) || name.contains(&filter) || vpc_id.contains(&filter)
+            sg.matches_filter(&filter)
         })
         .map(|sg| {
             let vpc_id = sg.vpc_id.clone().unwrap_or_else(|| "-".to_string());

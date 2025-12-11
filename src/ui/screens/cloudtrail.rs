@@ -42,14 +42,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
+use crate::models::Filterable;
+
 fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.cloudtrail.trails.iter()
         .filter(|t| {
             if filter.is_empty() { return true; }
-            let name = t.name.to_lowercase();
-            let bucket = t.s3_bucket_name.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || bucket.contains(&filter)
+            t.matches_filter(&filter)
         })
         .map(|trail| {
             let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
@@ -207,10 +207,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.cloudtrail.events.iter()
         .filter(|e| {
             if filter.is_empty() { return true; }
-            let name = e.event_name.as_deref().unwrap_or("").to_lowercase();
-            let source = e.event_source.as_deref().unwrap_or("").to_lowercase();
-            let user = e.username.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || source.contains(&filter) || user.contains(&filter)
+            e.matches_filter(&filter)
         })
         .map(|event| {
             let time = event.event_time.clone()

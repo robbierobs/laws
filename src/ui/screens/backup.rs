@@ -44,12 +44,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
+use crate::models::Filterable;
+
 fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.backup.vaults.iter()
         .filter(|v| {
             if filter.is_empty() { return true; }
-            v.backup_vault_name.to_lowercase().contains(&filter)
+            v.matches_filter(&filter)
         })
         .map(|vault| {
             let created = vault.creation_date.clone()
@@ -159,9 +161,7 @@ fn render_plan_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.backup.plans.iter()
         .filter(|p| {
             if filter.is_empty() { return true; }
-            let name = p.backup_plan_name.to_lowercase();
-            let id = p.backup_plan_id.to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            p.matches_filter(&filter)
         })
         .map(|plan| {
             let last_exec = plan.last_execution_date.clone()
@@ -264,9 +264,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let rows = app.services.backup.jobs.iter()
         .filter(|j| {
             if filter.is_empty() { return true; }
-            let id = j.backup_job_id.to_lowercase();
-            let resource = j.resource_type.as_deref().unwrap_or("").to_lowercase();
-            id.contains(&filter) || resource.contains(&filter)
+            j.matches_filter(&filter)
         })
         .map(|job| {
             let state_color = job.state_color();

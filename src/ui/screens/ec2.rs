@@ -24,15 +24,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 
 use crate::ui::theme::THEME;
 
+use crate::models::Filterable;
+
 fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.ec2.instances.iter()
         .filter(|i| {
             if filter.is_empty() { return true; }
-            let name = i.name.as_deref().unwrap_or("").to_lowercase();
-            let id = i.instance_id.to_lowercase();
-            let ip = i.public_ip.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || id.contains(&filter) || ip.contains(&filter)
+            i.matches_filter(&filter)
         })
         .map(|instance| {
             let state_style = Style::default().fg(instance.state_color());

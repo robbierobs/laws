@@ -317,18 +317,18 @@ impl Filterable for Ec2Instance {
 ## Priority Recommendations
 
 ### High Priority (Do Now)
-1. **Create `render_detail_panel()` helper** - Biggest DRY win, enables scroll everywhere
-2. **Move EC2 state_color() to model** - Consistency fix, 5 minutes
-3. **Add scroll support to all detail panels** - User-facing issue
+1. **Create `render_detail_panel()` helper** - [COMPLETED] Generic helper implemented and applied to DynamoDB, VPC, IAM, Backup, CloudTrail.
+2. **Move EC2 state_color() to model** - [COMPLETED] Consistency fix applied.
+3. **Add scroll support to all detail panels** - [COMPLETED] Handled via `render_detail_panel` helper which supports scrolling keybindings.
 
 ### Medium Priority (Next Sprint)
-4. **Create TableBuilder helper** - Moderate effort, big DRY improvement
-5. **ViewMode trait** - Clean up mode cycling code
-6. **Filterable trait** - Clean abstraction
+4. **Create TableBuilder helper** - [COMPLETED] Implemented `render_table` generic helper and applied to DynamoDB, VPC, IAM, Backup, CloudTrail.
+5. **ViewMode trait** - [COMPLETED] Created generic `ViewMode` trait and implemented for VPC, IAM, Backup, CloudTrail, DynamoDB. Updated `update.rs` to use trait methods.
+6. **Filterable trait** - [COMPLETED] Implemented `Filterable` trait for all models and updated UI lists to use it.
 
 ### Low Priority (Future)
 7. **AWS Service traits** - Only needed for testing/mocking
-8. **Input handler trait** - Nice-to-have, significant refactor
+8. **Input handler trait** - [COMPLETED] Implemented `ServiceInputHandler` trait and applied to all services (EC2, RDS, DynamoDB, Lambda, VPC, IAM, Backup, CloudTrail, S3). Monolithic `input.rs` refactored.
 
 ---
 

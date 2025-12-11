@@ -22,14 +22,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 
 use crate::ui::theme::THEME;
 
+use crate::models::Filterable;
+
 fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.rds.instances.iter()
         .filter(|i| {
             if filter.is_empty() { return true; }
-            let id = i.db_instance_identifier.to_lowercase();
-            let engine = i.engine.to_lowercase();
-            id.contains(&filter) || engine.contains(&filter)
+            i.matches_filter(&filter)
         })
         .map(|instance| {
             let status_color = instance.state_color();

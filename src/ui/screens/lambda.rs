@@ -22,14 +22,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 
 use crate::ui::theme::THEME;
 
+use crate::models::Filterable;
+
 fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.lambda.functions.iter()
         .filter(|f| {
             if filter.is_empty() { return true; }
-            let name = f.function_name.to_lowercase();
-            let runtime = f.runtime.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || runtime.contains(&filter)
+            f.matches_filter(&filter)
         })
         .map(|func| {
             let state_color = func.state_color();

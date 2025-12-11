@@ -31,12 +31,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 
 use crate::ui::theme::THEME;
 
+use crate::models::Filterable;
+
 fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.s3.buckets.iter()
         .filter(|b| {
             if filter.is_empty() { return true; }
-            b.name.to_lowercase().contains(&filter)
+            b.matches_filter(&filter)
         })
         .map(|bucket| {
             let cells = vec![
@@ -166,7 +168,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
     let rows = app.services.s3.objects.iter()
         .filter(|o| {
             if filter.is_empty() { return true; }
-            o.key.to_lowercase().contains(&filter)
+            o.matches_filter(&filter)
         })
         .map(|obj| {
             let cells = vec![

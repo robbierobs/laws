@@ -16,6 +16,7 @@ mod service_state;
 mod update;
 mod input;
 mod events;
+mod view_mode;
 pub mod task_manager;
 pub mod filtered_list;
 
@@ -26,6 +27,7 @@ pub use messages::{
     VpcViewMode, IamViewMode, BackupViewMode, CloudTrailViewMode, DynamoDbViewMode,
 };
 pub use state::App;
+pub use view_mode::ViewMode;
 // Re-export from service_state (for external use - suppressed unused warning)
 #[allow(unused_imports)]
 pub use service_state::ServiceStates;

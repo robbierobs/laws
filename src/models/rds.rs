@@ -89,4 +89,12 @@ impl RdsInstance {
     }
 }
 
+impl crate::models::Filterable for RdsInstance {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.db_instance_identifier.to_lowercase().contains(filter) ||
+        self.engine.to_lowercase().contains(filter) ||
+        self.endpoint.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}
+
 

@@ -5,6 +5,7 @@
 //! - `Message::Service` for service-specific actions
 
 use std::collections::HashMap;
+use crate::app::ViewMode;
 
 /// AWS Service types supported by the application
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,27 +67,62 @@ pub enum VpcViewMode {
     SecurityGroupRules = 3,
 }
 
+impl ViewMode for VpcViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Vpcs, Self::Subnets, Self::SecurityGroups]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Vpcs,
+            1 => Self::Subnets,
+            2 => Self::SecurityGroups,
+            _ => Self::Vpcs,
+        }
+    }
+    
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Vpcs => "VPCs",
+            Self::Subnets => "Subnets",
+            Self::SecurityGroups => "Security Groups",
+            Self::SecurityGroupRules => "Rules",
+        }
+    }
+
+    // Override next/prev to prevent styling out of tabs if we are in drill-down
+    fn next(&self) -> Self {
+        if matches!(self, Self::SecurityGroupRules) {
+            *self
+        } else {
+            let i = self.index();
+            let all = Self::all();
+            let len = all.len();
+            let next_idx = (i + 1) % len;
+            Self::from_index(next_idx)
+        }
+    }
+
+    fn prev(&self) -> Self {
+        if matches!(self, Self::SecurityGroupRules) {
+            *self
+        } else {
+            let i = self.index();
+            let all = Self::all();
+            let len = all.len();
+            let prev_idx = if i == 0 { len - 1 } else { i - 1 };
+            Self::from_index(prev_idx)
+        }
+    }
+}
+
 impl VpcViewMode {
-    pub fn next(self) -> Self {
-        match self {
-            Self::Vpcs => Self::Subnets,
-            Self::Subnets => Self::SecurityGroups,
-            Self::SecurityGroups => Self::Vpcs,
-            Self::SecurityGroupRules => Self::SecurityGroupRules,
-        }
-    }
-
-    pub fn previous(self) -> Self {
-        match self {
-            Self::Vpcs => Self::SecurityGroups,
-            Self::Subnets => Self::Vpcs,
-            Self::SecurityGroups => Self::Subnets,
-            Self::SecurityGroupRules => Self::SecurityGroupRules,
-        }
-    }
-
     pub fn to_index(self) -> usize {
-        self as usize
+        self.index()
     }
 }
 
@@ -102,27 +138,61 @@ pub enum IamViewMode {
     PolicyDocument = 5,
 }
 
+impl ViewMode for IamViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Users, Self::Roles, Self::Policies]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Users,
+            1 => Self::Roles,
+            2 => Self::Policies,
+            _ => Self::Users,
+        }
+    }
+    
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Users => "Users",
+            Self::Roles => "Roles",
+            Self::Policies => "Policies",
+            _ => "Details",
+        }
+    }
+
+    fn next(&self) -> Self {
+        if !self.is_main_tab() {
+            *self
+        } else {
+            let i = self.index();
+            let all = Self::all();
+            let len = all.len();
+            let next_idx = (i + 1) % len;
+            Self::from_index(next_idx)
+        }
+    }
+
+    fn prev(&self) -> Self {
+        if !self.is_main_tab() {
+            *self
+        } else {
+            let i = self.index();
+            let all = Self::all();
+            let len = all.len();
+            let prev_idx = if i == 0 { len - 1 } else { i - 1 };
+            Self::from_index(prev_idx)
+        }
+    }
+}
+
 impl IamViewMode {
-    pub fn next(self) -> Self {
-        match self {
-            Self::Users => Self::Roles,
-            Self::Roles => Self::Policies,
-            Self::Policies => Self::Users,
-            _ => self,
-        }
-    }
-
-    pub fn previous(self) -> Self {
-        match self {
-            Self::Users => Self::Policies,
-            Self::Roles => Self::Users,
-            Self::Policies => Self::Roles,
-            _ => self,
-        }
-    }
-
     pub fn to_index(self) -> usize {
-        self as usize
+        self.index()
     }
 
     pub fn is_main_tab(self) -> bool {
@@ -139,25 +209,44 @@ pub enum BackupViewMode {
     Jobs = 2,
 }
 
+impl ViewMode for BackupViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Vaults, Self::Plans, Self::Jobs]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Vaults,
+            1 => Self::Plans,
+            2 => Self::Jobs,
+            _ => Self::Vaults,
+        }
+    }
+    
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Vaults => "Vaults",
+            Self::Plans => "Plans",
+            Self::Jobs => "Jobs",
+        }
+    }
+}
+
 impl BackupViewMode {
     pub fn next(self) -> Self {
-        match self {
-            Self::Vaults => Self::Plans,
-            Self::Plans => Self::Jobs,
-            Self::Jobs => Self::Vaults,
-        }
+        ViewMode::next(&self)
     }
 
     pub fn previous(self) -> Self {
-        match self {
-            Self::Vaults => Self::Jobs,
-            Self::Plans => Self::Vaults,
-            Self::Jobs => Self::Plans,
-        }
+        ViewMode::prev(&self)
     }
 
     pub fn to_index(self) -> usize {
-        self as usize
+        self.index()
     }
 }
 
@@ -169,20 +258,42 @@ pub enum CloudTrailViewMode {
     Events = 1,
 }
 
+impl ViewMode for CloudTrailViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Trails, Self::Events]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Trails,
+            1 => Self::Events,
+            _ => Self::Trails,
+        }
+    }
+    
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Trails => "Trails",
+            Self::Events => "Events",
+        }
+    }
+}
+
 impl CloudTrailViewMode {
     pub fn next(self) -> Self {
-        match self {
-            Self::Trails => Self::Events,
-            Self::Events => Self::Trails,
-        }
+        ViewMode::next(&self)
     }
 
     pub fn previous(self) -> Self {
-        self.next()
+        ViewMode::prev(&self)
     }
 
     pub fn to_index(self) -> usize {
-        self as usize
+        self.index()
     }
 }
 
@@ -194,10 +305,42 @@ pub enum DynamoDbViewMode {
     Items = 1,
 }
 
+impl ViewMode for DynamoDbViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Tables]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Tables,
+            _ => Self::Tables,
+        }
+    }
+    
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Tables => "Tables",
+            Self::Items => "Items",
+        }
+    }
+
+    fn next(&self) -> Self {
+        // Only one tab, so effectively no op unless we want to cycle same mode
+        *self
+    }
+    fn prev(&self) -> Self {
+        *self
+    }
+}
+
 impl DynamoDbViewMode {
     #[allow(dead_code)]
     pub fn to_index(self) -> usize {
-        self as usize
+        self.index()
     }
 }
 

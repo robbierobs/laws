@@ -30,12 +30,14 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
+use crate::models::Filterable;
+
 fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.dynamodb.tables.iter()
         .filter(|t| {
             if filter.is_empty() { return true; }
-            t.table_name.to_lowercase().contains(&filter)
+            t.matches_filter(&filter)
         })
         .map(|table| {
             let status_color = table.state_color();
@@ -266,7 +268,12 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
     }
     
     // Build rows
+    let filter = app.filter_input.to_lowercase();
     let rows: Vec<Row> = app.services.dynamodb.items.iter()
+        .filter(|item| {
+            if filter.is_empty() { return true; }
+            item.matches_filter(&filter)
+        })
         .map(|item| {
             let cells: Vec<Cell> = column_names.iter()
                 .map(|col| {

@@ -103,3 +103,11 @@ impl LambdaFunction {
         }
     }
 }
+
+impl crate::models::Filterable for LambdaFunction {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.function_name.to_lowercase().contains(filter) ||
+        self.runtime.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.handler.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}
