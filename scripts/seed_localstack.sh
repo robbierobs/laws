@@ -1,5 +1,12 @@
 #!/bin/bash
-set -e
+# set -e # Disabled to allow non-blocking execution
+
+ENDPOINT_URL="${AWS_ENDPOINT_URL:-https://localhost.localstack.cloud:4566}"
+
+# Define awslocal wrapper to enforce endpoint and disable pager for non-interactive mode
+function awslocal() {
+    aws --endpoint-url "$ENDPOINT_URL" --no-cli-pager "$@"
+}
 
 REGION="us-east-1"
 KEY_PAIR_NAME="MyKeyPair"
@@ -422,6 +429,32 @@ else
         --name "$TRAIL_NAME_2" \
         --s3-bucket-name "$TRAIL_BUCKET"
     # Don't start logging - leave it inactive for testing
+fi
+
+# --- Secrets Manager Seeding ---
+SECRET_NAME="MyFirstSecret"
+echo "Checking Secrets Manager Secret..."
+if awslocal secretsmanager list-secrets | grep -q "$SECRET_NAME"; then
+    echo "Secret $SECRET_NAME already exists."
+else
+    echo "Creating secret $SECRET_NAME..."
+    awslocal secretsmanager create-secret \
+        --name "$SECRET_NAME" \
+        --description "This is a seeded secret" \
+        --secret-string '{"username":"admin","password":"password123"}' \
+        --tags Key=Environment,Value=Dev
+fi
+
+SECRET_NAME_2="ApiKey"
+if awslocal secretsmanager list-secrets | grep -q "$SECRET_NAME_2"; then
+    echo "Secret $SECRET_NAME_2 already exists."
+else
+    echo "Creating secret $SECRET_NAME_2..."
+    awslocal secretsmanager create-secret \
+        --name "$SECRET_NAME_2" \
+        --description "API Key for external service" \
+        --secret-string "ak_1234567890" \
+        --tags Key=Environment,Value=Prod
 fi
 
 echo "Seeding complete!"
