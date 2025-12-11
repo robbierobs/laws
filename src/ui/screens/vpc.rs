@@ -2,11 +2,12 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Row, Table},
     Frame,
 };
 use crate::app::{App, VpcViewMode};
 use crate::models::vpc::{Vpc, Subnet, SecurityGroup, SecurityGroupRule};
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
 
 use crate::ui::theme::THEME;
 
@@ -309,14 +310,14 @@ fn render_vpc_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a VPC to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("VPC Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("VPC Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn render_subnet_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -332,14 +333,14 @@ fn render_subnet_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a Subnet to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Subnet Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Subnet Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn render_security_group_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -355,14 +356,14 @@ fn render_security_group_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a Security Group to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Security Group Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Security Group Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn render_sg_rule_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -378,14 +379,14 @@ fn render_sg_rule_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a Rule to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Rule Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Rule Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_vpc_detail_lines<'a>(vpc: &Vpc, app: &App) -> Vec<Line<'a>> {

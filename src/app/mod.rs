@@ -35,3 +35,18 @@ pub use task_manager::TaskManager;
 // Re-export FilteredList (for external use)
 #[allow(unused_imports)]
 pub use filtered_list::FilteredList;
+
+use crossterm::event::KeyEvent;
+
+/// Result from service input handlers
+#[derive(Debug)]
+pub enum InputResult {
+    None,
+    Message(Message),
+    Action(Message), // Action that needs confirmation
+}
+
+/// Trait for service state that handles its own input
+pub trait ServiceInputHandler {
+    fn handle_input(&mut self, key: KeyEvent) -> InputResult;
+}

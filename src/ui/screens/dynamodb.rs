@@ -2,11 +2,12 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Row, Table},
     Frame,
 };
 use crate::app::{App, DynamoDbViewMode};
 use crate::models::dynamodb::DynamoDbTable;
+use crate::ui::components::detail_panel::{render_detail_panel, render_detail_panel_with_selection, DetailPanelConfig};
 
 use crate::ui::theme::THEME;
 
@@ -93,20 +94,16 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
-    let content: Vec<Line> = if let Some(table) = app.services.dynamodb.selected_table() {
-        build_table_detail_lines(table)
-    } else {
-        vec![Line::from("Select a DynamoDB table to view details (use j/k to navigate)")]
-    };
-
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Table Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel_with_selection(
+        frame,
+        area,
+        app.services.dynamodb.selected_table(),
+        build_table_detail_lines,
+        "Table Details",
+        "Select a DynamoDB table to view details (use j/k to navigate)",
+        app.detail_panel_fullscreen,
+        app.detail_scroll_offset,
+    );
 }
 
 fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
@@ -400,12 +397,12 @@ fn render_item_details(frame: &mut Frame, area: Rect, app: &App, _column_names: 
         }
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Item Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Item Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }

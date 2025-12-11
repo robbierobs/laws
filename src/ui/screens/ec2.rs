@@ -2,11 +2,13 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Cell, Row},
     Frame,
 };
 use crate::app::App;
-use crate::models::ec2::{Ec2Instance, InstanceState};
+use crate::models::ec2::Ec2Instance;
+use crate::ui::components::detail_panel::render_detail_panel_with_selection;
+use crate::ui::components::table::render_table;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     // Render the instance list (if not in fullscreen detail mode)
@@ -23,15 +25,6 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 use crate::ui::theme::THEME;
 
 fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["ID", "Name", "State", "Type", "Public IP", "Launch Time"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.ec2.instances.iter()
         .filter(|i| {
@@ -42,107 +35,54 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
             name.contains(&filter) || id.contains(&filter) || ip.contains(&filter)
         })
         .map(|instance| {
-        let state_style = match instance.state {
-            InstanceState::Running => Style::default().fg(THEME.success),
-            InstanceState::Stopped => Style::default().fg(THEME.error),
-            InstanceState::Pending | InstanceState::Stopping => Style::default().fg(THEME.warning),
-            _ => Style::default().fg(THEME.muted),
-        };
+            let state_style = Style::default().fg(instance.state_color());
 
-        let cells = vec![
-            Cell::from(instance.instance_id.clone()),
-            Cell::from(instance.name.clone().unwrap_or_else(|| "-".to_string())),
-            Cell::from(format!("{:?}", instance.state)).style(state_style),
-            Cell::from(instance.instance_type.clone()),
-            Cell::from(instance.public_ip.clone().unwrap_or_else(|| "-".to_string())),
-            Cell::from(instance.launch_time.clone().unwrap_or_else(|| "-".to_string())),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("EC2 Instances")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let cells = vec![
+                Cell::from(instance.instance_id.clone()),
+                Cell::from(instance.name.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(format!("{:?}", instance.state)).style(state_style),
+                Cell::from(instance.instance_type.clone()),
+                Cell::from(instance.public_ip.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(instance.launch_time.clone().unwrap_or_else(|| "-".to_string())),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["ID", "Name", "State", "Type", "Public IP", "Launch Time"],
+        &[
             Constraint::Length(20), // ID
             Constraint::Length(20), // Name
             Constraint::Length(12), // State
             Constraint::Length(12), // Type
             Constraint::Length(16), // Public IP
             Constraint::Min(20),    // Launch Time
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    // Use app state for selection
-    frame.render_stateful_widget(t, area, &mut app.services.ec2.list_state);
+        ],
+        "EC2 Instances",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.ec2.list_state,
+    );
 }
 
 fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
-    let content: Vec<Line> = if let Some(instance) = app.services.ec2.selected_instance() {
-        build_instance_detail_lines(instance)
-    } else {
-        vec![Line::from("Select an instance to view details (use j/k to navigate)")]
-    };
-
-    let total_lines = content.len();
-    let visible_height = area.height.saturating_sub(2) as usize; // Account for borders
-    let scroll_offset = app.detail_scroll_offset as usize;
-    
-    // Determine if we need to show scroll indicator
-    let can_scroll = total_lines > visible_height;
-    let scroll_info = if can_scroll {
-        format!(" [{}/{}] ", scroll_offset + 1, total_lines.saturating_sub(visible_height) + 1)
-    } else {
-        String::new()
-    };
-    
-    let title = if app.detail_panel_fullscreen {
-        format!("Instance Details (Fullscreen){} [D: exit, PgUp/PgDn: scroll]", scroll_info)
-    } else {
-        format!("Instance Details{} [D: fullscreen]", scroll_info)
-    };
-
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(title)
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)))
-        .scroll((app.detail_scroll_offset, 0));
-    
-    frame.render_widget(paragraph, area);
-    
-    // Render scrollbar if content overflows
-    if can_scroll {
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("▲"))
-            .end_symbol(Some("▼"));
-        let mut scrollbar_state = ScrollbarState::new(total_lines.saturating_sub(visible_height))
-            .position(scroll_offset);
-        frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
-    }
+    render_detail_panel_with_selection(
+        frame,
+        area,
+        app.services.ec2.selected_instance(),
+        build_instance_detail_lines,
+        "Instance Details",
+        "Select an instance to view details (use j/k to navigate)",
+        app.detail_panel_fullscreen,
+        app.detail_scroll_offset,
+    );
 }
 
 fn build_instance_detail_lines(instance: &Ec2Instance) -> Vec<Line<'_>> {
-    let state_color = match instance.state {
-        InstanceState::Running => THEME.success,
-        InstanceState::Stopped => THEME.error,
-        InstanceState::Pending | InstanceState::Stopping => THEME.warning,
-        _ => THEME.muted,
-    };
+    let state_color = instance.state_color();
 
     let state_str = format!("{:?}", instance.state);
     let name_str = instance.name.clone().unwrap_or_else(|| "-".to_string());

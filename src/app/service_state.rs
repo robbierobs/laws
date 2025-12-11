@@ -20,6 +20,8 @@ use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::vpc::{SecurityGroup, SecurityGroupRule, Subnet, Vpc};
 
 use super::{BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, IamViewMode, VpcViewMode};
+use super::{Message, InputResult, ServiceInputHandler};
+use crossterm::event::{KeyCode, KeyEvent};
 
 // ============================================================================
 // EC2 State
@@ -47,6 +49,48 @@ impl Ec2State {
     /// Get the instance ID of the currently selected instance
     pub fn selected_instance_id(&self) -> Option<String> {
         self.selected_instance().map(|i| i.instance_id.clone())
+    }
+}
+
+impl ServiceInputHandler for Ec2State {
+    fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                if !self.instances.is_empty() {
+                    let i = self.list_state.selected().map_or(0, |i| if i >= self.instances.len() - 1 { 0 } else { i + 1 });
+                    self.list_state.select(Some(i));
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if !self.instances.is_empty() {
+                    let i = self.list_state.selected().map_or(0, |i| if i == 0 { self.instances.len() - 1 } else { i - 1 });
+                    self.list_state.select(Some(i));
+                }
+            }
+            KeyCode::Char('s') => {
+                if let Some(i) = self.list_state.selected() {
+                    if let Some(instance) = self.instances.get(i) {
+                        return InputResult::Action(Message::ec2_start(instance.instance_id.clone()));
+                    }
+                }
+            }
+            KeyCode::Char('S') => {
+                if let Some(i) = self.list_state.selected() {
+                    if let Some(instance) = self.instances.get(i) {
+                        return InputResult::Action(Message::ec2_stop(instance.instance_id.clone()));
+                    }
+                }
+            }
+            KeyCode::Char('R') => {
+                if let Some(i) = self.list_state.selected() {
+                    if let Some(instance) = self.instances.get(i) {
+                        return InputResult::Action(Message::ec2_reboot(instance.instance_id.clone()));
+                    }
+                }
+            }
+            _ => {}
+        }
+        InputResult::None
     }
 }
 

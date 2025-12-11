@@ -2,11 +2,13 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Cell, Row},
     Frame,
 };
 use crate::app::App;
 use crate::models::lambda::LambdaFunction;
+use crate::ui::components::detail_panel::render_detail_panel_with_selection;
+use crate::ui::components::table::render_table;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     if let Some(area) = list_area {
@@ -21,15 +23,6 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 use crate::ui::theme::THEME;
 
 fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Function Name", "Runtime", "Memory", "Timeout", "Code Size", "State"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.lambda.functions.iter()
         .filter(|f| {
@@ -39,67 +32,54 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
             name.contains(&filter) || runtime.contains(&filter)
         })
         .map(|func| {
-        let state_color = func.state_color();
-        let runtime = func.runtime.clone().unwrap_or_else(|| "-".to_string());
-        let memory = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
-        let timeout = func.timeout.map(|t| format!("{}s", t)).unwrap_or_else(|| "-".to_string());
-        let state = func.state.clone().unwrap_or_else(|| "Unknown".to_string());
-        
-        let cells = vec![
-            Cell::from(func.function_name.clone()),
-            Cell::from(runtime),
-            Cell::from(memory),
-            Cell::from(timeout),
-            Cell::from(func.format_code_size()),
-            Cell::from(state).style(Style::default().fg(state_color)),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Lambda Functions")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let state_color = func.state_color();
+            let runtime = func.runtime.clone().unwrap_or_else(|| "-".to_string());
+            let memory = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
+            let timeout = func.timeout.map(|t| format!("{}s", t)).unwrap_or_else(|| "-".to_string());
+            let state = func.state.clone().unwrap_or_else(|| "Unknown".to_string());
+            
+            let cells = vec![
+                Cell::from(func.function_name.clone()),
+                Cell::from(runtime),
+                Cell::from(memory),
+                Cell::from(timeout),
+                Cell::from(func.format_code_size()),
+                Cell::from(state).style(Style::default().fg(state_color)),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Function Name", "Runtime", "Memory", "Timeout", "Code Size", "State"],
+        &[
             Constraint::Length(35), // Function Name
             Constraint::Length(15), // Runtime
             Constraint::Length(10), // Memory
             Constraint::Length(10), // Timeout
             Constraint::Length(12), // Code Size
             Constraint::Min(10),    // State
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.lambda.list_state);
+        ],
+        "Lambda Functions",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.lambda.list_state,
+    );
 }
 
 fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
-    let content: Vec<Line> = if let Some(func) = app.services.lambda.selected_function() {
-        build_function_detail_lines(func)
-    } else {
-        vec![Line::from("Select a Lambda function to view details (use j/k to navigate)")]
-    };
-
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Function Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel_with_selection(
+        frame,
+        area,
+        app.services.lambda.selected_function(),
+        build_function_detail_lines,
+        "Function Details",
+        "Select a Lambda function to view details (use j/k to navigate)",
+        app.detail_panel_fullscreen,
+        app.detail_scroll_offset,
+    );
 }
 
 fn build_function_detail_lines(func: &LambdaFunction) -> Vec<Line<'_>> {

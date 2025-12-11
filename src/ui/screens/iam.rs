@@ -7,6 +7,7 @@ use ratatui::{
 };
 use crate::app::{App, IamViewMode};
 use crate::models::iam::{IamRole, IamUser, IamPolicy};
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
 
 use crate::ui::theme::THEME;
 
@@ -140,14 +141,14 @@ fn render_user_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an IAM user to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("IAM User Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("IAM User Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'_>> {
@@ -269,14 +270,14 @@ fn render_role_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an IAM role to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("IAM Role Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("IAM Role Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'_>> {
@@ -405,14 +406,14 @@ fn render_policy_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an IAM policy to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("IAM Policy Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("IAM Policy Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'_>> {
@@ -534,12 +535,12 @@ fn render_policy_details_from_list(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a policy to view details")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Policy Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Policy Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }

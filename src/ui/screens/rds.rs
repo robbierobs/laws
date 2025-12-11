@@ -2,11 +2,13 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Cell, Row},
     Frame,
 };
 use crate::app::App;
 use crate::models::rds::RdsInstance;
+use crate::ui::components::detail_panel::render_detail_panel_with_selection;
+use crate::ui::components::table::render_table;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     if let Some(area) = list_area {
@@ -21,15 +23,6 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 use crate::ui::theme::THEME;
 
 fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Identifier", "Engine", "Class", "Status", "Endpoint", "Multi-AZ"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.rds.instances.iter()
         .filter(|i| {
@@ -39,70 +32,57 @@ fn render_instance_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || engine.contains(&filter)
         })
         .map(|instance| {
-        let status_color = instance.status_color();
-        
-        let cells = vec![
-            Cell::from(instance.db_instance_identifier.clone()),
-            Cell::from(format!("{} {}", 
-                instance.engine.clone(),
-                instance.engine_version.clone().unwrap_or_default()
-            )),
-            Cell::from(instance.db_instance_class.clone()),
-            Cell::from(instance.status.clone()).style(Style::default().fg(status_color)),
-            Cell::from(instance.endpoint.clone().unwrap_or_else(|| "-".to_string())),
-            Cell::from(if instance.multi_az { "Yes" } else { "No" }),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("RDS Instances")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let status_color = instance.state_color();
+            
+            let cells = vec![
+                Cell::from(instance.db_instance_identifier.clone()),
+                Cell::from(format!("{} {}", 
+                    instance.engine.clone(),
+                    instance.engine_version.clone().unwrap_or_default()
+                )),
+                Cell::from(instance.db_instance_class.clone()),
+                Cell::from(instance.status.clone()).style(Style::default().fg(status_color)),
+                Cell::from(instance.endpoint.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(if instance.multi_az { "Yes" } else { "No" }),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Identifier", "Engine", "Class", "Status", "Endpoint", "Multi-AZ"],
+        &[
             Constraint::Length(25), // Identifier
             Constraint::Length(20), // Engine
             Constraint::Length(15), // Class
             Constraint::Length(12), // Status
             Constraint::Length(40), // Endpoint
             Constraint::Min(8),     // Multi-AZ
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.rds.list_state);
+        ],
+        "RDS Instances",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.rds.list_state,
+    );
 }
 
 fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
-    let content: Vec<Line> = if let Some(instance) = app.services.rds.selected_instance() {
-        build_instance_detail_lines(instance)
-    } else {
-        vec![Line::from("Select an RDS instance to view details (use j/k to navigate)")]
-    };
-
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("RDS Instance Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel_with_selection(
+        frame,
+        area,
+        app.services.rds.selected_instance(),
+        build_instance_detail_lines,
+        "RDS Instance Details",
+        "Select an RDS instance to view details (use j/k to navigate)",
+        app.detail_panel_fullscreen,
+        app.detail_scroll_offset,
+    );
 }
 
 fn build_instance_detail_lines(instance: &RdsInstance) -> Vec<Line<'_>> {
-    let status_color = instance.status_color();
+    let status_color = instance.state_color();
     
     let engine_str = format!("{} {}", 
         instance.engine.clone(),

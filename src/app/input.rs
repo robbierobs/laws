@@ -3,15 +3,10 @@
 //! Handles all keyboard events and translates them to messages.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use super::{App, Message, Service, Focus, InputMode, VpcViewMode, GlobalMessage};
+use super::{App, Message, Service, Focus, InputMode, VpcViewMode, GlobalMessage, InputResult, ServiceInputHandler};
 use crate::ui::components::Component;
 
-/// Result from service input handlers
-enum InputResult {
-    None,
-    Message(Message),
-    Action(Message), // Action that needs confirmation
-}
+
 
 impl App {
     /// Reset list selection to first item for current service
@@ -332,7 +327,7 @@ impl App {
 
                 // Service-specific input handling
                 let result = match self.current_service {
-                    Service::EC2 => self.handle_ec2_input(key),
+                    Service::EC2 => self.services.ec2.handle_input(key),
                     Service::S3 => self.handle_s3_input(key),
                     Service::RDS => self.handle_rds_input(key),
                     Service::DynamoDB => self.handle_dynamodb_input(key),
@@ -479,45 +474,7 @@ impl App {
     // Service-specific input handlers
     // ====================================
 
-    fn handle_ec2_input(&mut self, key: KeyEvent) -> InputResult {
-        match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                if !self.services.ec2.instances.is_empty() {
-                    let i = self.services.ec2.list_state.selected().map_or(0, |i| if i >= self.services.ec2.instances.len() - 1 { 0 } else { i + 1 });
-                    self.services.ec2.list_state.select(Some(i));
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if !self.services.ec2.instances.is_empty() {
-                    let i = self.services.ec2.list_state.selected().map_or(0, |i| if i == 0 { self.services.ec2.instances.len() - 1 } else { i - 1 });
-                    self.services.ec2.list_state.select(Some(i));
-                }
-            }
-            KeyCode::Char('s') => {
-                if let Some(i) = self.services.ec2.list_state.selected() {
-                    if let Some(instance) = self.services.ec2.instances.get(i) {
-                        return InputResult::Action(Message::ec2_start(instance.instance_id.clone()));
-                    }
-                }
-            }
-            KeyCode::Char('S') => {
-                if let Some(i) = self.services.ec2.list_state.selected() {
-                    if let Some(instance) = self.services.ec2.instances.get(i) {
-                        return InputResult::Action(Message::ec2_stop(instance.instance_id.clone()));
-                    }
-                }
-            }
-            KeyCode::Char('R') => {
-                if let Some(i) = self.services.ec2.list_state.selected() {
-                    if let Some(instance) = self.services.ec2.instances.get(i) {
-                        return InputResult::Action(Message::ec2_reboot(instance.instance_id.clone()));
-                    }
-                }
-            }
-            _ => {}
-        }
-        InputResult::None
-    }
+
 
     fn handle_s3_input(&mut self, key: KeyEvent) -> InputResult {
         if self.services.s3.current_bucket.is_some() {

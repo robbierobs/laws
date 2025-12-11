@@ -77,7 +77,7 @@ impl RdsInstance {
     }
     
     /// Get a status color based on the instance status
-    pub fn status_color(&self) -> ratatui::style::Color {
+    pub fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self.status.to_lowercase().as_str() {
             "available" => THEME.success,
