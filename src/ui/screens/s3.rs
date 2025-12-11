@@ -131,6 +131,20 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
                 Span::raw(encryption_text),
             ]));
 
+            // Tags
+            if !details.tags.is_empty() {
+                lines.push(Line::from(""));
+                lines.push(Line::from(vec![
+                    Span::styled("─── Tags ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+                ]));
+                for (key, value) in &details.tags {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("{}: ", key), Style::default().fg(THEME.primary)),
+                        Span::raw(value.clone()),
+                    ]));
+                }
+            }
+
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
                 Span::styled("─── Statistics ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),

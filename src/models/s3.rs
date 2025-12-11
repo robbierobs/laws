@@ -24,6 +24,7 @@ pub struct S3BucketDetails {
     pub encryption: Option<String>,
     pub object_count: Option<i64>,
     pub total_size: Option<i64>,
+    pub tags: Vec<(String, String)>,
     pub loading: bool,
 }
 

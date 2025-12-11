@@ -18,7 +18,7 @@ use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
-use crate::models::lambda::LambdaFunction;
+use crate::models::lambda::{LambdaFunction, LambdaFunctionDetails};
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
@@ -37,6 +37,10 @@ pub enum AwsEvent {
     DynamoDbTablesLoaded(Vec<DynamoDbTable>),
     DynamoDbItemsLoaded(Vec<DynamoDbItem>),
     LambdaFunctionsLoaded(Vec<LambdaFunction>),
+    LambdaFunctionDetailsLoaded {
+        function_name: String,
+        details: LambdaFunctionDetails,
+    },
     VpcsLoaded(Vec<Vpc>),
     SubnetsLoaded(Vec<Subnet>),
     SecurityGroupsLoaded(Vec<SecurityGroup>),

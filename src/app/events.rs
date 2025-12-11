@@ -44,6 +44,9 @@ impl App {
                 self.services.lambda.functions = functions;
                 self.loading = false;
             }
+            AwsEvent::LambdaFunctionDetailsLoaded { function_name, details } => {
+                self.services.lambda.function_details.insert(function_name, details);
+            }
             AwsEvent::VpcsLoaded(vpcs) => {
                 self.services.vpc.vpcs = vpcs;
                 self.loading = false;

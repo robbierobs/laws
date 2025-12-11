@@ -57,4 +57,41 @@ impl App {
             }
         });
     }
+    pub(super) async fn handle_load_function_details(&mut self, function_name: String, event_tx: EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        if let Some(details) = self.services.lambda.function_details.get_mut(&function_name) {
+            if details.loading {
+                return;
+            }
+        }
+        
+        // Mark as loading
+        self.services.lambda.function_details.insert(
+            function_name.clone(), 
+            crate::models::lambda::LambdaFunctionDetails {
+                loading: true,
+                ..Default::default()
+            }
+        );
+        
+        let client = clients.lambda.clone();
+        
+        tokio::spawn(async move {
+            let service = crate::aws::lambda::LambdaService::new(client);
+            match service.get_function_details(&function_name).await {
+                Ok(details) => {
+                    event_tx.send(Event::Aws(AwsEvent::LambdaFunctionDetailsLoaded {
+                        function_name,
+                        details,
+                    })).await.ok();
+                }
+                Err(e) => {
+                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                }
+            }
+        });
+    }
 }

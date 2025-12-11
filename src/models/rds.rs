@@ -27,6 +27,7 @@ pub struct RdsInstance {
     pub license_model: Option<String>,
     pub iops: Option<i32>,
     pub deletion_protection: bool,
+    pub tags: Vec<(String, String)>,
 }
 
 impl RdsInstance {
@@ -42,6 +43,18 @@ impl RdsInstance {
             .iter()
             .filter_map(|sg| sg.vpc_security_group_id().map(|s| s.to_string()))
             .collect();
+
+        let mut tags: Vec<(String, String)> = instance.tag_list()
+            .iter()
+            .filter_map(|t| {
+                if let (Some(k), Some(v)) = (t.key(), t.value()) {
+                    Some((k.to_string(), v.to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        tags.sort_by(|a, b| a.0.cmp(&b.0));
 
         Self {
             db_instance_identifier: instance.db_instance_identifier().unwrap_or_default().to_string(),
@@ -73,6 +86,7 @@ impl RdsInstance {
             license_model: instance.license_model().map(|s| s.to_string()),
             iops: instance.iops(),
             deletion_protection: instance.deletion_protection().unwrap_or(false),
+            tags,
         }
     }
     

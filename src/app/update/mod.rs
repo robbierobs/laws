@@ -169,6 +169,9 @@ impl App {
             ServiceAction::Lambda(crate::app::messages::LambdaAction::DeleteFunction(name)) => {
                 self.handle_delete_lambda(name, event_tx).await;
             }
+            ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(name)) => {
+                self.handle_load_function_details(name, event_tx).await;
+            }
             ServiceAction::Backup(_) => {}
             ServiceAction::CloudTrail(action) => {
                 match action {

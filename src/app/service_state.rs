@@ -424,6 +424,7 @@ impl ServiceInputHandler for DynamoDbState {
 pub struct LambdaState {
     pub functions: Vec<LambdaFunction>,
     pub list_state: TableState,
+    pub function_details: std::collections::HashMap<String, crate::models::lambda::LambdaFunctionDetails>,
 }
 
 impl LambdaState {
@@ -446,12 +447,20 @@ impl ServiceInputHandler for LambdaState {
                 if !self.functions.is_empty() {
                     let i = self.list_state.selected().map_or(0, |i| if i >= self.functions.len() - 1 { 0 } else { i + 1 });
                     self.list_state.select(Some(i));
+                    
+                    if let Some(f) = self.selected_function() {
+                        return InputResult::Message(crate::app::Message::lambda_load_details(f.function_name.clone()));
+                    }
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 if !self.functions.is_empty() {
                     let i = self.list_state.selected().map_or(0, |i| if i == 0 { self.functions.len() - 1 } else { i - 1 });
                     self.list_state.select(Some(i));
+                    
+                    if let Some(f) = self.selected_function() {
+                        return InputResult::Message(crate::app::Message::lambda_load_details(f.function_name.clone()));
+                    }
                 }
             }
             KeyCode::Char('I') => {

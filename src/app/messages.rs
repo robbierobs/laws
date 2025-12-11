@@ -360,6 +360,7 @@ pub enum DynamoDbAction {
 pub enum LambdaAction {
     InvokeFunction(String),
     DeleteFunction(String),
+    LoadFunctionDetails(String),
 }
 
 /// VPC-specific actions
@@ -622,6 +623,10 @@ impl Message {
 
     pub fn lambda_delete(function_name: String) -> Self {
         Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(function_name)))
+    }
+
+    pub fn lambda_load_details(function_name: String) -> Self {
+        Message::Service(ServiceAction::Lambda(LambdaAction::LoadFunctionDetails(function_name)))
     }
 
     // RDS message constructors
