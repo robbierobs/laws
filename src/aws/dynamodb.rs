@@ -1,23 +1,9 @@
 use crate::models::dynamodb::{DynamoDbTable, GlobalSecondaryIndex, KeyAttribute, LocalSecondaryIndex};
+use crate::utils::error::format_sdk_error;
 use aws_sdk_dynamodb::Client;
 
 pub struct DynamoDbService {
     client: Client,
-}
-
-fn format_dynamodb_error<E: std::fmt::Debug>(e: aws_sdk_dynamodb::error::SdkError<E>, action: &str, table_name: &str) -> anyhow::Error {
-    let msg = if let Some(svc_err) = e.as_service_error() {
-        let code = format!("{:?}", svc_err).split('{').next().unwrap_or("Unknown").trim().to_string();
-        format!("DynamoDB {} failed for '{}': {}", action, table_name, code)
-    } else {
-        let err_str = format!("{}", e);
-        if err_str.contains("Unhandled") || err_str.contains("unhandled") {
-            format!("DynamoDB {} for '{}': Not supported (LocalStack limitation?)", action, table_name)
-        } else {
-            format!("DynamoDB {} failed for '{}': {}", action, table_name, err_str)
-        }
-    };
-    anyhow::anyhow!(msg)
 }
 
 impl DynamoDbService {
@@ -31,7 +17,7 @@ impl DynamoDbService {
             .list_tables()
             .send()
             .await
-            .map_err(|e| format_dynamodb_error(e, "list_tables", "all"))?;
+            .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))?;
 
         let table_names = list_response.table_names();
         let mut tables = Vec::new();
@@ -52,7 +38,7 @@ impl DynamoDbService {
             .table_name(table_name)
             .send()
             .await
-            .map_err(|e| format_dynamodb_error(e, "describe_table", table_name))?;
+            .map_err(|e| format_sdk_error("DynamoDB", "describe_table", table_name, e))?;
 
         let table = response.table().ok_or_else(|| anyhow::anyhow!("No table data returned"))?;
 
@@ -170,7 +156,7 @@ impl DynamoDbService {
             .limit(limit)
             .send()
             .await
-            .map_err(|e| format_dynamodb_error(e, "scan", table_name))?;
+            .map_err(|e| format_sdk_error("DynamoDB", "scan", table_name, e))?;
 
         let items: Vec<DynamoDbItem> = response.items()
             .iter()
@@ -194,7 +180,7 @@ impl DynamoDbService {
             .set_key(Some(key))
             .send()
             .await
-            .map_err(|e| format_dynamodb_error(e, "delete_item", table_name))?;
+            .map_err(|e| format_sdk_error("DynamoDB", "delete_item", table_name, e))?;
         
         Ok(())
     }

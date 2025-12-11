@@ -46,6 +46,164 @@ impl Service {
     }
 }
 
+/// View mode for VPC service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum VpcViewMode {
+    #[default]
+    Vpcs = 0,
+    Subnets = 1,
+    SecurityGroups = 2,
+    SecurityGroupRules = 3,
+}
+
+impl VpcViewMode {
+    /// Get the next view mode (wraps to first after last)
+    pub fn next(self) -> Self {
+        match self {
+            Self::Vpcs => Self::Subnets,
+            Self::Subnets => Self::SecurityGroups,
+            Self::SecurityGroups => Self::Vpcs, // Wrap around, skip rules
+            Self::SecurityGroupRules => Self::SecurityGroupRules, // Stay in rules view
+        }
+    }
+
+    /// Get the previous view mode (wraps to last before first)
+    pub fn previous(self) -> Self {
+        match self {
+            Self::Vpcs => Self::SecurityGroups,
+            Self::Subnets => Self::Vpcs,
+            Self::SecurityGroups => Self::Subnets,
+            Self::SecurityGroupRules => Self::SecurityGroupRules, // Stay in rules view
+        }
+    }
+
+    /// Convert to index for tab display
+    pub fn to_index(self) -> usize {
+        self as usize
+    }
+}
+
+/// View mode for IAM service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum IamViewMode {
+    #[default]
+    Users = 0,
+    Roles = 1,
+    Policies = 2,
+    UserAttachedPolicies = 3,
+    RoleAttachedPolicies = 4,
+    PolicyDocument = 5,
+}
+
+impl IamViewMode {
+    /// Get the next view mode (wraps to first after last, for main tabs only)
+    pub fn next(self) -> Self {
+        match self {
+            Self::Users => Self::Roles,
+            Self::Roles => Self::Policies,
+            Self::Policies => Self::Users, // Wrap around
+            _ => self, // Drill-down views don't cycle
+        }
+    }
+
+    /// Get the previous view mode (wraps to last before first, for main tabs only)
+    pub fn previous(self) -> Self {
+        match self {
+            Self::Users => Self::Policies,
+            Self::Roles => Self::Users,
+            Self::Policies => Self::Roles,
+            _ => self, // Drill-down views don't cycle
+        }
+    }
+
+    /// Convert to index for tab display
+    pub fn to_index(self) -> usize {
+        self as usize
+    }
+
+    /// Check if this is a main tab view (not a drill-down)
+    pub fn is_main_tab(self) -> bool {
+        matches!(self, Self::Users | Self::Roles | Self::Policies)
+    }
+}
+
+/// View mode for Backup service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum BackupViewMode {
+    #[default]
+    Vaults = 0,
+    Plans = 1,
+    Jobs = 2,
+}
+
+impl BackupViewMode {
+    /// Get the next view mode (wraps to first after last)
+    pub fn next(self) -> Self {
+        match self {
+            Self::Vaults => Self::Plans,
+            Self::Plans => Self::Jobs,
+            Self::Jobs => Self::Vaults,
+        }
+    }
+
+    /// Get the previous view mode (wraps to last before first)
+    pub fn previous(self) -> Self {
+        match self {
+            Self::Vaults => Self::Jobs,
+            Self::Plans => Self::Vaults,
+            Self::Jobs => Self::Plans,
+        }
+    }
+
+    /// Convert to index for tab display
+    pub fn to_index(self) -> usize {
+        self as usize
+    }
+}
+
+/// View mode for CloudTrail service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum CloudTrailViewMode {
+    #[default]
+    Trails = 0,
+    Events = 1,
+}
+
+impl CloudTrailViewMode {
+    /// Get the next view mode (wraps to first after last)
+    pub fn next(self) -> Self {
+        match self {
+            Self::Trails => Self::Events,
+            Self::Events => Self::Trails,
+        }
+    }
+
+    /// Get the previous view mode (wraps to last before first)
+    pub fn previous(self) -> Self {
+        self.next() // Same as next for 2 items
+    }
+
+    /// Convert to index for tab display
+    pub fn to_index(self) -> usize {
+        self as usize
+    }
+}
+
+/// View mode for DynamoDB service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum DynamoDbViewMode {
+    #[default]
+    Tables = 0,
+    Items = 1,
+}
+
+impl DynamoDbViewMode {
+    /// Convert to index for tab display
+    pub fn to_index(self) -> usize {
+        self as usize
+    }
+}
+
 /// Application messages for the update loop (Elm Architecture style)
 pub enum Message {
     // Navigation

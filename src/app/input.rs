@@ -3,7 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use crossterm::event::{KeyCode, KeyEvent};
-use super::{App, Message, Service, Focus, InputMode};
+use super::{App, Message, Service, Focus, InputMode, VpcViewMode};
 use crate::ui::components::Component;
 
 /// Result from service input handlers
@@ -107,8 +107,8 @@ impl App {
                 if key.code == KeyCode::Char('v') {
                     match self.current_service {
                         Service::Backup | Service::CloudTrail => return Some(Message::CycleViewMode),
-                        Service::VPC if self.vpc_view_mode != 3 => return Some(Message::CycleViewMode),
-                        Service::IAM if self.iam_view_mode < 3 => return Some(Message::CycleViewMode),
+                        Service::VPC if self.vpc_view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::CycleViewMode),
+                        Service::IAM if self.iam_view_mode.is_main_tab() => return Some(Message::CycleViewMode),
                         _ => {}
                     }
                 }
@@ -123,16 +123,16 @@ impl App {
                     KeyCode::Right | KeyCode::Char('l') => {
                         match self.current_service {
                             Service::Backup | Service::CloudTrail => return Some(Message::NextView),
-                            Service::VPC if self.vpc_view_mode != 3 => return Some(Message::NextView),
-                            Service::IAM if self.iam_view_mode < 3 => return Some(Message::NextView),
+                            Service::VPC if self.vpc_view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::NextView),
+                            Service::IAM if self.iam_view_mode.is_main_tab() => return Some(Message::NextView),
                             _ => {}
                         }
                     }
                     KeyCode::Left | KeyCode::Char('h') => {
                         match self.current_service {
                             Service::Backup | Service::CloudTrail => return Some(Message::PreviousView),
-                            Service::VPC if self.vpc_view_mode != 3 => return Some(Message::PreviousView),
-                            Service::IAM if self.iam_view_mode < 3 => return Some(Message::PreviousView),
+                            Service::VPC if self.vpc_view_mode != VpcViewMode::SecurityGroupRules => return Some(Message::PreviousView),
+                            Service::IAM if self.iam_view_mode.is_main_tab() => return Some(Message::PreviousView),
                             _ => {}
                         }
                     }
@@ -145,11 +145,11 @@ impl App {
                     Service::S3 => self.handle_s3_input(key),
                     Service::RDS => self.handle_rds_input(key),
                     Service::DynamoDB => self.handle_dynamodb_input(key),
-                    Service::Lambda => { self.handle_lambda_input(key); InputResult::None }
+                    Service::Lambda => self.handle_lambda_input(key),
                     Service::VPC => self.handle_vpc_input(key),
                     Service::IAM => self.handle_iam_input(key),
-                    Service::Backup => { self.handle_backup_input(key); InputResult::None }
-                    Service::CloudTrail => { self.handle_cloudtrail_input(key); InputResult::None }
+                    Service::Backup => self.handle_backup_input(key),
+                    Service::CloudTrail => self.handle_cloudtrail_input(key),
                 };
 
                 match result {
@@ -232,12 +232,12 @@ impl App {
 
     fn auto_select_vpc(&mut self) {
         if self.vpc_list_state.selected().is_none() {
+            use crate::app::VpcViewMode;
             let has_items = match self.vpc_view_mode {
-                0 => !self.vpcs.is_empty(),
-                1 => !self.subnets.is_empty(),
-                2 => !self.security_groups.is_empty(),
-                3 => !self.current_sg_rules.is_empty(),
-                _ => false,
+                VpcViewMode::Vpcs => !self.vpcs.is_empty(),
+                VpcViewMode::Subnets => !self.subnets.is_empty(),
+                VpcViewMode::SecurityGroups => !self.security_groups.is_empty(),
+                VpcViewMode::SecurityGroupRules => !self.current_sg_rules.is_empty(),
             };
             if has_items { self.vpc_list_state.select(Some(0)); }
         }
@@ -245,12 +245,13 @@ impl App {
 
     fn auto_select_iam(&mut self) {
         if self.iam_list_state.selected().is_none() {
+            use crate::app::IamViewMode;
             let has_items = match self.iam_view_mode {
-                0 => !self.iam_users.is_empty(),
-                1 => !self.iam_roles.is_empty(),
-                2 => !self.iam_policies.is_empty(),
-                3 | 4 => !self.current_iam_policies.is_empty(),
-                _ => false,
+                IamViewMode::Users => !self.iam_users.is_empty(),
+                IamViewMode::Roles => !self.iam_roles.is_empty(),
+                IamViewMode::Policies => !self.iam_policies.is_empty(),
+                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => !self.current_iam_policies.is_empty(),
+                IamViewMode::PolicyDocument => false,
             };
             if has_items { self.iam_list_state.select(Some(0)); }
         }
@@ -258,11 +259,11 @@ impl App {
 
     fn auto_select_backup(&mut self) {
         if self.backup_list_state.selected().is_none() {
+            use crate::app::BackupViewMode;
             let has_items = match self.backup_view_mode {
-                0 => !self.backup_vaults.is_empty(),
-                1 => !self.backup_plans.is_empty(),
-                2 => !self.backup_jobs.is_empty(),
-                _ => false,
+                BackupViewMode::Vaults => !self.backup_vaults.is_empty(),
+                BackupViewMode::Plans => !self.backup_plans.is_empty(),
+                BackupViewMode::Jobs => !self.backup_jobs.is_empty(),
             };
             if has_items { self.backup_list_state.select(Some(0)); }
         }
@@ -270,10 +271,10 @@ impl App {
 
     fn auto_select_cloudtrail(&mut self) {
         if self.cloudtrail_list_state.selected().is_none() {
+            use crate::app::CloudTrailViewMode;
             let has_items = match self.cloudtrail_view_mode {
-                0 => !self.cloudtrail_trails.is_empty(),
-                1 => !self.cloudtrail_events.is_empty(),
-                _ => false,
+                CloudTrailViewMode::Trails => !self.cloudtrail_trails.is_empty(),
+                CloudTrailViewMode::Events => !self.cloudtrail_events.is_empty(),
             };
             if has_items { self.cloudtrail_list_state.select(Some(0)); }
         }
@@ -425,7 +426,8 @@ impl App {
     }
 
     fn handle_dynamodb_input(&mut self, key: KeyEvent) -> InputResult {
-        if self.dynamodb_view_mode == 1 {
+        use crate::app::DynamoDbViewMode;
+        if self.dynamodb_view_mode == DynamoDbViewMode::Items {
             // In items view
             let len = self.dynamodb_items.len();
             match key.code {
@@ -483,7 +485,7 @@ impl App {
         InputResult::None
     }
 
-    fn handle_lambda_input(&mut self, key: KeyEvent) {
+    fn handle_lambda_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
                 if !self.lambda_functions.is_empty() {
@@ -499,15 +501,16 @@ impl App {
             }
             _ => {}
         }
+        InputResult::None
     }
 
     fn handle_vpc_input(&mut self, key: KeyEvent) -> InputResult {
+        use crate::app::VpcViewMode;
         let len = match self.vpc_view_mode {
-            0 => self.vpcs.len(),
-            1 => self.subnets.len(),
-            2 => self.security_groups.len(),
-            3 => self.current_sg_rules.len(),
-            _ => 0,
+            VpcViewMode::Vpcs => self.vpcs.len(),
+            VpcViewMode::Subnets => self.subnets.len(),
+            VpcViewMode::SecurityGroups => self.security_groups.len(),
+            VpcViewMode::SecurityGroupRules => self.current_sg_rules.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
@@ -518,10 +521,10 @@ impl App {
                 let i = self.vpc_list_state.selected().map_or(0, |i| if i == 0 { len - 1 } else { i - 1 });
                 self.vpc_list_state.select(Some(i));
             }
-            KeyCode::Enter if self.vpc_view_mode == 2 => return InputResult::Message(Message::DrillDownSecurityGroup),
-            KeyCode::Esc if self.vpc_view_mode == 3 => return InputResult::Message(Message::ExitSecurityGroupRules),
+            KeyCode::Enter if self.vpc_view_mode == VpcViewMode::SecurityGroups => return InputResult::Message(Message::DrillDownSecurityGroup),
+            KeyCode::Esc if self.vpc_view_mode == VpcViewMode::SecurityGroupRules => return InputResult::Message(Message::ExitSecurityGroupRules),
             // Toggle between inbound and outbound rules with 't' or 'v'
-            KeyCode::Char('t') | KeyCode::Char('v') if self.vpc_view_mode == 3 => {
+            KeyCode::Char('t') | KeyCode::Char('v') if self.vpc_view_mode == VpcViewMode::SecurityGroupRules => {
                 return InputResult::Message(Message::ToggleSgRulesDirection);
             }
             _ => {}
@@ -530,12 +533,13 @@ impl App {
     }
 
     fn handle_iam_input(&mut self, key: KeyEvent) -> InputResult {
+        use crate::app::IamViewMode;
         let len = match self.iam_view_mode {
-            0 => self.iam_users.len(),
-            1 => self.iam_roles.len(),
-            2 => self.iam_policies.len(),
-            3 | 4 => self.current_iam_policies.len(),
-            _ => 0,
+            IamViewMode::Users => self.iam_users.len(),
+            IamViewMode::Roles => self.iam_roles.len(),
+            IamViewMode::Policies => self.iam_policies.len(),
+            IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => self.current_iam_policies.len(),
+            IamViewMode::PolicyDocument => 0,
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
@@ -548,24 +552,24 @@ impl App {
             }
             KeyCode::Enter => {
                 return match self.iam_view_mode {
-                    0 => InputResult::Message(Message::DrillDownIamUser),
-                    1 => InputResult::Message(Message::DrillDownIamRole),
-                    2 | 3 | 4 => InputResult::Message(Message::DrillDownIamPolicy),
-                    _ => InputResult::None,
+                    IamViewMode::Users => InputResult::Message(Message::DrillDownIamUser),
+                    IamViewMode::Roles => InputResult::Message(Message::DrillDownIamRole),
+                    IamViewMode::Policies | IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => InputResult::Message(Message::DrillDownIamPolicy),
+                    IamViewMode::PolicyDocument => InputResult::None,
                 };
             }
-            KeyCode::Esc if self.iam_view_mode >= 3 => return InputResult::Message(Message::ExitIamDrillDown),
+            KeyCode::Esc if !self.iam_view_mode.is_main_tab() => return InputResult::Message(Message::ExitIamDrillDown),
             _ => {}
         }
         InputResult::None
     }
 
-    fn handle_backup_input(&mut self, key: KeyEvent) {
+    fn handle_backup_input(&mut self, key: KeyEvent) -> InputResult {
+        use crate::app::BackupViewMode;
         let len = match self.backup_view_mode {
-            0 => self.backup_vaults.len(),
-            1 => self.backup_plans.len(),
-            2 => self.backup_jobs.len(),
-            _ => 0,
+            BackupViewMode::Vaults => self.backup_vaults.len(),
+            BackupViewMode::Plans => self.backup_plans.len(),
+            BackupViewMode::Jobs => self.backup_jobs.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
@@ -578,13 +582,14 @@ impl App {
             }
             _ => {}
         }
+        InputResult::None
     }
 
-    fn handle_cloudtrail_input(&mut self, key: KeyEvent) {
+    fn handle_cloudtrail_input(&mut self, key: KeyEvent) -> InputResult {
+        use crate::app::CloudTrailViewMode;
         let len = match self.cloudtrail_view_mode {
-            0 => self.cloudtrail_trails.len(),
-            1 => self.cloudtrail_events.len(),
-            _ => 0,
+            CloudTrailViewMode::Trails => self.cloudtrail_trails.len(),
+            CloudTrailViewMode::Events => self.cloudtrail_events.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') if len > 0 => {
@@ -597,5 +602,6 @@ impl App {
             }
             _ => {}
         }
+        InputResult::None
     }
 }

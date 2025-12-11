@@ -4,7 +4,7 @@
 
 use tokio::sync::mpsc;
 use crate::event::{Event, AwsEvent};
-use super::{App, Message, Service};
+use super::{App, Message, Service, VpcViewMode, IamViewMode, DynamoDbViewMode};
 
 impl App {
     /// Main message handler - processes messages and updates application state
@@ -77,7 +77,7 @@ impl App {
                     self.handle_drill_down_security_group();
                 }
                 Message::ExitSecurityGroupRules => {
-                    self.vpc_view_mode = 2;
+                    self.vpc_view_mode = VpcViewMode::SecurityGroups;
                     self.selected_sg_id = None;
                     self.current_sg_rules.clear();
                     self.vpc_list_state.select(Some(0));
@@ -101,7 +101,7 @@ impl App {
                     self.handle_drill_down_dynamodb_table(event_tx.clone());
                 }
                 Message::ExitDynamoDbDrillDown => {
-                    self.dynamodb_view_mode = 0;
+                    self.dynamodb_view_mode = DynamoDbViewMode::Tables;
                     self.current_dynamodb_table = None;
                     self.dynamodb_items.clear();
                     self.dynamodb_list_state.select(Some(0));
@@ -386,19 +386,19 @@ impl App {
     fn handle_cycle_view_mode(&mut self, forward: bool) {
         match self.current_service {
             Service::Backup => {
-                self.backup_view_mode = if forward { (self.backup_view_mode + 1) % 3 } else { (self.backup_view_mode + 2) % 3 };
+                self.backup_view_mode = if forward { self.backup_view_mode.next() } else { self.backup_view_mode.previous() };
                 self.backup_list_state.select(None);
             }
             Service::CloudTrail => {
-                self.cloudtrail_view_mode = if forward { (self.cloudtrail_view_mode + 1) % 2 } else { (self.cloudtrail_view_mode + 1) % 2 };
+                self.cloudtrail_view_mode = if forward { self.cloudtrail_view_mode.next() } else { self.cloudtrail_view_mode.previous() };
                 self.cloudtrail_list_state.select(None);
             }
             Service::VPC => {
-                self.vpc_view_mode = if forward { (self.vpc_view_mode + 1) % 3 } else { (self.vpc_view_mode + 2) % 3 };
+                self.vpc_view_mode = if forward { self.vpc_view_mode.next() } else { self.vpc_view_mode.previous() };
                 self.vpc_list_state.select(None);
             }
             Service::IAM => {
-                self.iam_view_mode = if forward { (self.iam_view_mode + 1) % 3 } else { (self.iam_view_mode + 2) % 3 };
+                self.iam_view_mode = if forward { self.iam_view_mode.next() } else { self.iam_view_mode.previous() };
                 self.iam_list_state.select(None);
             }
             _ => {}
@@ -411,7 +411,7 @@ impl App {
                 self.selected_sg_id = Some(sg.group_id.clone());
                 self.sg_rules_inbound = true;
                 self.current_sg_rules = sg.inbound_rules.clone();
-                self.vpc_view_mode = 3;
+                self.vpc_view_mode = VpcViewMode::SecurityGroupRules;
                 self.vpc_list_state.select(Some(0));
             }
         }
@@ -436,7 +436,7 @@ impl App {
             if let Some(table) = self.dynamodb_tables.get(idx) {
                 let table_name = table.table_name.clone();
                 self.current_dynamodb_table = Some(table_name.clone());
-                self.dynamodb_view_mode = 1;
+                self.dynamodb_view_mode = DynamoDbViewMode::Items;
                 self.dynamodb_items.clear();
                 self.dynamodb_item_list_state.select(None);
                 
@@ -568,7 +568,7 @@ impl App {
 
     fn handle_drill_down_iam_policy(&mut self, event_tx: mpsc::UnboundedSender<Event>) {
         if let Some(idx) = self.iam_list_state.selected() {
-            let policy = if self.iam_view_mode == 2 {
+            let policy = if self.iam_view_mode == IamViewMode::Policies {
                 self.iam_policies.get(idx)
             } else {
                 self.current_iam_policies.get(idx)
@@ -599,9 +599,9 @@ impl App {
 
     fn handle_exit_iam_drill_down(&mut self) {
         match self.iam_view_mode {
-            3 => self.iam_view_mode = 0,
-            4 => self.iam_view_mode = 1,
-            5 => self.iam_view_mode = self.previous_iam_view_mode,
+            IamViewMode::UserAttachedPolicies => self.iam_view_mode = IamViewMode::Users,
+            IamViewMode::RoleAttachedPolicies => self.iam_view_mode = IamViewMode::Roles,
+            IamViewMode::PolicyDocument => self.iam_view_mode = self.previous_iam_view_mode,
             _ => {}
         }
         self.current_iam_policies.clear();

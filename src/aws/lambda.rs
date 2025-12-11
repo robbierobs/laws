@@ -1,23 +1,9 @@
 use crate::models::lambda::LambdaFunction;
+use crate::utils::error::format_sdk_error;
 use aws_sdk_lambda::Client;
 
 pub struct LambdaService {
     client: Client,
-}
-
-fn format_lambda_error<E: std::fmt::Debug>(e: aws_sdk_lambda::error::SdkError<E>, action: &str, function_name: &str) -> anyhow::Error {
-    let msg = if let Some(svc_err) = e.as_service_error() {
-        let code = format!("{:?}", svc_err).split('{').next().unwrap_or("Unknown").trim().to_string();
-        format!("Lambda {} failed for '{}': {}", action, function_name, code)
-    } else {
-        let err_str = format!("{}", e);
-        if err_str.contains("Unhandled") || err_str.contains("unhandled") {
-            format!("Lambda {} for '{}': Not supported (LocalStack limitation?)", action, function_name)
-        } else {
-            format!("Lambda {} failed for '{}': {}", action, function_name, err_str)
-        }
-    };
-    anyhow::anyhow!(msg)
 }
 
 impl LambdaService {
@@ -38,7 +24,7 @@ impl LambdaService {
             let response = request
                 .send()
                 .await
-                .map_err(|e| format_lambda_error(e, "list_functions", "all"))?;
+                .map_err(|e| format_sdk_error("Lambda", "list_functions", "all", e))?;
 
             for func in response.functions() {
                 functions.push(LambdaFunction::from_aws(func));

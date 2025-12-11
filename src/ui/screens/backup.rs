@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
-use crate::app::App;
+use crate::app::{App, BackupViewMode};
 use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::ui::theme::THEME;
 
@@ -22,28 +22,27 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         .split(list_area);
 
     let tabs = ["Vaults", "Plans", "Jobs"];
-    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.backup_view_mode as usize);
+    crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.backup_view_mode.to_index());
 
     match app.backup_view_mode {
-        0 => {
+        BackupViewMode::Vaults => {
             render_vault_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_vault_details(frame, area, app);
             }
         }
-        1 => {
+        BackupViewMode::Plans => {
             render_plan_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_plan_details(frame, area, app);
             }
         }
-        2 => {
+        BackupViewMode::Jobs => {
             render_job_list(frame, chunks[1], app);
             if let Some(area) = detail_area {
                 render_job_details(frame, area, app);
             }
         }
-        _ => {}
     }
 }
 

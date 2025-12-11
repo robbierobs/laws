@@ -14,5 +14,5 @@ mod input;
 mod events;
 
 // Re-export everything needed by other modules
-pub use messages::{Service, Message, Focus, InputMode};
+pub use messages::{Service, Message, Focus, InputMode, VpcViewMode, IamViewMode, BackupViewMode, CloudTrailViewMode, DynamoDbViewMode};
 pub use state::App;

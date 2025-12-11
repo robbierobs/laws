@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
-use crate::app::App;
+use crate::app::{App, IamViewMode};
 use crate::models::iam::{IamRole, IamUser, IamPolicy};
 
 use crate::ui::theme::THEME;
@@ -22,11 +22,11 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         ])
         .split(list_area);
 
-    if app.iam_view_mode >= 3 {
+    if !app.iam_view_mode.is_main_tab() {
         let title = match app.iam_view_mode {
-            3 => format!("Policies attached to User: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
-            4 => format!("Policies attached to Role: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
-            5 => format!("Policy Document: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
+            IamViewMode::UserAttachedPolicies => format!("Policies attached to User: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
+            IamViewMode::RoleAttachedPolicies => format!("Policies attached to Role: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
+            IamViewMode::PolicyDocument => format!("Policy Document: {}", app.selected_iam_entity_name.as_deref().unwrap_or("Unknown")),
             _ => "Details".to_string(),
         };
         let block = Block::default()
@@ -37,26 +37,24 @@ pub fn render(frame: &mut Frame, list_area: Rect, detail_area: Option<Rect>, app
         frame.render_widget(block, chunks[0]);
     } else {
         let tabs = ["Users", "Roles", "Policies"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.iam_view_mode as usize);
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.iam_view_mode.to_index());
     }
 
     match app.iam_view_mode {
-        0 => render_user_list(frame, chunks[1], app),
-        1 => render_role_list(frame, chunks[1], app),
-        2 => render_policy_list(frame, chunks[1], app),
-        3 | 4 => render_attached_policies_list(frame, chunks[1], app),
-        5 => render_policy_document(frame, chunks[1], app),
-        _ => render_user_list(frame, chunks[1], app),
+        IamViewMode::Users => render_user_list(frame, chunks[1], app),
+        IamViewMode::Roles => render_role_list(frame, chunks[1], app),
+        IamViewMode::Policies => render_policy_list(frame, chunks[1], app),
+        IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => render_attached_policies_list(frame, chunks[1], app),
+        IamViewMode::PolicyDocument => render_policy_document(frame, chunks[1], app),
     }
     
     if let Some(area) = detail_area {
         match app.iam_view_mode {
-            0 => render_user_details(frame, area, app),
-            1 => render_role_details(frame, area, app),
-            2 => render_policy_details(frame, area, app),
-            3 | 4 => render_policy_details_from_list(frame, area, app),
-            5 => {}, // No details pane for document view, it takes full space? Or maybe just empty.
-            _ => render_user_details(frame, area, app),
+            IamViewMode::Users => render_user_details(frame, area, app),
+            IamViewMode::Roles => render_role_details(frame, area, app),
+            IamViewMode::Policies => render_policy_details(frame, area, app),
+            IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => render_policy_details_from_list(frame, area, app),
+            IamViewMode::PolicyDocument => {}, // No details pane for document view
         }
     }
 }
