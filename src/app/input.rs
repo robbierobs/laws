@@ -145,11 +145,11 @@ impl App {
                     Service::S3 => self.handle_s3_input(key),
                     Service::RDS => self.handle_rds_input(key),
                     Service::DynamoDB => self.handle_dynamodb_input(key),
-                    Service::Lambda => { self.handle_lambda_input(key); InputResult::None }
+                    Service::Lambda => self.handle_lambda_input(key),
                     Service::VPC => self.handle_vpc_input(key),
                     Service::IAM => self.handle_iam_input(key),
-                    Service::Backup => { self.handle_backup_input(key); InputResult::None }
-                    Service::CloudTrail => { self.handle_cloudtrail_input(key); InputResult::None }
+                    Service::Backup => self.handle_backup_input(key),
+                    Service::CloudTrail => self.handle_cloudtrail_input(key),
                 };
 
                 match result {
@@ -483,7 +483,7 @@ impl App {
         InputResult::None
     }
 
-    fn handle_lambda_input(&mut self, key: KeyEvent) {
+    fn handle_lambda_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
                 if !self.lambda_functions.is_empty() {
@@ -499,6 +499,7 @@ impl App {
             }
             _ => {}
         }
+        InputResult::None
     }
 
     fn handle_vpc_input(&mut self, key: KeyEvent) -> InputResult {
@@ -560,7 +561,7 @@ impl App {
         InputResult::None
     }
 
-    fn handle_backup_input(&mut self, key: KeyEvent) {
+    fn handle_backup_input(&mut self, key: KeyEvent) -> InputResult {
         let len = match self.backup_view_mode {
             0 => self.backup_vaults.len(),
             1 => self.backup_plans.len(),
@@ -578,9 +579,10 @@ impl App {
             }
             _ => {}
         }
+        InputResult::None
     }
 
-    fn handle_cloudtrail_input(&mut self, key: KeyEvent) {
+    fn handle_cloudtrail_input(&mut self, key: KeyEvent) -> InputResult {
         let len = match self.cloudtrail_view_mode {
             0 => self.cloudtrail_trails.len(),
             1 => self.cloudtrail_events.len(),
@@ -597,5 +599,6 @@ impl App {
             }
             _ => {}
         }
+        InputResult::None
     }
 }
