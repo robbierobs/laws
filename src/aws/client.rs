@@ -7,6 +7,7 @@ use aws_sdk_lambda::Client as LambdaClient;
 use aws_sdk_iam::Client as IamClient;
 use aws_sdk_backup::Client as BackupClient;
 use aws_sdk_cloudtrail::Client as CloudTrailClient;
+use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 
 #[derive(Clone)]
 pub struct AwsClients {
@@ -18,6 +19,7 @@ pub struct AwsClients {
     pub iam: IamClient,
     pub backup: BackupClient,
     pub cloudtrail: CloudTrailClient,
+    pub secretsmanager: SecretsManagerClient,
 }
 
 impl AwsClients {
@@ -80,6 +82,7 @@ impl AwsClients {
             iam: IamClient::new(&config),
             backup: BackupClient::new(&config),
             cloudtrail: CloudTrailClient::new(&config),
+            secretsmanager: SecretsManagerClient::new(&config),
         })
     }
 }

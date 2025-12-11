@@ -27,6 +27,7 @@ impl App {
             Service::IAM => self.services.iam.list_state.select(Some(0)),
             Service::Backup => self.services.backup.list_state.select(Some(0)),
             Service::CloudTrail => self.services.cloudtrail.list_state.select(Some(0)),
+            Service::SecretsManager => self.services.secretsmanager.list_state.select(Some(0)),
         }
     }
 
@@ -336,6 +337,7 @@ impl App {
                     Service::IAM => self.services.iam.handle_input(key),
                     Service::Backup => self.services.backup.handle_input(key),
                     Service::CloudTrail => self.services.cloudtrail.handle_input(key),
+                    Service::SecretsManager => self.services.secretsmanager.handle_input(key),
                 };
 
                 match result {
@@ -359,6 +361,7 @@ impl App {
             KeyCode::Char('7') => Some(Message::navigate(Service::IAM)),
             KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
             KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
+            KeyCode::Char('0') => Some(Message::navigate(Service::SecretsManager)),
             KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
             KeyCode::Char('D') => Some(Message::Global(GlobalMessage::ToggleDetailFullscreen)),
             KeyCode::PageUp => Some(Message::Global(GlobalMessage::DetailScrollUp)),
@@ -417,6 +420,11 @@ impl App {
             Service::IAM => self.auto_select_iam(),
             Service::Backup => self.auto_select_backup(),
             Service::CloudTrail => self.auto_select_cloudtrail(),
+            Service::SecretsManager => {
+                if self.services.secretsmanager.list_state.selected().is_none() && !self.services.secretsmanager.secrets.is_empty() {
+                    self.services.secretsmanager.list_state.select(Some(0));
+                }
+            }
         }
     }
 

@@ -111,6 +111,7 @@ pub mod task_keys {
     pub const IAM_POLICIES: &str = "iam:policies";
     pub const BACKUP_REFRESH: &str = "backup:refresh";
     pub const CLOUDTRAIL_REFRESH: &str = "cloudtrail:refresh";
+    pub const SECRETSMANAGER_REFRESH: &str = "secretsmanager:refresh";
     
     // Action tasks
     pub const EC2_ACTION: &str = "ec2:action";

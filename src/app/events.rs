@@ -105,6 +105,10 @@ impl App {
                 self.services.cloudtrail.events = events;
                 self.loading = false;
             }
+            AwsEvent::SecretsManagerSecretsLoaded(secrets) => {
+                self.services.secretsmanager.secrets = secrets;
+                self.loading = false;
+            }
             AwsEvent::S3ObjectDownloaded { key, path } => {
                 self.loading = false;
                 self.action_log.push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));

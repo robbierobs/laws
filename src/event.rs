@@ -16,6 +16,7 @@ use crate::models::iam::{IamRole, IamUser, IamPolicy};
 use crate::models::lambda::LambdaFunction;
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
+use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{Vpc, Subnet, SecurityGroup};
 
 #[derive(Debug)]
@@ -42,6 +43,7 @@ pub enum AwsEvent {
     BackupJobsLoaded(Vec<BackupJob>),
     CloudTrailTrailsLoaded(Vec<Trail>),
     CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
+    SecretsManagerSecretsLoaded(Vec<Secret>),
     /// S3 object was downloaded to a file path
     S3ObjectDownloaded { key: String, path: String },
     /// S3 object was downloaded and ready to open (with content for text files)

@@ -5,7 +5,7 @@
 use tokio::sync::mpsc;
 use crate::event::{Event, AwsEvent};
 use super::{App, Message, GlobalMessage, ServiceAction, Service, VpcViewMode, IamViewMode, DynamoDbViewMode, ViewMode};
-use super::messages::{Ec2Action, S3Action, RdsAction, DynamoDbAction, VpcAction, IamAction};
+use super::messages::{Ec2Action, S3Action, RdsAction, DynamoDbAction, VpcAction, IamAction, SecretsManagerAction};
 use super::task_manager::task_keys;
 
 impl App {
@@ -270,6 +270,7 @@ impl App {
             ServiceAction::Lambda(_) => {}
             ServiceAction::Backup(_) => {}
             ServiceAction::CloudTrail(_) => {}
+            ServiceAction::SecretsManager(_) => {}
         }
     }
 
@@ -455,6 +456,18 @@ impl App {
                         }
                     });
                     self.tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
+                }
+                Service::SecretsManager => {
+                    let client = clients.secretsmanager.clone();
+                    let tx = event_tx.clone();
+                    let handle = tokio::spawn(async move {
+                        let service = crate::aws::secretsmanager::SecretsManagerService::new(client);
+                        match service.list_secrets().await {
+                            Ok(secrets) => { tx.send(Event::Aws(AwsEvent::SecretsManagerSecretsLoaded(secrets))).ok(); }
+                            Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                        }
+                    });
+                     self.tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
                 }
             }
         }

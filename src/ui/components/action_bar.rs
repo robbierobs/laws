@@ -87,6 +87,11 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("v", "View"),
             ]);
         }
+        Service::SecretsManager => {
+            actions.extend_from_slice(&[
+                ("j/k", "Navigate"),
+            ]);
+        }
     }
 
     let spans: Vec<Span> = actions

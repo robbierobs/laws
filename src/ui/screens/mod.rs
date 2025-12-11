@@ -11,6 +11,7 @@ pub mod vpc;
 pub mod iam;
 pub mod backup;
 pub mod cloudtrail;
+pub mod secretsmanager;
 
 use ratatui::{layout::Rect, Frame};
 use crate::app::{App, Service};
@@ -26,6 +27,7 @@ pub struct VpcScreen;
 pub struct IamScreen;
 pub struct BackupScreen;
 pub struct CloudTrailScreen;
+pub struct SecretsManagerScreen;
 
 // Implement Screen trait for each service screen
 impl Screen for Ec2Screen {
@@ -82,6 +84,12 @@ impl Screen for CloudTrailScreen {
     }
 }
 
+impl Screen for SecretsManagerScreen {
+    fn render(&self, frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+        secretsmanager::render_secretsmanager_screen(frame, list_area, detail_area, app);
+    }
+}
+
 /// Get the screen implementation for the given service
 pub fn get_screen(service: Service) -> Box<dyn Screen> {
     match service {
@@ -94,5 +102,6 @@ pub fn get_screen(service: Service) -> Box<dyn Screen> {
         Service::IAM => Box::new(IamScreen),
         Service::Backup => Box::new(BackupScreen),
         Service::CloudTrail => Box::new(CloudTrailScreen),
+        Service::SecretsManager => Box::new(SecretsManagerScreen),
     }
 }
