@@ -77,7 +77,7 @@ impl RdsInstance {
     }
     
     /// Get a status color based on the instance status
-    pub fn status_color(&self) -> ratatui::style::Color {
+    pub fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self.status.to_lowercase().as_str() {
             "available" => THEME.success,
@@ -86,6 +86,14 @@ impl RdsInstance {
             "deleting" | "failed" => THEME.error,
             _ => THEME.muted,
         }
+    }
+}
+
+impl crate::models::Filterable for RdsInstance {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.db_instance_identifier.to_lowercase().contains(filter) ||
+        self.engine.to_lowercase().contains(filter) ||
+        self.endpoint.as_deref().unwrap_or("").to_lowercase().contains(filter)
     }
 }
 

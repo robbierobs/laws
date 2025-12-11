@@ -57,6 +57,9 @@ pub struct App {
     pub region_filter: String,
     pub profile_filter_active: bool,
     pub region_filter_active: bool,
+    
+    // Configuration
+    pub config: crate::config::AppConfig,
 }
 
 impl App {
@@ -112,6 +115,7 @@ impl App {
             region_filter: String::new(),
             profile_filter_active: false,
             region_filter_active: false,
+            config: crate::config::AppConfig::default(),
         }
     }
     

@@ -234,10 +234,12 @@ src/
 │   ├── events.rs        # AWS event handling
 │   ├── service_state.rs # Per-service state structs
 │   ├── task_manager.rs  # Async task tracking
-│   └── filtered_list.rs # Filter/search logic
+│   ├── filtered_list.rs # Filter/search logic
+│   └── view_mode.rs     # ViewMode trait
 │
 ├── aws/                 # AWS SDK wrappers
 │   ├── client.rs        # AwsClients initialization
+│   ├── traits.rs        # Service traits
 │   └── <service>.rs     # Per-service SDK wrappers
 │
 ├── models/              # Data structures

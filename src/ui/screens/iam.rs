@@ -2,13 +2,16 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row},
     Frame,
 };
 use crate::app::{App, IamViewMode};
 use crate::models::iam::{IamRole, IamUser, IamPolicy};
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
+use crate::ui::components::table::render_table;
 
 use crate::ui::theme::THEME;
+use crate::app::ViewMode;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -38,8 +41,8 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
                 .border_style(Style::default().fg(THEME.border));
             frame.render_widget(block, chunks[0]);
         } else {
-            let tabs = ["Users", "Roles", "Policies"];
-            crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.to_index());
+            let tabs: Vec<&str> = crate::app::IamViewMode::iterator().map(|m| m.label()).collect();
+            crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.index());
         }
 
         match app.services.iam.view_mode {
@@ -62,69 +65,51 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
-fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["User Name", "User ID", "Path", "Created", "Password Last Used"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
+use crate::models::Filterable;
 
+fn render_user_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.iam.users.iter()
         .filter(|u| {
             if filter.is_empty() { return true; }
-            let name = u.user_name.to_lowercase();
-            let id = u.user_id.to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            u.matches_filter(&filter)
         })
         .map(|user| {
-        let path = user.path.clone().unwrap_or_else(|| "/".to_string());
-        let created = user.create_date.clone()
-            .map(|d| d.split('T').next().unwrap_or(&d).to_string())
-            .unwrap_or_else(|| "-".to_string());
-        let pwd_last_used = user.password_last_used.clone()
-            .map(|d| d.split('T').next().unwrap_or(&d).to_string())
-            .unwrap_or_else(|| "Never".to_string());
-        
-        let cells = vec![
-            Cell::from(user.user_name.clone()),
-            Cell::from(user.user_id.clone()),
-            Cell::from(path),
-            Cell::from(created),
-            Cell::from(pwd_last_used),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("IAM Users (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let path = user.path.clone().unwrap_or_else(|| "/".to_string());
+            let created = user.create_date.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "-".to_string());
+            let pwd_last_used = user.password_last_used.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "Never".to_string());
+            
+            let cells = vec![
+                Cell::from(user.user_name.clone()),
+                Cell::from(user.user_id.clone()),
+                Cell::from(path),
+                Cell::from(created),
+                Cell::from(pwd_last_used),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["User Name", "User ID", "Path", "Created", "Password Last Used"],
+        &[
             Constraint::Length(25), // User Name
             Constraint::Length(22), // User ID
             Constraint::Length(15), // Path
             Constraint::Length(15), // Created
             Constraint::Min(15),    // Password Last Used
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
+        ],
+        "IAM Users (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.iam.list_state,
+    );
 }
 
 fn render_user_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -140,14 +125,14 @@ fn render_user_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an IAM user to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("IAM User Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("IAM User Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'_>> {
@@ -192,68 +177,48 @@ fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'_>> {
 }
 
 fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Role Name", "Role ID", "Path", "Created", "Max Session"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.iam.roles.iter()
         .filter(|r| {
             if filter.is_empty() { return true; }
-            let name = r.role_name.to_lowercase();
-            let id = r.role_id.to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            r.matches_filter(&filter)
         })
         .map(|role| {
-        let path = role.path.clone().unwrap_or_else(|| "/".to_string());
-        let created = role.create_date.clone()
-            .map(|d| d.split('T').next().unwrap_or(&d).to_string())
-            .unwrap_or_else(|| "-".to_string());
-        let max_session = role.max_session_duration
-            .map(|d| format!("{}h", d / 3600))
-            .unwrap_or_else(|| "-".to_string());
-        
-        let cells = vec![
-            Cell::from(role.role_name.clone()),
-            Cell::from(role.role_id.clone()),
-            Cell::from(path),
-            Cell::from(created),
-            Cell::from(max_session),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("IAM Roles (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let path = role.path.clone().unwrap_or_else(|| "/".to_string());
+            let created = role.create_date.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "-".to_string());
+            let max_session = role.max_session_duration
+                .map(|d| format!("{}h", d / 3600))
+                .unwrap_or_else(|| "-".to_string());
+            
+            let cells = vec![
+                Cell::from(role.role_name.clone()),
+                Cell::from(role.role_id.clone()),
+                Cell::from(path),
+                Cell::from(created),
+                Cell::from(max_session),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Role Name", "Role ID", "Path", "Created", "Max Session"],
+        &[
             Constraint::Length(35), // Role Name
             Constraint::Length(22), // Role ID
             Constraint::Length(20), // Path
             Constraint::Length(12), // Created
             Constraint::Min(10),    // Max Session
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
+        ],
+        "IAM Roles (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.iam.list_state,
+    );
 }
 
 fn render_role_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -269,14 +234,14 @@ fn render_role_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an IAM role to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("IAM Role Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("IAM Role Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'_>> {
@@ -328,68 +293,48 @@ fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'_>> {
 }
 
 fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Policy Name", "Policy ID", "Attachments", "Created", "Updated"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.iam.policies.iter()
         .filter(|p| {
             if filter.is_empty() { return true; }
-            let name = p.policy_name.to_lowercase();
-            let id = p.policy_id.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || id.contains(&filter)
+            p.matches_filter(&filter)
         })
         .map(|policy| {
-        let created = policy.create_date.clone()
-            .map(|d| d.split('T').next().unwrap_or(&d).to_string())
-            .unwrap_or_else(|| "-".to_string());
-        let updated = policy.update_date.clone()
-            .map(|d| d.split('T').next().unwrap_or(&d).to_string())
-            .unwrap_or_else(|| "-".to_string());
-        let attachments = policy.attachment_count.unwrap_or(0).to_string();
-        
-        let cells = vec![
-            Cell::from(policy.policy_name.clone()),
-            Cell::from(policy.policy_id.clone().unwrap_or_default()),
-            Cell::from(attachments),
-            Cell::from(created),
-            Cell::from(updated),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("IAM Policies (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let created = policy.create_date.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "-".to_string());
+            let updated = policy.update_date.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "-".to_string());
+            let attachments = policy.attachment_count.unwrap_or(0).to_string();
+            
+            let cells = vec![
+                Cell::from(policy.policy_name.clone()),
+                Cell::from(policy.policy_id.clone().unwrap_or_default()),
+                Cell::from(attachments),
+                Cell::from(created),
+                Cell::from(updated),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Policy Name", "Policy ID", "Attachments", "Created", "Updated"],
+        &[
             Constraint::Length(40), // Policy Name
             Constraint::Length(22), // Policy ID
             Constraint::Length(12), // Attachments
             Constraint::Length(15), // Created
             Constraint::Min(15),    // Updated
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
+        ],
+        "IAM Policies (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.iam.list_state,
+    );
 }
 
 fn render_policy_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -405,14 +350,14 @@ fn render_policy_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an IAM policy to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("IAM Policy Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("IAM Policy Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'_>> {
@@ -465,47 +410,29 @@ fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'_>> {
 }
 
 fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Policy Name", "ARN"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let rows = app.services.iam.current_policies.iter()
         .map(|policy| {
-        let cells = vec![
-            Cell::from(policy.policy_name.clone()),
-            Cell::from(policy.arn.clone().unwrap_or_default()),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Attached Policies (Press Esc to back)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let cells = vec![
+                Cell::from(policy.policy_name.clone()),
+                Cell::from(policy.arn.clone().unwrap_or_default()),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Policy Name", "ARN"],
+        &[
             Constraint::Length(40), // Policy Name
             Constraint::Min(40),    // ARN
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.iam.list_state);
+        ],
+        "Attached Policies (Press Esc to back)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.iam.list_state,
+    );
 }
 
 fn render_policy_document(frame: &mut Frame, area: Rect, app: &App) {
@@ -534,12 +461,12 @@ fn render_policy_details_from_list(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a policy to view details")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Policy Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Policy Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }

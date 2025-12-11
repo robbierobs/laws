@@ -8,6 +8,7 @@ pub mod input;
 pub mod loading;
 pub mod tabs;
 pub mod action_log;
+pub mod table;
 
 use ratatui::{Frame, layout::Rect};
 use crossterm::event::KeyEvent;

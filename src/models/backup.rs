@@ -82,3 +82,24 @@ impl BackupJob {
         }
     }
 }
+
+impl crate::models::Filterable for BackupPlan {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.backup_plan_name.to_lowercase().contains(filter) ||
+        self.backup_plan_id.to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for BackupVault {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.backup_vault_name.to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for BackupJob {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.backup_job_id.to_lowercase().contains(filter) ||
+        self.resource_type.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.state.to_lowercase().contains(filter)
+    }
+}

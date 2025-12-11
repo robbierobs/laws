@@ -200,3 +200,9 @@ impl S3Service {
     }
 }
 
+
+impl crate::aws::traits::AwsService<S3Bucket> for S3Service {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<S3Bucket>>> + Send + 'a>> {
+        Box::pin(self.list_buckets())
+    }
+}

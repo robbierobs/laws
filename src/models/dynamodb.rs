@@ -83,7 +83,7 @@ pub struct LocalSecondaryIndex {
 }
 
 impl DynamoDbTable {
-    pub fn status_color(&self) -> ratatui::style::Color {
+    pub fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self.table_status.to_uppercase().as_str() {
             "ACTIVE" => THEME.success,
@@ -112,5 +112,18 @@ impl DynamoDbTable {
         } else {
             "-".to_string()
         }
+    }
+}
+
+impl crate::models::Filterable for DynamoDbTable {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.table_name.to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for DynamoDbItem {
+    fn matches_filter(&self, filter: &str) -> bool {
+        // Filter across all attribute values
+        self.attributes.values().any(|v| v.to_lowercase().contains(filter))
     }
 }

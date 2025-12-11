@@ -56,3 +56,9 @@ impl BackupService {
         Ok(jobs)
     }
 }
+
+impl crate::aws::traits::AwsService<BackupVault> for BackupService {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<BackupVault>>> + Send + 'a>> {
+        Box::pin(self.list_backup_vaults())
+    }
+}

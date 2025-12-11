@@ -41,3 +41,9 @@ impl LambdaService {
 
 
 }
+
+impl crate::aws::traits::AwsService<LambdaFunction> for LambdaService {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<LambdaFunction>>> + Send + 'a>> {
+        Box::pin(self.list_functions())
+    }
+}

@@ -48,3 +48,15 @@ impl S3Object {
     }
 }
 
+impl crate::models::Filterable for S3Bucket {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.name.to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for S3Object {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.key.to_lowercase().contains(filter)
+    }
+}
+

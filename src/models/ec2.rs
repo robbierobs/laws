@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use ratatui::style::Color;
+use crate::ui::theme::THEME;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ec2Instance {
@@ -53,6 +55,15 @@ impl From<aws_sdk_ec2::types::InstanceStateName> for InstanceState {
 }
 
 impl Ec2Instance {
+    pub fn state_color(&self) -> Color {
+        match self.state {
+            InstanceState::Running => THEME.success,
+            InstanceState::Stopped => THEME.error,
+            InstanceState::Pending | InstanceState::Stopping => THEME.warning,
+            _ => THEME.muted,
+        }
+    }
+
     pub fn from_aws(instance: aws_sdk_ec2::types::Instance) -> Self {
         let name = instance.tags().iter().find(|t| t.key() == Some("Name")).and_then(|t| t.value().map(|v| v.to_string()));
         
@@ -87,5 +98,13 @@ impl Ec2Instance {
             key_name: instance.key_name().map(|s| s.to_string()),
             monitoring_state: instance.monitoring().and_then(|m| m.state()).map(|s| s.as_str().to_string()),
         }
+    }
+}
+
+impl crate::models::Filterable for Ec2Instance {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.instance_id.to_lowercase().contains(filter) ||
+        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.public_ip.as_deref().unwrap_or("").to_lowercase().contains(filter)
     }
 }

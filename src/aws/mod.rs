@@ -1,4 +1,5 @@
 pub mod client;
+pub mod traits;
 pub mod ec2;
 pub mod s3;
 pub mod rds;

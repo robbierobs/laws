@@ -2,10 +2,12 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Cell, Row},
     Frame,
 };
 use crate::app::App;
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
+use crate::ui::components::table::render_table;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     if let Some(bucket_name) = app.services.s3.current_bucket.clone() {
@@ -29,55 +31,39 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 
 use crate::ui::theme::THEME;
 
-fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Name", "Creation Date", "Region"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
+use crate::models::Filterable;
 
+fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.s3.buckets.iter()
         .filter(|b| {
             if filter.is_empty() { return true; }
-            b.name.to_lowercase().contains(&filter)
+            b.matches_filter(&filter)
         })
         .map(|bucket| {
-        let cells = vec![
-            Cell::from(bucket.name.clone()),
-            Cell::from(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
-            Cell::from(bucket.region.clone().unwrap_or_else(|| "-".to_string())),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("S3 Buckets")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let cells = vec![
+                Cell::from(bucket.name.clone()),
+                Cell::from(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(bucket.region.clone().unwrap_or_else(|| "-".to_string())),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Name", "Creation Date", "Region"],
+        &[
             Constraint::Length(40), // Name
             Constraint::Length(30), // Creation Date
             Constraint::Min(10),    // Region
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.s3.list_state);
+        ],
+        "S3 Buckets",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.s3.list_state,
+    );
 }
 
 fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -87,14 +73,14 @@ fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a bucket to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Bucket Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Bucket Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) -> Vec<Line<'static>> {
@@ -178,56 +164,40 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
 }
 
 fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &str) {
-    let header_cells = ["Key", "Size", "Last Modified", "Storage Class"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.s3.objects.iter()
         .filter(|o| {
             if filter.is_empty() { return true; }
-            o.key.to_lowercase().contains(&filter)
+            o.matches_filter(&filter)
         })
         .map(|obj| {
-        let cells = vec![
-            Cell::from(obj.key.clone()),
-            Cell::from(format_size(obj.size)),
-            Cell::from(obj.last_modified.clone().unwrap_or_else(|| "-".to_string())),
-            Cell::from(obj.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(format!("Objects in {} (Esc: Back, D: Delete)", bucket_name))
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let cells = vec![
+                Cell::from(obj.key.clone()),
+                Cell::from(format_size(obj.size)),
+                Cell::from(obj.last_modified.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(obj.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    let title = format!("Objects in {} (Esc: Back, D: Delete)", bucket_name);
+
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Key", "Size", "Last Modified", "Storage Class"],
+        &[
             Constraint::Length(50), // Key
             Constraint::Length(15), // Size
             Constraint::Length(25), // Last Modified
             Constraint::Min(15),    // Storage Class
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.s3.object_list_state);
+        ],
+        &title,
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.s3.object_list_state,
+    );
 }
 
 fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -243,14 +213,14 @@ fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an object to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Object Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Object Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_object_detail_lines(object: &crate::models::s3::S3Object, bucket_name: Option<&str>) -> Vec<Line<'static>> {

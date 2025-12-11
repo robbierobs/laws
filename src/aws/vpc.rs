@@ -75,3 +75,9 @@ impl VpcService {
         Ok(sgs)
     }
 }
+
+impl crate::aws::traits::AwsService<Vpc> for VpcService {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Vpc>>> + Send + 'a>> {
+        Box::pin(self.list_vpcs())
+    }
+}

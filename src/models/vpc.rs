@@ -172,3 +172,35 @@ impl SecurityGroupRule {
         rules
     }
 }
+
+impl crate::models::Filterable for Vpc {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.vpc_id.to_lowercase().contains(filter) ||
+        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.cidr_block.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for Subnet {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.subnet_id.to_lowercase().contains(filter) ||
+        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.cidr_block.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for SecurityGroup {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.group_id.to_lowercase().contains(filter) ||
+        self.group_name.to_lowercase().contains(filter) ||
+        self.description.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for SecurityGroupRule {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.protocol.to_lowercase().contains(filter) ||
+        self.source.to_lowercase().contains(filter) ||
+        self.description.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}

@@ -66,3 +66,18 @@ impl CloudTrailEvent {
         }
     }
 }
+
+impl crate::models::Filterable for Trail {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.name.to_lowercase().contains(filter) ||
+        self.s3_bucket_name.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}
+
+impl crate::models::Filterable for CloudTrailEvent {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.event_name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.event_source.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.username.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}

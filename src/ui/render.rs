@@ -80,7 +80,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let body_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(20), // Sidebar width
+            Constraint::Length(app.config.sidebar_width),
             Constraint::Min(1),
         ])
         .split(chunks[1]);
@@ -95,11 +95,13 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         (None, Some(body_chunks[1]))
     } else if app.detail_panel_visible {
         // Normal: split between list and detail
+        let detail_percent = app.config.detail_panel_percent;
+        let list_percent = 100u16.saturating_sub(detail_percent);
         let content_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(60),  // List takes 60%
-                Constraint::Percentage(40),  // Detail panel takes 40%
+                Constraint::Percentage(list_percent),
+                Constraint::Percentage(detail_percent),
             ])
             .split(body_chunks[1]);
         (Some(content_chunks[0]), Some(content_chunks[1]))

@@ -16,6 +16,7 @@ mod service_state;
 mod update;
 mod input;
 mod events;
+mod view_mode;
 pub mod task_manager;
 pub mod filtered_list;
 
@@ -26,6 +27,7 @@ pub use messages::{
     VpcViewMode, IamViewMode, BackupViewMode, CloudTrailViewMode, DynamoDbViewMode,
 };
 pub use state::App;
+pub use view_mode::ViewMode;
 // Re-export from service_state (for external use - suppressed unused warning)
 #[allow(unused_imports)]
 pub use service_state::ServiceStates;
@@ -35,3 +37,18 @@ pub use task_manager::TaskManager;
 // Re-export FilteredList (for external use)
 #[allow(unused_imports)]
 pub use filtered_list::FilteredList;
+
+use crossterm::event::KeyEvent;
+
+/// Result from service input handlers
+#[derive(Debug)]
+pub enum InputResult {
+    None,
+    Message(Message),
+    Action(Message), // Action that needs confirmation
+}
+
+/// Trait for service state that handles its own input
+pub trait ServiceInputHandler {
+    fn handle_input(&mut self, key: KeyEvent) -> InputResult;
+}

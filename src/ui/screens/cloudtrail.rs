@@ -2,12 +2,15 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Cell, Row},
     Frame,
 };
 use crate::app::{App, CloudTrailViewMode};
 use crate::models::cloudtrail::{Trail, CloudTrailEvent};
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
+use crate::ui::components::table::render_table;
 use crate::ui::theme::THEME;
+use crate::app::ViewMode;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -23,8 +26,8 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             ])
             .split(area);
 
-        let tabs = ["Trails", "Events"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.to_index());
+        let tabs: Vec<&str> = crate::app::CloudTrailViewMode::iterator().map(|m| m.label()).collect();
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.index());
 
         match app.services.cloudtrail.view_mode {
             CloudTrailViewMode::Trails => render_trail_list(frame, chunks[1], app),
@@ -40,64 +43,46 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
     }
 }
 
-fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Trail Name", "S3 Bucket", "Multi-Region", "Organization", "Region"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
+use crate::models::Filterable;
 
+fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.cloudtrail.trails.iter()
         .filter(|t| {
             if filter.is_empty() { return true; }
-            let name = t.name.to_lowercase();
-            let bucket = t.s3_bucket_name.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || bucket.contains(&filter)
+            t.matches_filter(&filter)
         })
         .map(|trail| {
-        let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
-        let region = trail.home_region.clone().unwrap_or_else(|| "-".to_string());
-        
-        let cells = vec![
-            Cell::from(trail.name.clone()),
-            Cell::from(bucket),
-            Cell::from(if trail.is_multi_region_trail { "Yes" } else { "No" }),
-            Cell::from(if trail.is_organization_trail { "Yes" } else { "No" }),
-            Cell::from(region),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("CloudTrail Trails (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
+            let region = trail.home_region.clone().unwrap_or_else(|| "-".to_string());
+            
+            let cells = vec![
+                Cell::from(trail.name.clone()),
+                Cell::from(bucket),
+                Cell::from(if trail.is_multi_region_trail { "Yes" } else { "No" }),
+                Cell::from(if trail.is_organization_trail { "Yes" } else { "No" }),
+                Cell::from(region),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Trail Name", "S3 Bucket", "Multi-Region", "Organization", "Region"],
+        &[
             Constraint::Length(30), // Trail Name
             Constraint::Length(30), // S3 Bucket
             Constraint::Length(12), // Multi-Region
             Constraint::Length(12), // Organization
             Constraint::Min(15),    // Region
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.cloudtrail.list_state);
+        ],
+        "CloudTrail Trails (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.cloudtrail.list_state,
+    );
 }
 
 fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -113,14 +98,14 @@ fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select a trail to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Trail Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Trail Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
@@ -219,65 +204,44 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
 }
 
 fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Event Name", "Time", "Source", "Username", "Read Only"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.cloudtrail.events.iter()
         .filter(|e| {
             if filter.is_empty() { return true; }
-            let name = e.event_name.as_deref().unwrap_or("").to_lowercase();
-            let source = e.event_source.as_deref().unwrap_or("").to_lowercase();
-            let user = e.username.as_deref().unwrap_or("").to_lowercase();
-            name.contains(&filter) || source.contains(&filter) || user.contains(&filter)
+            e.matches_filter(&filter)
         })
         .map(|event| {
-        let time = event.event_time.clone()
-            .map(|d| d.split('T').next().unwrap_or(&d).to_string())
-            .unwrap_or_else(|| "-".to_string());
-        
-        let cells = vec![
-            Cell::from(event.event_name.clone().unwrap_or_default()),
-            Cell::from(time),
-            Cell::from(event.event_source.clone().unwrap_or_default()),
-            Cell::from(event.username.clone().unwrap_or_else(|| "-".to_string())),
-            Cell::from(event.read_only.clone().unwrap_or_else(|| "-".to_string())),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("CloudTrail Events (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let time = event.event_time.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "-".to_string());
+            
+            let cells = vec![
+                Cell::from(event.event_name.clone().unwrap_or_default()),
+                Cell::from(time),
+                Cell::from(event.event_source.clone().unwrap_or_default()),
+                Cell::from(event.username.clone().unwrap_or_else(|| "-".to_string())),
+                Cell::from(event.read_only.clone().unwrap_or_else(|| "-".to_string())),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Event Name", "Time", "Source", "Username", "Read Only"],
+        &[
             Constraint::Length(30), // Event Name
             Constraint::Length(12), // Time
             Constraint::Length(25), // Source
             Constraint::Length(20), // Username
             Constraint::Min(10),    // Read Only
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.cloudtrail.list_state);
+        ],
+        "CloudTrail Events (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.cloudtrail.list_state,
+    );
 }
 
 fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -293,14 +257,14 @@ fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
         vec![Line::from("Select an event to view details (use j/k to navigate)")]
     };
 
-    let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title("Event Details")
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)));
-    
-    frame.render_widget(paragraph, area);
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Event Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
 }
 
 fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
