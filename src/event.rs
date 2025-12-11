@@ -44,6 +44,7 @@ pub enum AwsEvent {
     CloudTrailTrailsLoaded(Vec<Trail>),
     CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
     SecretsManagerSecretsLoaded(Vec<Secret>),
+    SecretsManagerSecretValueLoaded(String),
     /// S3 object was downloaded to a file path
     S3ObjectDownloaded { key: String, path: String },
     /// S3 object was downloaded and ready to open (with content for text files)

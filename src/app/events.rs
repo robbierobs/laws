@@ -109,6 +109,11 @@ impl App {
                 self.services.secretsmanager.secrets = secrets;
                 self.loading = false;
             }
+            AwsEvent::SecretsManagerSecretValueLoaded(value) => {
+                self.services.secretsmanager.secret_value = Some(value);
+                self.services.secretsmanager.show_secret_modal = true;
+                self.loading = false;
+            }
             AwsEvent::S3ObjectDownloaded { key, path } => {
                 self.loading = false;
                 self.action_log.push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));

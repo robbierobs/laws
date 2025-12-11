@@ -1,8 +1,8 @@
 use ratatui::{
-    layout::{Constraint, Rect},
+    layout::{Constraint, Rect, Layout, Direction, Alignment},
     style::Style,
     text::{Line, Span},
-    widgets::{Cell, Row},
+    widgets::{Cell, Row, Paragraph, Wrap, Block, Borders},
     Frame,
 };
 use crate::app::App;
@@ -20,7 +20,53 @@ pub fn render_secretsmanager_screen(frame: &mut Frame, list_area: Option<Rect>, 
     if let Some(area) = detail_area {
         render_secret_details(frame, area, app);
     }
+
+    if app.services.secretsmanager.show_secret_modal {
+        if let Some(value) = &app.services.secretsmanager.secret_value {
+            render_secret_value_modal(frame, frame.area(), &app.services.secretsmanager.selected_secret().map_or("Unknown".to_string(), |s| s.name.clone()), value);
+        }
+    }
 }
+
+fn render_secret_value_modal(frame: &mut Frame, area: Rect, secret_name: &str, secret_value: &str) {
+    let popup_area = centered_rect(area, 60, 40);
+    
+    let block = Block::default()
+        .title(format!(" Secret Value: {} ", secret_name))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.secondary));
+        
+    let paragraph = Paragraph::new(secret_value)
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .style(Style::default().fg(THEME.fg));
+        
+    // Clear area under popup
+    frame.render_widget(ratatui::widgets::Clear, popup_area);
+    frame.render_widget(paragraph, popup_area);
+}
+
+/// Helper to create a centered rect
+fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
+}
+
 
 fn render_secret_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();

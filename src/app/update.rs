@@ -270,7 +270,13 @@ impl App {
             ServiceAction::Lambda(_) => {}
             ServiceAction::Backup(_) => {}
             ServiceAction::CloudTrail(_) => {}
-            ServiceAction::SecretsManager(_) => {}
+            ServiceAction::SecretsManager(SecretsManagerAction::GetSecretValue(arn)) => {
+                self.handle_get_secret_value(arn, event_tx);
+            }
+            ServiceAction::SecretsManager(SecretsManagerAction::CloseSecretValue) => {
+                self.services.secretsmanager.show_secret_modal = false;
+                self.services.secretsmanager.secret_value = None;
+            }
         }
     }
 
@@ -869,5 +875,20 @@ impl App {
         self.services.iam.current_policy_document.clear();
         self.services.iam.selected_entity_name = None;
         self.services.iam.list_state.select(Some(0));
+    }
+    fn handle_get_secret_value(&mut self, arn: String, event_tx: mpsc::UnboundedSender<Event>) {
+        if let Some(clients) = &self.aws_clients {
+            self.loading = true;
+            let client = clients.secretsmanager.clone();
+            let tx = event_tx;
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::secretsmanager::SecretsManagerService::new(client);
+                match service.get_secret_value(&arn).await {
+                    Ok(value) => { tx.send(Event::Aws(AwsEvent::SecretsManagerSecretValueLoaded(value))).ok(); }
+                    Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
+                }
+            });
+            self.tasks.spawn(task_keys::SECRETSMANAGER_ACTION, handle);
+        }
     }
 }

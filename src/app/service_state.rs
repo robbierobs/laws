@@ -766,6 +766,8 @@ impl ServiceInputHandler for CloudTrailState {
 pub struct SecretsManagerState {
     pub secrets: Vec<Secret>,
     pub list_state: TableState,
+    pub secret_value: Option<String>,
+    pub show_secret_modal: bool,
 }
 
 impl SecretsManagerState {
@@ -783,6 +785,17 @@ impl SecretsManagerState {
 
 impl ServiceInputHandler for SecretsManagerState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        if self.show_secret_modal {
+            if matches!(key.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q')) {
+                 return InputResult::Message(crate::app::Message::Service(
+                     crate::app::ServiceAction::SecretsManager(
+                         crate::app::messages::SecretsManagerAction::CloseSecretValue
+                     )
+                 ));
+            }
+            return InputResult::None;
+        }
+
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => {
                  if !self.secrets.is_empty() {
@@ -796,8 +809,20 @@ impl ServiceInputHandler for SecretsManagerState {
                      self.list_state.select(Some(i));
                  }
             }
+            KeyCode::Char('s') | KeyCode::Enter => {
+                if let Some(secret) = self.selected_secret() {
+                    if let Some(arn) = &secret.arn {
+                        return InputResult::Message(crate::app::Message::Service(
+                             crate::app::ServiceAction::SecretsManager(
+                                 crate::app::messages::SecretsManagerAction::GetSecretValue(arn.clone())
+                             )
+                        ));
+                    }
+                }
+            }
             _ => {}
         }
+
         InputResult::None
     }
 }

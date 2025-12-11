@@ -118,6 +118,7 @@ pub mod task_keys {
     pub const RDS_ACTION: &str = "rds:action";
     pub const S3_ACTION: &str = "s3:action";
     pub const DYNAMODB_ACTION: &str = "dynamodb:action";
+    pub const SECRETSMANAGER_ACTION: &str = "secretsmanager:action";
 }
 
 #[cfg(test)]

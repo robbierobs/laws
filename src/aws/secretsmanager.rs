@@ -38,6 +38,22 @@ impl SecretsManagerService {
 
         Ok(secrets)
     }
+    pub async fn get_secret_value(&self, arn: &str) -> anyhow::Result<String> {
+        let response = self
+            .client
+            .get_secret_value()
+            .secret_id(arn)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("SecretsManager", "get_secret_value", arn, e))?;
+
+        if let Some(secret_string) = response.secret_string() {
+            Ok(secret_string.to_string())
+        } else {
+            // Binary secrets are not supported for now, return placeholder
+            Ok("[Binary secret value not supported]".to_string())
+        }
+    }
 }
 
 impl crate::aws::traits::AwsService<Secret> for SecretsManagerService {

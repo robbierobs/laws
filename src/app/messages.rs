@@ -390,7 +390,8 @@ pub enum CloudTrailAction {
 /// SecretsManager-specific actions (placeholder for future)
 #[derive(Debug, Clone)]
 pub enum SecretsManagerAction {
-    // No actions currently supported
+    GetSecretValue(String),
+    CloseSecretValue,
 }
 
 // ============================================================================
