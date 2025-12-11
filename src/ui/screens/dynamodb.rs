@@ -2,12 +2,13 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Row, Table},
+    widgets::{Cell, Row},
     Frame,
 };
 use crate::app::{App, DynamoDbViewMode};
 use crate::models::dynamodb::DynamoDbTable;
 use crate::ui::components::detail_panel::{render_detail_panel, render_detail_panel_with_selection, DetailPanelConfig};
+use crate::ui::components::table::render_table;
 
 use crate::ui::theme::THEME;
 
@@ -30,15 +31,6 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 }
 
 fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Table Name", "Status", "Items", "Size", "Partition Key", "Billing"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.dynamodb.tables.iter()
         .filter(|t| {
@@ -46,51 +38,42 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
             t.table_name.to_lowercase().contains(&filter)
         })
         .map(|table| {
-        let status_color = table.status_color();
-        let pk_str = table.partition_key.as_ref()
-            .map(|pk| format!("{} ({})", pk.name, pk.attribute_type))
-            .unwrap_or_else(|| "-".to_string());
-        let billing = table.billing_mode.clone()
-            .unwrap_or_else(|| "PROVISIONED".to_string());
-        
-        let cells = vec![
-            Cell::from(table.table_name.clone()),
-            Cell::from(table.table_status.clone()).style(Style::default().fg(status_color)),
-            Cell::from(table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string())),
-            Cell::from(table.format_size()),
-            Cell::from(pk_str),
-            Cell::from(billing),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("DynamoDB Tables (Enter: view details)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let status_color = table.state_color();
+            let pk_str = table.partition_key.as_ref()
+                .map(|pk| format!("{} ({})", pk.name, pk.attribute_type))
+                .unwrap_or_else(|| "-".to_string());
+            let billing = table.billing_mode.clone()
+                .unwrap_or_else(|| "PROVISIONED".to_string());
+            
+            let cells = vec![
+                Cell::from(table.table_name.clone()),
+                Cell::from(table.table_status.clone()).style(Style::default().fg(status_color)),
+                Cell::from(table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string())),
+                Cell::from(table.format_size()),
+                Cell::from(pk_str),
+                Cell::from(billing),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Table Name", "Status", "Items", "Size", "Partition Key", "Billing"],
+        &[
             Constraint::Length(30), // Table Name
             Constraint::Length(12), // Status
             Constraint::Length(10), // Items
             Constraint::Length(12), // Size
             Constraint::Length(20), // Partition Key
             Constraint::Min(15),    // Billing
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.dynamodb.list_state);
+        ],
+        "DynamoDB Tables (Enter: view details)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.dynamodb.list_state,
+    );
 }
 
 fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
@@ -107,7 +90,7 @@ fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
-    let status_color = table.status_color();
+    let status_color = table.state_color();
     
     let item_count_str = table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
     let created_str = table.creation_date_time.clone().unwrap_or_else(|| "-".to_string());
@@ -282,16 +265,6 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
         column_names.push("(no data)".to_string());
     }
     
-    // Build header
-    let header_cells: Vec<Cell> = column_names.iter()
-        .map(|h| Cell::from(h.as_str()).style(Style::default().fg(THEME.primary)))
-        .collect();
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-    
     // Build rows
     let rows: Vec<Row> = app.services.dynamodb.items.iter()
         .map(|item| {
@@ -314,16 +287,6 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
         item_count
     );
     
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
-        });
-
     // Calculate column widths
     let col_count = column_names.len();
     let constraints: Vec<Constraint> = if col_count <= 1 {
@@ -341,13 +304,18 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
         }).collect()
     };
 
-    let t = Table::new(rows, constraints)
-        .header(header)
-        .block(block)
-        .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
     if let Some(area) = list_area {
-        frame.render_stateful_widget(t, area, &mut app.services.dynamodb.item_list_state);
+        let headers: Vec<&str> = column_names.iter().map(|s| s.as_str()).collect();
+        render_table(
+            frame,
+            area,
+            rows,
+            &headers,
+            &constraints,
+            &title,
+            matches!(app.focus, crate::app::Focus::Main),
+            &mut app.services.dynamodb.item_list_state,
+        );
     }
     
     // Render item details in detail area if available

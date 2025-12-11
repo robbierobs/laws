@@ -2,12 +2,13 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Row, Table},
+    widgets::{Block, Borders, Cell, Row},
     Frame,
 };
 use crate::app::{App, VpcViewMode};
 use crate::models::vpc::{Vpc, Subnet, SecurityGroup, SecurityGroupRule};
 use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
+use crate::ui::components::table::render_table;
 
 use crate::ui::theme::THEME;
 
@@ -57,15 +58,6 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 }
 
 fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["VPC ID", "Name", "CIDR Block", "State", "Default", "Tenancy"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.vpc.vpcs.iter()
         .filter(|v| {
@@ -76,61 +68,43 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || name.contains(&filter) || cidr.contains(&filter)
         })
         .map(|vpc| {
-        let state_color = vpc.state_color();
-        let name = vpc.name.clone().unwrap_or_else(|| "-".to_string());
-        let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
-        let tenancy = vpc.instance_tenancy.clone().unwrap_or_else(|| "default".to_string());
-        
-        let cells = vec![
-            Cell::from(vpc.vpc_id.clone()),
-            Cell::from(name),
-            Cell::from(cidr),
-            Cell::from(vpc.state.clone()).style(Style::default().fg(state_color)),
-            Cell::from(if vpc.is_default { "Yes" } else { "No" }),
-            Cell::from(tenancy),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("VPCs (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let state_color = vpc.state_color();
+            let name = vpc.name.clone().unwrap_or_else(|| "-".to_string());
+            let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
+            let tenancy = vpc.instance_tenancy.clone().unwrap_or_else(|| "default".to_string());
+            
+            let cells = vec![
+                Cell::from(vpc.vpc_id.clone()),
+                Cell::from(name),
+                Cell::from(cidr),
+                Cell::from(vpc.state.clone()).style(Style::default().fg(state_color)),
+                Cell::from(if vpc.is_default { "Yes" } else { "No" }),
+                Cell::from(tenancy),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["VPC ID", "Name", "CIDR Block", "State", "Default", "Tenancy"],
+        &[
             Constraint::Length(25), // VPC ID
             Constraint::Length(20), // Name
             Constraint::Length(18), // CIDR Block
             Constraint::Length(12), // State
             Constraint::Length(8),  // Default
             Constraint::Min(10),    // Tenancy
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
+        ],
+        "VPCs (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.vpc.list_state,
+    );
 }
 
 fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Subnet ID", "Name", "VPC ID", "CIDR Block", "AZ", "Available IPs"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.vpc.subnets.iter()
         .filter(|s| {
@@ -141,62 +115,44 @@ fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || name.contains(&filter) || vpc_id.contains(&filter)
         })
         .map(|subnet| {
-        let name = subnet.name.clone().unwrap_or_else(|| "-".to_string());
-        let vpc_id = subnet.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-        let cidr = subnet.cidr_block.clone().unwrap_or_else(|| "-".to_string());
-        let az = subnet.availability_zone.clone().unwrap_or_else(|| "-".to_string());
-        let ips = subnet.available_ip_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
-        
-        let cells = vec![
-            Cell::from(subnet.subnet_id.clone()),
-            Cell::from(name),
-            Cell::from(vpc_id),
-            Cell::from(cidr),
-            Cell::from(az),
-            Cell::from(ips),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Subnets (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let name = subnet.name.clone().unwrap_or_else(|| "-".to_string());
+            let vpc_id = subnet.vpc_id.clone().unwrap_or_else(|| "-".to_string());
+            let cidr = subnet.cidr_block.clone().unwrap_or_else(|| "-".to_string());
+            let az = subnet.availability_zone.clone().unwrap_or_else(|| "-".to_string());
+            let ips = subnet.available_ip_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
+            
+            let cells = vec![
+                Cell::from(subnet.subnet_id.clone()),
+                Cell::from(name),
+                Cell::from(vpc_id),
+                Cell::from(cidr),
+                Cell::from(az),
+                Cell::from(ips),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Subnet ID", "Name", "VPC ID", "CIDR Block", "AZ", "Available IPs"],
+        &[
             Constraint::Length(25), // Subnet ID
             Constraint::Length(20), // Name
             Constraint::Length(25), // VPC ID
             Constraint::Length(18), // CIDR Block
             Constraint::Length(15), // AZ
             Constraint::Min(10),    // Available IPs
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
+        ],
+        "Subnets (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.vpc.list_state,
+    );
 }
 
 fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Group ID", "Name", "VPC ID", "Inbound Rules", "Outbound Rules"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let filter = app.filter_input.to_lowercase();
     let rows = app.services.vpc.security_groups.iter()
         .filter(|sg| {
@@ -207,94 +163,68 @@ fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
             id.contains(&filter) || name.contains(&filter) || vpc_id.contains(&filter)
         })
         .map(|sg| {
-        let vpc_id = sg.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-        
-        let cells = vec![
-            Cell::from(sg.group_id.clone()),
-            Cell::from(sg.group_name.clone()),
-            Cell::from(vpc_id),
-            Cell::from(sg.inbound_rules_count.to_string()),
-            Cell::from(sg.outbound_rules_count.to_string()),
-        ];
-        
-        Row::new(cells).height(1)
-    });
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Security Groups (v/h/l to switch view)")
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
+            let vpc_id = sg.vpc_id.clone().unwrap_or_else(|| "-".to_string());
+            
+            let cells = vec![
+                Cell::from(sg.group_id.clone()),
+                Cell::from(sg.group_name.clone()),
+                Cell::from(vpc_id),
+                Cell::from(sg.inbound_rules_count.to_string()),
+                Cell::from(sg.outbound_rules_count.to_string()),
+            ];
+            
+            Row::new(cells).height(1)
         });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Group ID", "Name", "VPC ID", "Inbound Rules", "Outbound Rules"],
+        &[
             Constraint::Length(25), // Group ID
             Constraint::Length(30), // Name
             Constraint::Length(25), // VPC ID
             Constraint::Length(15), // Inbound
             Constraint::Min(15),    // Outbound
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
+        ],
+        "Security Groups (v/h/l to switch view)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.vpc.list_state,
+    );
 }
 
 fn render_sg_rules_list(frame: &mut Frame, area: Rect, app: &mut App) {
-    let header_cells = ["Protocol", "Port Range", "Source", "Description"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
-    let header = Row::new(header_cells)
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .height(1)
-        .bottom_margin(1);
-
     let rows = app.services.vpc.current_sg_rules.iter()
         .map(|rule| {
-        let cells = vec![
-            Cell::from(rule.protocol.clone()),
-            Cell::from(rule.port_range.clone()),
-            Cell::from(rule.source.clone()),
-            Cell::from(rule.description.clone().unwrap_or_default()),
-        ];
-        
-        Row::new(cells).height(1)
-    });
+            let cells = vec![
+                Cell::from(rule.protocol.clone()),
+                Cell::from(rule.port_range.clone()),
+                Cell::from(rule.source.clone()),
+                Cell::from(rule.description.clone().unwrap_or_default()),
+            ];
+            
+            Row::new(cells).height(1)
+        });
 
     let direction = if app.services.vpc.sg_rules_inbound { "Inbound" } else { "Outbound" };
     let title = format!("{} Rules (t: toggle direction, Esc: back)", direction);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .title_style(Style::default().fg(THEME.primary))
-        .border_style(if matches!(app.focus, crate::app::Focus::Main) {
-            Style::default().fg(THEME.secondary)
-        } else {
-            Style::default().fg(THEME.border)
-        });
 
-    let t = Table::new(
+    render_table(
+        frame,
+        area,
         rows,
-        [
+        &["Protocol", "Port Range", "Source", "Description"],
+        &[
             Constraint::Length(10), // Protocol
             Constraint::Length(15), // Port Range
             Constraint::Length(20), // Source
             Constraint::Min(20),    // Description
-        ]
-    )
-    .header(header)
-    .block(block)
-    .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg).add_modifier(Modifier::BOLD));
-
-    frame.render_stateful_widget(t, area, &mut app.services.vpc.list_state);
+        ],
+        &title,
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.vpc.list_state,
+    );
 }
 
 fn render_vpc_details(frame: &mut Frame, area: Rect, app: &App) {

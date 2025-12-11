@@ -83,7 +83,7 @@ pub struct LocalSecondaryIndex {
 }
 
 impl DynamoDbTable {
-    pub fn status_color(&self) -> ratatui::style::Color {
+    pub fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self.table_status.to_uppercase().as_str() {
             "ACTIVE" => THEME.success,
