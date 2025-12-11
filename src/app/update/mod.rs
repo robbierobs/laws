@@ -7,6 +7,7 @@ mod dynamodb;
 mod ec2;
 mod global;
 mod iam;
+pub mod instance_actions;
 mod rds;
 mod s3;
 mod secretsmanager;

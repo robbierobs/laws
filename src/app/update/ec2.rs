@@ -4,7 +4,7 @@
 
 use super::super::task_manager::task_keys;
 use super::super::App;
-use crate::event::{AwsEvent, Event};
+use super::instance_actions::execute_instance_action;
 
 impl App {
     pub(super) fn handle_ec2_action(
@@ -24,22 +24,7 @@ impl App {
 
         let handle = tokio::spawn(async move {
             let service = crate::aws::ec2::Ec2Service::new(client);
-            let result = match action.as_str() {
-                "start" => service.start_instance(&id).await,
-                "stop" => service.stop_instance(&id).await,
-                "reboot" => service.reboot_instance(&id).await,
-                _ => return,
-            };
-
-            match result {
-                Ok(_) => {
-                    let msg = format!("{}ed instance {}", action.trim_end_matches('e'), id);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).await.ok();
-                }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
-                }
-            }
+            execute_instance_action(service, &action, id, tx).await;
         });
 
         self.tasks.spawn(task_keys::EC2_ACTION, handle);

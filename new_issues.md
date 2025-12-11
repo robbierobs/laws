@@ -182,33 +182,45 @@ pub type AppResult<T> = Result<T, AppError>;
 
 ---
 
-## 6. **Code Duplication & Abstraction**
+## 6. **Code Duplication & Abstraction** ✅ COMPLETED
 
-### 6.1 Per-Service Action Patterns
-**Current**: Similar patterns repeated for EC2, RDS, DynamoDB actions (start/stop/reboot/delete)
+### 6.1 Per-Service Action Patterns ✅
+**Status**: Completed - Created `InstanceActionService` trait for start/stop/reboot operations.
 
-**Recommendation**: Create a generic action handler trait:
+**What was done**:
+- Created `src/app/update/instance_actions.rs` with:
+  - `InstanceActionService` trait for services supporting start/stop/reboot
+  - `execute_instance_action()` generic helper function
+  - Implementations for `Ec2Service` and `RdsService`
+- Refactored `src/app/update/ec2.rs` to use `execute_instance_action()`
+- Refactored `src/app/update/rds.rs` to use `execute_instance_action()`
+
+**Before** (duplicated in ec2.rs and rds.rs):
 ```rust
-pub trait AsyncAction {
-    type Input;
-    type Output;
-    
-    async fn execute(&self, input: Self::Input) -> Result<Self::Output>;
-    fn undo(&self, output: Self:: Output) -> Result<()>; // For future undo support
+let result = match action.as_str() {
+    "start" => service.start_instance(&id).await,
+    "stop" => service.stop_instance(&id).await,
+    "reboot" => service.reboot_instance(&id).await,
+    _ => return,
+};
+match result {
+    Ok(_) => { /* send success event */ }
+    Err(e) => { /* send error event */ }
 }
+```
 
-// Implement for each service
-impl AsyncAction for StartEc2Instance { ...  }
-impl AsyncAction for StopEc2Instance { ... }
+**After** (shared via trait):
+```rust
+execute_instance_action(service, &action, id, tx).await;
 ```
 
 ### 6.2 Service State Initialization
-**Issue**: Each service's state probably has similar initialization patterns
+**Status**: Deferred - Current structure is already modular with per-service state structs.
 
-**Recommendation**: 
-- Create a `ServiceInitializer` trait
-- Consolidate common loading patterns
-- Reduce duplication in `app/service_state.rs`
+**Notes**:
+- Each service already has its own state struct (Ec2State, S3State, etc.)
+- Additional abstraction would add complexity without significant benefit
+- Could be revisited if more services are added
 
 ---
 
