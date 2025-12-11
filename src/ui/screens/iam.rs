@@ -11,6 +11,7 @@ use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig
 use crate::ui::components::table::render_table;
 
 use crate::ui::theme::THEME;
+use crate::app::ViewMode;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -40,8 +41,9 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
                 .border_style(Style::default().fg(THEME.border));
             frame.render_widget(block, chunks[0]);
         } else {
-            let tabs = ["Users", "Roles", "Policies"];
-            crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.to_index());
+            let tabs_list = crate::app::IamViewMode::all();
+            let tabs: Vec<&str> = tabs_list.iter().map(|m| m.label()).collect();
+            crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.iam.view_mode.index());
         }
 
         match app.services.iam.view_mode {

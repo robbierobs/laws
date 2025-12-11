@@ -296,6 +296,9 @@ impl App {
                 Service::S3 => {
                     let client = clients.s3.clone();
                     let tx = event_tx.clone();
+                    let concurrency = self.config.s3_detail_concurrency;
+                    let delay = self.config.s3_detail_delay_ms;
+                    
                     tokio::spawn(async move {
                         let service = crate::aws::s3::S3Service::new(client.clone());
                         match service.list_buckets().await {
@@ -304,7 +307,7 @@ impl App {
                                 tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets))).ok();
                                 
                                 // Load details with rate limiting
-                                let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(3));
+                                let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
                                 for bucket_name in bucket_names.into_iter().take(20) {
                                     let permit = semaphore.clone().acquire_owned().await;
                                     if permit.is_err() { break; }
@@ -315,7 +318,7 @@ impl App {
                                     
                                     tokio::spawn(async move {
                                         let _permit = permit;
-                                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
                                         let service = crate::aws::s3::S3Service::new(client_clone);
                                         let details = service.get_bucket_details(&name).await;
                                         tx_clone.send(Event::Aws(AwsEvent::S3BucketDetailsLoaded { bucket_name: name, details })).ok();
@@ -438,13 +441,14 @@ impl App {
                 Service::CloudTrail => {
                     let client = clients.cloudtrail.clone();
                     let tx = event_tx.clone();
+                    let limit = self.config.max_cloudtrail_events as i32;
                     let handle = tokio::spawn(async move {
                         let service = crate::aws::cloudtrail::CloudTrailService::new(client);
                         match service.list_trails().await {
                             Ok(trails) => { tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
-                        match service.lookup_events(50).await {
+                        match service.lookup_events(limit).await {
                             Ok(events) => { tx.send(Event::Aws(AwsEvent::CloudTrailEventsLoaded(events))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
@@ -681,9 +685,10 @@ impl App {
                     self.loading = true;
                     let client = clients.dynamodb.clone();
                     let tx = event_tx;
+                    let limit = self.config.max_dynamodb_items as i32;
                     let handle = tokio::spawn(async move {
                         let service = crate::aws::dynamodb::DynamoDbService::new(client);
-                        match service.scan_items(&table_name, 100).await {
+                        match service.scan_items(&table_name, limit).await {
                             Ok(items) => { tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items))).ok(); }
                             Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                         }
@@ -699,9 +704,10 @@ impl App {
             self.loading = true;
             let client = clients.dynamodb.clone();
             let tx = event_tx;
+            let limit = self.config.max_dynamodb_items as i32;
             let handle = tokio::spawn(async move {
                 let service = crate::aws::dynamodb::DynamoDbService::new(client);
-                match service.scan_items(&table_name, 100).await {
+                match service.scan_items(&table_name, limit).await {
                     Ok(items) => { tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items))).ok(); }
                     Err(e) => { tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(); }
                 }

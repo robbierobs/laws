@@ -57,7 +57,8 @@ async fn main() -> anyhow::Result<()> {
     let mut app = App::new(aws_clients, profile.clone(), region, args.read_only);
 
     // Create event handler
-    let mut events = EventHandler::new(250); // 250ms tick rate
+    // Create event handler
+    let mut events = EventHandler::new(app.config.tick_rate_ms);
     let event_tx = events.sender();
 
     // If no profile was specified, open the profile switcher immediately

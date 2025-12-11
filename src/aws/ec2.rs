@@ -61,3 +61,9 @@ impl Ec2Service {
 
 }
 
+impl crate::aws::traits::AwsService<Ec2Instance> for Ec2Service {
+    fn list<'a>(&'a self) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<Ec2Instance>>> + Send + 'a>> {
+        Box::pin(self.list_instances())
+    }
+}
+

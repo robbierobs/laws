@@ -120,11 +120,7 @@ impl ViewMode for VpcViewMode {
     }
 }
 
-impl VpcViewMode {
-    pub fn to_index(self) -> usize {
-        self.index()
-    }
-}
+// to_index() removed, use ViewMode::index() trait method instead
 
 /// View mode for IAM service
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -191,10 +187,6 @@ impl ViewMode for IamViewMode {
 }
 
 impl IamViewMode {
-    pub fn to_index(self) -> usize {
-        self.index()
-    }
-
     pub fn is_main_tab(self) -> bool {
         matches!(self, Self::Users | Self::Roles | Self::Policies)
     }
@@ -236,19 +228,7 @@ impl ViewMode for BackupViewMode {
     }
 }
 
-impl BackupViewMode {
-    pub fn next(self) -> Self {
-        ViewMode::next(&self)
-    }
-
-    pub fn previous(self) -> Self {
-        ViewMode::prev(&self)
-    }
-
-    pub fn to_index(self) -> usize {
-        self.index()
-    }
-}
+// to_index(), next(), previous() removed, use ViewMode trait methods instead
 
 /// View mode for CloudTrail service
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -283,19 +263,7 @@ impl ViewMode for CloudTrailViewMode {
     }
 }
 
-impl CloudTrailViewMode {
-    pub fn next(self) -> Self {
-        ViewMode::next(&self)
-    }
-
-    pub fn previous(self) -> Self {
-        ViewMode::prev(&self)
-    }
-
-    pub fn to_index(self) -> usize {
-        self.index()
-    }
-}
+// to_index(), next(), previous() removed, use ViewMode trait methods instead
 
 /// View mode for DynamoDB service
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -337,12 +305,7 @@ impl ViewMode for DynamoDbViewMode {
     }
 }
 
-impl DynamoDbViewMode {
-    #[allow(dead_code)]
-    pub fn to_index(self) -> usize {
-        self.index()
-    }
-}
+// to_index() removed, use ViewMode::index() trait method instead
 
 // ============================================================================
 // Per-Service Action Enums

@@ -10,6 +10,7 @@ use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
 use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
 use crate::ui::components::table::render_table;
 use crate::ui::theme::THEME;
+use crate::app::ViewMode;
 
 pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
     use ratatui::layout::{Layout, Direction};
@@ -25,8 +26,9 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             ])
             .split(area);
 
-        let tabs = ["Vaults", "Plans", "Jobs"];
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.backup.view_mode.to_index());
+        let tabs_list = crate::app::BackupViewMode::all();
+        let tabs: Vec<&str> = tabs_list.iter().map(|m| m.label()).collect();
+        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.backup.view_mode.index());
 
         match app.services.backup.view_mode {
             BackupViewMode::Vaults => render_vault_list(frame, chunks[1], app),
