@@ -271,7 +271,9 @@ When working on this project, adopt the following persona:
 
 1. **Update `Cargo.toml`**: Add `aws-sdk-<service> = "1.x"`
 2. **Create Model** (`src/models/<service>.rs`): Define data structs with `from_aws()` conversion
-3. **Create AWS Service** (`src/aws/<service>.rs`): Implement `<Service>Service` with SDK operations
+3. **Create AWS Service** (`src/aws/<service>.rs`):
+   - Implement `<Service>Service` struct with implicit methods
+   - Implement `AwsService<Model>` trait for standard listing
 4. **Add to State** (`src/app/service_state.rs`): Create `<Service>State` struct
 5. **Add to Messages** (`src/app/messages.rs`):
    - Add variant to `Service` enum
