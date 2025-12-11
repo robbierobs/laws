@@ -1,6 +1,7 @@
 mod app;
 mod config;
 mod event;
+mod error;
 mod ui;
 mod aws;
 mod models;

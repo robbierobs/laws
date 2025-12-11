@@ -4,6 +4,7 @@ use crate::aws::client::AwsClients;
 use crate::ui::components::sidebar::Sidebar;
 
 use super::service_state::ServiceStates;
+use super::task_manager::TaskManager;
 use super::{Focus, InputMode, Message, Service};
 
 /// Main application state
@@ -39,6 +40,9 @@ pub struct App {
     
     // Service-specific states consolidated into one struct
     pub services: ServiceStates,
+    
+    // Task manager for async task tracking
+    pub tasks: TaskManager,
 }
 
 impl App {
@@ -64,6 +68,7 @@ impl App {
             action_log: Vec::new(),
             action_log_expanded: false,
             services: ServiceStates::new(),
+            tasks: TaskManager::new(),
         }
     }
     

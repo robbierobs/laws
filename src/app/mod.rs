@@ -7,6 +7,7 @@
 //! - `update`: Message handling (reducer/update function)
 //! - `input`: Keyboard input handling
 //! - `events`: AWS event handling
+//! - `task_manager`: Async task tracking and cancellation
 
 mod messages;
 mod state;
@@ -14,6 +15,7 @@ mod service_state;
 mod update;
 mod input;
 mod events;
+pub mod task_manager;
 
 // Re-export everything needed by other modules
 pub use messages::{
@@ -24,4 +26,5 @@ pub use messages::{
 pub use state::App;
 // Re-export from service_state (only what's needed externally)
 pub use service_state::ServiceStates;
-
+// Re-export TaskManager
+pub use task_manager::TaskManager;
