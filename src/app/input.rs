@@ -7,7 +7,13 @@ use super::{App, Message, Service, Focus, InputMode, VpcViewMode};
 use crate::ui::components::Component;
 
 /// Result from service input handlers
-enum InputResult {
+/// 
+/// This enum is used to communicate the result of input handling:
+/// - `None`: No action taken, input was not recognized
+/// - `Message`: A message to be processed immediately
+/// - `Action`: An action that requires user confirmation before execution
+#[derive(Debug)]
+pub enum InputResult {
     None,
     Message(Message),
     Action(Message), // Action that needs confirmation
@@ -603,5 +609,38 @@ impl App {
             _ => {}
         }
         InputResult::None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_input_result_none() {
+        let result = InputResult::None;
+        assert!(matches!(result, InputResult::None));
+    }
+
+    #[test]
+    fn test_input_result_message() {
+        let msg = Message::quit();
+        let result = InputResult::Message(msg);
+        assert!(matches!(result, InputResult::Message(_)));
+    }
+
+    #[test]
+    fn test_input_result_action() {
+        let action = Message::ec2_start("i-12345".to_string());
+        let result = InputResult::Action(action);
+        assert!(matches!(result, InputResult::Action(_)));
+    }
+
+    #[test]
+    fn test_input_result_debug() {
+        // Ensure InputResult implements Debug (required for error reporting)
+        let result = InputResult::None;
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("None"));
     }
 }

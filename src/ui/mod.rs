@@ -4,4 +4,4 @@ pub mod components;
 pub mod screens;
 pub mod screen;
 
-pub use screen::Screen;
+pub use screen::{Screen, InputHandler};

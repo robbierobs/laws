@@ -26,6 +26,7 @@ pub use messages::{
     VpcViewMode, IamViewMode, BackupViewMode, CloudTrailViewMode, DynamoDbViewMode,
 };
 pub use state::App;
+pub use input::InputResult;
 // Re-export from service_state (only what's needed externally)
 pub use service_state::ServiceStates;
 // Re-export TaskManager
