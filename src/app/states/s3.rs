@@ -147,4 +147,20 @@ impl ServiceInputHandler for S3State {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        if self.current_bucket.is_some() {
+            self.object_list_state.select(Some(0));
+        } else {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        if self.current_bucket.is_some() {
+            self.selected_object().map(|o| o.key.clone())
+        } else {
+            self.selected_bucket().map(|b| b.name.clone())
+        }
+    }
 }

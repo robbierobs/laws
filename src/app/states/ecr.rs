@@ -65,4 +65,15 @@ impl ServiceInputHandler for EcrState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        match self.view_mode {
+            EcrViewMode::Repositories => self.selected_repository().map(|r| r.repository_name.clone()),
+            EcrViewMode::Images => self.selected_image().map(|i| i.image_digest.clone()),
+        }
+    }
 }

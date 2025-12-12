@@ -113,4 +113,17 @@ impl ServiceInputHandler for IamState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        match self.view_mode {
+            IamViewMode::Users => self.selected_user().map(|u| u.user_name.clone()),
+            IamViewMode::Roles => self.selected_role().map(|r| r.role_name.clone()),
+            IamViewMode::Policies => self.selected_policy().map(|p| p.policy_name.clone()),
+            _ => None,
+        }
+    }
 }

@@ -159,6 +159,19 @@ impl ServiceInputHandler for EcsState {
             EcsViewMode::TaskDefinition => self.handle_task_definition_input(key),
         }
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        match self.view_mode {
+            EcsViewMode::Clusters => self.selected_cluster().map(|c| c.cluster_arn.clone()),
+            EcsViewMode::Services => self.selected_service().map(|s| s.service_arn.clone()),
+            EcsViewMode::Tasks => self.selected_task().map(|t| t.task_arn.clone()),
+            EcsViewMode::TaskDefinition => self.current_task_definition.as_ref().map(|td| td.task_definition_arn.clone()),
+        }
+    }
 }
 
 impl EcsState {

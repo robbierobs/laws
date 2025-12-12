@@ -86,4 +86,17 @@ impl ServiceInputHandler for BackupState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        match self.view_mode {
+            BackupViewMode::Vaults => self.selected_vault().map(|v| v.backup_vault_name.clone()),
+            BackupViewMode::Plans => self.selected_plan().map(|p| p.backup_plan_id.clone()),
+            BackupViewMode::Jobs => self.selected_job().map(|j| j.backup_job_id.clone()),
+            BackupViewMode::RecoveryPoints => self.selected_recovery_point().map(|rp| rp.recovery_point_arn.clone()),
+        }
+    }
 }

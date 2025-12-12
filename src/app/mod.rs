@@ -62,4 +62,6 @@ pub enum InputResult {
 /// Trait for service state that handles its own input
 pub trait ServiceInputHandler {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult;
+    fn reset_selection(&mut self);
+    fn get_copiable_text(&self) -> Option<String>;
 }

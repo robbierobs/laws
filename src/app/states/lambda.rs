@@ -58,4 +58,12 @@ impl ServiceInputHandler for LambdaState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        self.selected_function().map(|f| f.function_name.clone())
+    }
 }

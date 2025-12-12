@@ -204,6 +204,40 @@ impl App {
         self.tasks.cancel_all();
     }
 
+    pub fn get_active_service_handler_mut(&mut self) -> &mut dyn super::ServiceInputHandler {
+        match self.current_service {
+            Service::EC2 => &mut self.services.ec2,
+            Service::S3 => &mut self.services.s3,
+            Service::RDS => &mut self.services.rds,
+            Service::DynamoDB => &mut self.services.dynamodb,
+            Service::Lambda => &mut self.services.lambda,
+            Service::VPC => &mut self.services.vpc,
+            Service::IAM => &mut self.services.iam,
+            Service::Backup => &mut self.services.backup,
+            Service::CloudTrail => &mut self.services.cloudtrail,
+            Service::SecretsManager => &mut self.services.secretsmanager,
+            Service::ECS => &mut self.services.ecs,
+            Service::ECR => &mut self.services.ecr,
+        }
+    }
+    
+    pub fn get_active_service_handler(&self) -> &dyn super::ServiceInputHandler {
+        match self.current_service {
+            Service::EC2 => &self.services.ec2,
+            Service::S3 => &self.services.s3,
+            Service::RDS => &self.services.rds,
+            Service::DynamoDB => &self.services.dynamodb,
+            Service::Lambda => &self.services.lambda,
+            Service::VPC => &self.services.vpc,
+            Service::IAM => &self.services.iam,
+            Service::Backup => &self.services.backup,
+            Service::CloudTrail => &self.services.cloudtrail,
+            Service::SecretsManager => &self.services.secretsmanager,
+            Service::ECS => &self.services.ecs,
+            Service::ECR => &self.services.ecr,
+        }
+    }
+
     /// Spawn a standardized AWS async task
     ///
     /// This helper reduces boilerplate for spawning async AWS operations.

@@ -90,4 +90,17 @@ impl ServiceInputHandler for VpcState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        match self.view_mode {
+            VpcViewMode::Vpcs => self.selected_vpc().map(|v| v.vpc_id.clone()),
+            VpcViewMode::Subnets => self.selected_subnet().map(|s| s.subnet_id.clone()),
+            VpcViewMode::SecurityGroups => self.selected_security_group().map(|sg| sg.group_id.clone()),
+            VpcViewMode::SecurityGroupRules => None,
+        }
+    }
 }

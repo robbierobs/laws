@@ -92,4 +92,34 @@ impl ServiceInputHandler for DynamoDbState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        if self.view_mode == DynamoDbViewMode::Items {
+            self.item_list_state.select(Some(0));
+        } else {
+            self.list_state.select(Some(0));
+        }
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        if self.view_mode == DynamoDbViewMode::Items {
+            // No easy way to copy items yet as per existing code
+            // "For items, we could format as JSON, but for now let's stick to IDs/names if possible"
+            // "Detailed item copy is better handled in a specific view"
+            // "self.services.dynamodb.selected_table().map(|t| t.table_name.clone())"
+            
+            // Wait, existing code just returns table name even in items view?
+            // "self.services.dynamodb.selected_table().map(|t| t.table_name.clone())"
+            // Yes, because `selected_table` depends on `list_state`, which might still be selected.
+            // But let's check `src/app/input.rs` again.
+            // It has:
+            // Service::DynamoDB => {
+            //     self.services.dynamodb.selected_table().map(|t| t.table_name.clone())
+            // }
+            // So it actually always copies the table name regardless of view mode.
+            self.selected_table().map(|t| t.table_name.clone())
+        } else {
+             self.selected_table().map(|t| t.table_name.clone())
+        }
+    }
 }

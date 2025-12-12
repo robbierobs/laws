@@ -73,4 +73,15 @@ impl ServiceInputHandler for CloudTrailState {
         }
         InputResult::None
     }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        match self.view_mode {
+            CloudTrailViewMode::Trails => self.selected_trail().map(|t| t.name.clone()),
+            CloudTrailViewMode::Events => self.selected_event().and_then(|e| e.event_id.clone()),
+        }
+    }
 }
