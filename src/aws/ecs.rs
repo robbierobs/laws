@@ -124,6 +124,134 @@ impl EcsClient {
         Ok(())
     }
 
+    /// Update an ECS service with optional task definition, CPU, and memory changes.
+    /// 
+    /// If CPU or memory is provided, a new task definition revision is created with
+    /// those values, and the service is updated to use it. Otherwise, if only
+    /// task_definition is provided, the service is updated to use that directly.
+    pub async fn update_service(
+        &self,
+        cluster_arn: &str,
+        service_name: &str,
+        task_definition: Option<&str>,
+        cpu: Option<&str>,
+        memory: Option<&str>,
+        force_new_deployment: bool,
+    ) -> AppResult<String> {
+        // Determine which task definition to use
+        let new_task_def_arn = if cpu.is_some() || memory.is_some() {
+            // We need to create a new task definition revision with updated CPU/memory
+            // First, get the current task definition from the service
+            let service_info = self.client
+                .describe_services()
+                .cluster(cluster_arn)
+                .services(service_name)
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("ECS", "describe_services", service_name, e))?;
+
+            let current_task_def = service_info
+                .services()
+                .first()
+                .and_then(|s| s.task_definition())
+                .ok_or_else(|| AppError::not_found("ECS Service", service_name))?;
+
+            // Get the base task definition (either provided or current)
+            let base_task_def = task_definition.unwrap_or(current_task_def);
+
+            // Fetch full task definition
+            let td_output = self.client
+                .describe_task_definition()
+                .task_definition(base_task_def)
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("ECS", "describe_task_definition", base_task_def, e))?;
+
+            let task_def = td_output
+                .task_definition()
+                .ok_or_else(|| AppError::not_found("TaskDefinition", base_task_def))?;
+
+            // Build new task definition with updated CPU/memory
+            let mut request = self.client.register_task_definition()
+                .family(task_def.family().unwrap_or("unknown"));
+
+            // Set CPU (use provided or keep existing)
+            if let Some(new_cpu) = cpu {
+                request = request.cpu(new_cpu);
+            } else if let Some(existing_cpu) = task_def.cpu() {
+                request = request.cpu(existing_cpu);
+            }
+
+            // Set Memory (use provided or keep existing)
+            if let Some(new_memory) = memory {
+                request = request.memory(new_memory);
+            } else if let Some(existing_memory) = task_def.memory() {
+                request = request.memory(existing_memory);
+            }
+
+            // Copy other fields from existing task definition
+            if let Some(role) = task_def.task_role_arn() {
+                request = request.task_role_arn(role);
+            }
+            if let Some(role) = task_def.execution_role_arn() {
+                request = request.execution_role_arn(role);
+            }
+            if let Some(mode) = task_def.network_mode() {
+                request = request.network_mode(mode.clone());
+            }
+            
+            // Copy requires compatibilities
+            for compat in task_def.requires_compatibilities() {
+                request = request.requires_compatibilities(compat.clone());
+            }
+
+            // Copy runtime platform
+            if let Some(rp) = task_def.runtime_platform() {
+                request = request.runtime_platform(rp.clone());
+            }
+
+            // Copy container definitions
+            for cd in task_def.container_definitions() {
+                request = request.container_definitions(cd.clone());
+            }
+
+            // Copy volumes
+            for vol in task_def.volumes() {
+                request = request.volumes(vol.clone());
+            }
+
+            // Register the new task definition
+            let reg_output = request.send().await
+                .map_err(|e| format_sdk_error("ECS", "register_task_definition", service_name, e))?;
+
+            reg_output
+                .task_definition()
+                .and_then(|td| td.task_definition_arn())
+                .map(|s| s.to_string())
+                .ok_or_else(|| AppError::internal("No task definition ARN in registration response"))?
+        } else if let Some(td) = task_definition {
+            td.to_string()
+        } else {
+            return Err(AppError::validation("Must provide task_definition, cpu, or memory"));
+        };
+
+        // Update the service with the new task definition
+        let mut update_request = self.client
+            .update_service()
+            .cluster(cluster_arn)
+            .service(service_name)
+            .task_definition(&new_task_def_arn);
+
+        if force_new_deployment {
+            update_request = update_request.force_new_deployment(true);
+        }
+
+        update_request.send().await
+            .map_err(|e| format_sdk_error("ECS", "update_service", service_name, e))?;
+
+        Ok(new_task_def_arn)
+    }
+
     // ========================================================================
     // Task Operations
     // ========================================================================
@@ -583,6 +711,38 @@ impl EcsClient {
             }
         }
 
+        Ok(task_definitions)
+    }
+
+    /// List task definition revisions with full details
+    /// Useful for the task definition selector modal
+    pub async fn list_task_definitions_with_details(
+        &self,
+        family_prefix: Option<&str>,
+        limit: Option<usize>,
+    ) -> AppResult<Vec<EcsTaskDefinition>> {
+        // First get the list of task definition ARNs
+        let arns = self.list_task_definitions(family_prefix).await?;
+        
+        // Limit the number to fetch details for
+        let arns_to_fetch: Vec<_> = arns
+            .into_iter()
+            .take(limit.unwrap_or(20))
+            .collect();
+        
+        let mut task_definitions = Vec::new();
+        
+        // Fetch full details for each (could be parallelized in the future)
+        for arn in arns_to_fetch {
+            match self.describe_task_definition(&arn).await {
+                Ok(td) => task_definitions.push(td),
+                Err(e) => {
+                    // Log error but continue with others
+                    tracing::warn!("Failed to describe task definition {}: {}", arn, e);
+                }
+            }
+        }
+        
         Ok(task_definitions)
     }
 }

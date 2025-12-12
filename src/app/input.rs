@@ -330,6 +330,168 @@ impl App {
             return None;
         }
 
+        // Handle ECS service editor modal
+        if self.input_mode == InputMode::EcsServiceEditor {
+            match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.services.ecs.reset_service_editor();
+                }
+                KeyCode::Tab | KeyCode::Down => {
+                    // Cycle through fields: 0=task_def, 1=cpu, 2=memory, 3=force_deploy
+                    self.services.ecs.service_editor_active_field = 
+                        (self.services.ecs.service_editor_active_field + 1) % 4;
+                }
+                KeyCode::BackTab | KeyCode::Up => {
+                    // Cycle backwards
+                    self.services.ecs.service_editor_active_field = 
+                        (self.services.ecs.service_editor_active_field + 3) % 4;
+                }
+                KeyCode::Char(' ') => {
+                    // Toggle force deploy if on that field
+                    if self.services.ecs.service_editor_active_field == 3 {
+                        self.services.ecs.service_editor_force_deploy = 
+                            !self.services.ecs.service_editor_force_deploy;
+                    }
+                }
+                KeyCode::Backspace => {
+                    match self.services.ecs.service_editor_active_field {
+                        0 => { self.services.ecs.service_editor_task_def.pop(); }
+                        1 => { self.services.ecs.service_editor_cpu.pop(); }
+                        2 => { self.services.ecs.service_editor_memory.pop(); }
+                        _ => {}
+                    }
+                }
+                KeyCode::Char(c) => {
+                    match self.services.ecs.service_editor_active_field {
+                        0 => self.services.ecs.service_editor_task_def.push(c),
+                        1 => {
+                            // Only allow digits for CPU
+                            if c.is_ascii_digit() {
+                                self.services.ecs.service_editor_cpu.push(c);
+                            }
+                        }
+                        2 => {
+                            // Only allow digits for memory
+                            if c.is_ascii_digit() {
+                                self.services.ecs.service_editor_memory.push(c);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                KeyCode::Enter => {
+                    // Submit the update
+                    if let (Some(cluster_arn), Some(service_name)) = (
+                        self.services.ecs.selected_cluster_arn.clone(),
+                        self.services.ecs.service_editor_service_name.clone(),
+                    ) {
+                        let task_def = if self.services.ecs.service_editor_task_def.is_empty() {
+                            None
+                        } else {
+                            Some(self.services.ecs.service_editor_task_def.clone())
+                        };
+                        let cpu = if self.services.ecs.service_editor_cpu.is_empty() {
+                            None
+                        } else {
+                            Some(self.services.ecs.service_editor_cpu.clone())
+                        };
+                        let memory = if self.services.ecs.service_editor_memory.is_empty() {
+                            None
+                        } else {
+                            Some(self.services.ecs.service_editor_memory.clone())
+                        };
+                        let force_deploy = self.services.ecs.service_editor_force_deploy;
+
+                        // Only submit if at least one field has a value
+                        if task_def.is_some() || cpu.is_some() || memory.is_some() {
+                            self.input_mode = InputMode::Normal;
+                            self.services.ecs.reset_service_editor();
+                            return Some(Message::ecs_update_service(
+                                cluster_arn,
+                                service_name,
+                                task_def,
+                                cpu,
+                                memory,
+                                force_deploy,
+                            ));
+                        } else {
+                            self.error_message = Some("Please specify at least one change".to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+            return None;
+        }
+
+        // Handle ECS task definition selector modal
+        if self.input_mode == InputMode::EcsTaskDefSelector {
+            match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.services.ecs.reset_task_def_selector();
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.services.ecs.task_def_selector_down();
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.services.ecs.task_def_selector_up();
+                }
+                KeyCode::Char('f') | KeyCode::Char('F') => {
+                    // Toggle force new deployment
+                    self.services.ecs.task_def_selector_force_deploy = 
+                        !self.services.ecs.task_def_selector_force_deploy;
+                }
+                KeyCode::PageDown => {
+                    self.services.ecs.task_def_selector_detail_scroll = 
+                        self.services.ecs.task_def_selector_detail_scroll.saturating_add(5);
+                }
+                KeyCode::PageUp => {
+                    self.services.ecs.task_def_selector_detail_scroll = 
+                        self.services.ecs.task_def_selector_detail_scroll.saturating_sub(5);
+                }
+                KeyCode::Char('l') | KeyCode::Right => {
+                    // Scroll detail pane down
+                    self.services.ecs.task_def_selector_detail_scroll = 
+                        self.services.ecs.task_def_selector_detail_scroll.saturating_add(1);
+                }
+                KeyCode::Char('h') | KeyCode::Left => {
+                    // Scroll detail pane up
+                    self.services.ecs.task_def_selector_detail_scroll = 
+                        self.services.ecs.task_def_selector_detail_scroll.saturating_sub(1);
+                }
+                KeyCode::Enter => {
+                    // Submit the selection - request confirmation
+                    if let (
+                        Some(cluster_arn),
+                        Some(service_name),
+                        Some(task_def),
+                    ) = (
+                        self.services.ecs.selected_cluster_arn.clone(),
+                        self.services.ecs.task_def_selector_service_name.clone(),
+                        self.services.ecs.selected_task_def_in_selector().map(|td| td.task_definition_arn.clone()),
+                    ) {
+                        let force_deploy = self.services.ecs.task_def_selector_force_deploy;
+                        self.input_mode = InputMode::Normal;
+                        self.services.ecs.reset_task_def_selector();
+                        
+                        // Request confirmation for the task definition change
+                        return self.request_action(Message::ecs_update_service(
+                            cluster_arn,
+                            service_name,
+                            Some(task_def),
+                            None,
+                            None,
+                            force_deploy,
+                        ));
+                    }
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         if key.code == KeyCode::Tab {
             self.toggle_focus();
             return None;
@@ -420,6 +582,30 @@ impl App {
                 match result {
                     InputResult::Message(msg) => return Some(msg),
                     InputResult::Action(action) => return self.request_action(action),
+                    InputResult::OpenInputMode(mode) => {
+                        self.input_mode = mode;
+                        // For EcsTaskDefSelector, we need to trigger loading task definitions
+                        if mode == InputMode::EcsTaskDefSelector {
+                            // Get the family from the current service's task definition
+                            if let Some(service) = self.services.ecs.services.get(
+                                self.services.ecs.list_state.selected().unwrap_or(0)
+                            ) {
+                                if let Some(td_arn) = &service.task_definition {
+                                    // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
+                                    let family = td_arn
+                                        .split('/')
+                                        .last()
+                                        .and_then(|f| f.split(':').next())
+                                        .map(|f| f.to_string());
+                                    
+                                    if let Some(family) = family {
+                                        return Some(Message::ecs_load_task_definitions_for_selector(family));
+                                    }
+                                }
+                            }
+                        }
+                        return None;
+                    }
                     InputResult::None => {
                         // ESC: If service handler didn't consume it, switch focus to sidebar
                         if key.code == KeyCode::Esc {

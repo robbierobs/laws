@@ -191,6 +191,14 @@ impl App {
                     self.services.ecs.task_definitions_list_state.select(Some(0));
                 }
             }
+            AwsEvent::EcsTaskDefinitionsForSelectorLoaded(task_defs) => {
+                self.loading = false;
+                self.services.ecs.task_def_selector_loading = false;
+                self.services.ecs.task_def_selector_list = task_defs;
+                if !self.services.ecs.task_def_selector_list.is_empty() {
+                    self.services.ecs.task_def_selector_index = 0;
+                }
+            }
             AwsEvent::EcsTaskDefinitionReadyForEdit { family, path } => {
                 self.loading = false;
                 // Store the pending edit info - will be processed synchronously

@@ -265,6 +265,14 @@ impl App {
                     Message::Service(ServiceAction::Ecs(EcsAction::ForceNewDeployment { service_name, .. })) => {
                         format!("Force new deployment for {}", service_name)
                     },
+                    Message::Service(ServiceAction::Ecs(EcsAction::UpdateService { service_name, task_definition, .. })) => {
+                        if let Some(td) = task_definition {
+                            let short_td = td.split('/').last().unwrap_or(&td);
+                            format!("Update {} to use {}", service_name, short_td)
+                        } else {
+                            format!("Update service {}", service_name)
+                        }
+                    },
 
                     _ => "Unknown Action".to_string(),
                 };
@@ -299,6 +307,40 @@ impl App {
                 self.pending_profile.as_deref(),
                 &self.region_filter,
                 self.region_filter_active,
+            );
+        }
+        
+        // Render ECS service editor modal
+        if self.input_mode == InputMode::EcsServiceEditor {
+            let service_name = self.services.ecs.service_editor_service_name
+                .as_deref()
+                .unwrap_or("Unknown");
+            crate::ui::components::modal::render_ecs_service_editor_modal(
+                frame,
+                frame.area(),
+                service_name,
+                &self.services.ecs.service_editor_task_def,
+                &self.services.ecs.service_editor_cpu,
+                &self.services.ecs.service_editor_memory,
+                self.services.ecs.service_editor_force_deploy,
+                self.services.ecs.service_editor_active_field,
+            );
+        }
+        
+        // Render ECS task definition selector modal
+        if self.input_mode == InputMode::EcsTaskDefSelector {
+            let service_name = self.services.ecs.task_def_selector_service_name
+                .as_deref()
+                .unwrap_or("Unknown");
+            crate::ui::components::modal::render_task_def_selector_modal(
+                frame,
+                frame.area(),
+                service_name,
+                &self.services.ecs.task_def_selector_list,
+                self.services.ecs.task_def_selector_index,
+                self.services.ecs.task_def_selector_force_deploy,
+                self.services.ecs.task_def_selector_detail_scroll,
+                self.services.ecs.task_def_selector_loading,
             );
         }
     }

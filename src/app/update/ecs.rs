@@ -96,6 +96,28 @@ impl App {
                 )
                 .await;
             }
+            EcsAction::UpdateService {
+                cluster_arn,
+                service_name,
+                task_definition,
+                cpu,
+                memory,
+                force_new_deployment,
+            } => {
+                self.handle_ecs_update_service(
+                    cluster_arn,
+                    service_name,
+                    task_definition,
+                    cpu,
+                    memory,
+                    force_new_deployment,
+                    event_tx,
+                )
+                .await;
+            }
+            EcsAction::LoadTaskDefinitionsForSelector(family) => {
+                self.handle_load_task_definitions_for_selector(family, event_tx).await;
+            }
         }
     }
 
@@ -370,6 +392,92 @@ impl App {
                 Err(e) => {
                     tx.send(Event::Aws(AwsEvent::Error(format!(
                         "Failed to force deployment for {}: {}",
+                        service_name_clone, e
+                    ))))
+                    .await
+                    .ok();
+                }
+            }
+        });
+
+        self.tasks.spawn(task_keys::ECS_ACTION, handle);
+    }
+
+    /// Handle updating an ECS service with optional task definition, CPU, and memory changes
+    async fn handle_ecs_update_service(
+        &mut self,
+        cluster_arn: String,
+        service_name: String,
+        task_definition: Option<String>,
+        cpu: Option<String>,
+        memory: Option<String>,
+        force_new_deployment: bool,
+        event_tx: EventSender,
+    ) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.ecs.clone();
+        let tx = event_tx.clone();
+        let cluster_arn_clone = cluster_arn.clone();
+        let service_name_clone = service_name.clone();
+
+        let handle = tokio::spawn(async move {
+            let ecs_client = crate::aws::ecs::EcsClient::new(client.clone());
+            
+            // Build description for action completion message
+            let mut changes = Vec::new();
+            if task_definition.is_some() {
+                changes.push("task definition".to_string());
+            }
+            if cpu.is_some() {
+                changes.push(format!("CPU to {}", cpu.as_ref().unwrap()));
+            }
+            if memory.is_some() {
+                changes.push(format!("memory to {}", memory.as_ref().unwrap()));
+            }
+            
+            match ecs_client
+                .update_service(
+                    &cluster_arn,
+                    &service_name,
+                    task_definition.as_deref(),
+                    cpu.as_deref(),
+                    memory.as_deref(),
+                    force_new_deployment,
+                )
+                .await
+            {
+                Ok(new_task_def_arn) => {
+                    let short_arn = new_task_def_arn.split('/').last().unwrap_or(&new_task_def_arn);
+                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        "Updated {} - {} (using {})",
+                        service_name,
+                        changes.join(", "),
+                        short_arn
+                    ))))
+                    .await
+                    .ok();
+
+                    // Refresh services list
+                    match ecs_client.list_services(&cluster_arn_clone).await {
+                        Ok(services) => {
+                            tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                                .await
+                                .ok();
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
+                        }
+                    }
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to update {}: {}",
                         service_name_clone, e
                     ))))
                     .await
@@ -764,5 +872,44 @@ impl App {
         });
 
         self.tasks.spawn(task_keys::ECS_ACTION, handle);
+    }
+
+    // ========================================================================
+    // Load Task Definitions for Selector Handler
+    // ========================================================================
+
+    async fn handle_load_task_definitions_for_selector(
+        &mut self,
+        family: String,
+        event_tx: EventSender,
+    ) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.ecs.clone();
+        let tx = event_tx;
+
+        let handle = tokio::spawn(async move {
+            let ecs_client = crate::aws::ecs::EcsClient::new(client);
+            match ecs_client.list_task_definitions_with_details(Some(&family), Some(15)).await {
+                Ok(task_defs) => {
+                    tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionsForSelectorLoaded(task_defs)))
+                        .await
+                        .ok();
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to load task definitions: {}",
+                        e
+                    ))))
+                    .await
+                    .ok();
+                }
+            }
+        });
+
+        self.tasks.spawn(task_keys::ECS_REFRESH, handle);
     }
 }

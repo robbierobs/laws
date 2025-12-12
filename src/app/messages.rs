@@ -510,6 +510,20 @@ pub enum EcsAction {
         service_name: String,
         task_definition_arn: String,
     },
+    /// Modify ECS Service - supports task definition, CPU, and Memory changes
+    /// Note: CPU and Memory require creating a new task definition revision
+    UpdateService {
+        cluster_arn: String,
+        service_name: String,
+        /// New task definition ARN (full ARN or family:revision)
+        task_definition: Option<String>,
+        /// CPU value (in Fargate units: "256", "512", "1024", etc.)
+        cpu: Option<String>,
+        /// Memory value (in MiB: "512", "1024", "2048", etc.)
+        memory: Option<String>,
+        /// Force a new deployment even if no other changes
+        force_new_deployment: bool,
+    },
 
     // Task actions
     StopTask {
@@ -522,6 +536,8 @@ pub enum EcsAction {
     EditTaskDefinition(String),       // task_definition_arn
     #[allow(dead_code)] // Planned: list all revisions of a task definition family
     ListTaskDefinitions(String),      // family name
+    /// Load full task definitions for the selector modal
+    LoadTaskDefinitionsForSelector(String), // family name
 }
 
 // ============================================================================
@@ -922,6 +938,32 @@ impl Message {
             },
         ))
     }
+
+    /// Create a message to update an ECS service with optional task definition, CPU, and memory changes
+    pub fn ecs_update_service(
+        cluster_arn: String,
+        service_name: String,
+        task_definition: Option<String>,
+        cpu: Option<String>,
+        memory: Option<String>,
+        force_new_deployment: bool,
+    ) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::UpdateService {
+            cluster_arn,
+            service_name,
+            task_definition,
+            cpu,
+            memory,
+            force_new_deployment,
+        }))
+    }
+
+    /// Load task definitions with full details for the selector modal
+    pub fn ecs_load_task_definitions_for_selector(family: String) -> Self {
+        Message::Service(ServiceAction::Ecs(
+            EcsAction::LoadTaskDefinitionsForSelector(family),
+        ))
+    }
 }
 
 // ============================================================================
@@ -944,6 +986,10 @@ pub enum InputMode {
     ProfileSwitcherProfile,
     /// Profile switcher modal - selecting region
     ProfileSwitcherRegion,
+    /// ECS Service editor modal
+    EcsServiceEditor,
+    /// ECS Task Definition selector modal
+    EcsTaskDefSelector,
 }
 
 #[cfg(test)]

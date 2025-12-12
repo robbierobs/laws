@@ -90,6 +90,8 @@ pub enum AwsEvent {
     },
     /// List of task definitions for a family
     EcsTaskDefinitionsListed(Vec<String>),
+    /// Full task definitions loaded for selector modal
+    EcsTaskDefinitionsForSelectorLoaded(Vec<EcsTaskDefinition>),
     /// ECS task definition downloaded for editing
     EcsTaskDefinitionReadyForEdit {
         family: String,
