@@ -10,6 +10,8 @@ impl App {
     fn update_global_search_for_event(&mut self) {
         if self.input_mode == InputMode::GlobalSearch {
             self.refresh_global_search();
+            // Clean up finished tasks before checking if any are still active
+            self.tasks.cleanup_completed();
             // Check if all refresh tasks are done
             if !self.tasks.is_any_refresh_active() {
                 self.global_search.loading = false;
