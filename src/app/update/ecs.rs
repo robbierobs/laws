@@ -501,6 +501,8 @@ impl App {
     // Edit Task Definition Handler
     // ========================================================================
 
+    /// Phase 1: Download task definition for editing (async)
+    /// This downloads and serializes the task definition, then sends an event when ready for editing
     async fn handle_ecs_edit_task_definition(
         &mut self,
         task_definition_arn: String,
@@ -572,17 +574,62 @@ impl App {
                 return;
             }
 
-            // Open in editor
-            match crate::utils::editor::open_in_editor(&file_path) {
-                Ok(_) => {
-                    // Read the edited content
-                    match std::fs::read_to_string(&file_path) {
-                        Ok(edited_json) => {
-                            // Register the edited task definition
+            // Signal that file is ready for editing
+            tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionReadyForEdit {
+                family: task_def.family.clone(),
+                path: file_path.to_string_lossy().to_string(),
+            }))
+            .await
+            .ok();
+        });
+
+        self.tasks.spawn(task_keys::ECS_ACTION, handle);
+    }
+
+    /// Phase 2: Open editor synchronously and register changes (runs on main thread)
+    /// This is called after EcsTaskDefinitionReadyForEdit event is received
+    pub fn handle_edit_task_definition_sync(
+        &mut self,
+        family: String,
+        path: String,
+        event_tx: EventSender,
+    ) {
+        use std::sync::atomic::Ordering;
+        
+        // Pause input handling before opening editor
+        self.input_paused.store(true, Ordering::SeqCst);
+        
+        // Open in editor (this blocks until editor closes)
+        let editor_result = crate::utils::editor::open_in_editor(&path);
+        
+        // Resume input handling after editor closes
+        self.input_paused.store(false, Ordering::SeqCst);
+        
+        // Force terminal redraw after editor
+        self.needs_redraw = true;
+        
+        match editor_result {
+            Ok(_) => {
+                // Read the edited content and register
+                match std::fs::read_to_string(&path) {
+                    Ok(edited_json) => {
+                        // Spawn async task for registration
+                        let Some(clients) = &self.aws_clients else {
+                            return;
+                        };
+                        
+                        self.loading = true;
+                        let client = clients.ecs.clone();
+                        let tx = event_tx;
+                        let family_clone = family.clone();
+                        let path_clone = path.clone();
+                        
+                        let handle = tokio::spawn(async move {
+                            let ecs_client = crate::aws::ecs::EcsClient::new(client);
                             match ecs_client.register_task_definition(&edited_json).await {
                                 Ok(new_arn) => {
                                     tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionEdited {
-                                        family: task_def.family.clone(),
+                                        family: family_clone,
                                         new_arn,
                                     }))
                                     .await
@@ -597,32 +644,23 @@ impl App {
                                     .ok();
                                 }
                             }
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(format!(
-                                "Failed to read edited file: {}",
-                                e
-                            ))))
-                            .await
-                            .ok();
-                        }
+                            // Clean up temp file
+                            std::fs::remove_file(&path_clone).ok();
+                        });
+                        
+                        self.tasks.spawn(task_keys::ECS_ACTION, handle);
                     }
-
-                    // Clean up temp file
-                    std::fs::remove_file(&file_path).ok();
-                }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(format!(
-                        "Failed to open editor: {}",
-                        e
-                    ))))
-                    .await
-                    .ok();
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to read edited file: {}", e));
+                        self.action_log.push(format!("[ERROR] Failed to read edited file: {}", e));
+                    }
                 }
             }
-        });
-
-        self.tasks.spawn(task_keys::ECS_ACTION, handle);
+            Err(e) => {
+                self.error_message = Some(format!("Failed to open editor: {}", e));
+                self.action_log.push(format!("[ERROR] Failed to open editor: {}", e));
+            }
+        }
     }
 
     // ========================================================================

@@ -6,6 +6,7 @@ use crate::ui::components::sidebar::Sidebar;
 use super::service_state::ServiceStates;
 use super::task_manager::TaskManager;
 use super::{Focus, InputMode, Message, Service};
+use std::sync::{Arc, atomic::AtomicBool};
 
 /// Main application state
 /// 
@@ -22,6 +23,9 @@ pub struct App {
     pub profile: Option<String>,
     pub region: String,
     
+    // Shared state for input handling
+    pub input_paused: Arc<AtomicBool>,
+    
     // Loading states
     pub loading: bool,
     pub should_refresh: bool,
@@ -30,6 +34,10 @@ pub struct App {
     pub detail_panel_fullscreen: bool,
     pub detail_scroll_offset: u16,
     pub detail_loading: bool,
+    
+    // Terminal state
+    /// Set to true when terminal needs a full redraw (e.g., after external editor)
+    pub needs_redraw: bool,
     
     // Config and State
     pub read_only: bool,
@@ -94,7 +102,7 @@ impl RenderCache {
 }
 
 impl App {
-    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool) -> Self {
+    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool, input_paused: Arc<AtomicBool>) -> Self {
         // Load available profiles from AWS config
         let available_profiles = crate::utils::aws_profiles::list_profiles();
         let available_regions: Vec<String> = crate::utils::aws_profiles::ALL_REGIONS
@@ -122,6 +130,7 @@ impl App {
             aws_clients,
             profile,
             region,
+            input_paused,
             loading: false,
             should_refresh: false,
             error_message: None,
@@ -129,6 +138,7 @@ impl App {
             detail_panel_fullscreen: false,
             detail_scroll_offset: 0,
             detail_loading: false,
+            needs_redraw: false,
             read_only,
             pending_action: None,
             show_confirmation: false,

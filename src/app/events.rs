@@ -169,6 +169,11 @@ impl App {
                 self.action_log.push(format!("[SUCCESS] {}", msg));
                 self.should_refresh = true;
             }
+            AwsEvent::S3ObjectReadyForEdit { bucket, key, path } => {
+                self.loading = false;
+                // Store the pending edit info - will be processed synchronously
+                self.services.s3.pending_edit = Some((bucket, key, path));
+            }
             AwsEvent::EcsTaskDefinitionEdited { family: _, new_arn } => {
                 self.loading = false;
                 let short_arn = new_arn.split('/').last().unwrap_or(&new_arn);
@@ -185,6 +190,11 @@ impl App {
                 if !self.services.ecs.task_definitions_list.is_empty() {
                     self.services.ecs.task_definitions_list_state.select(Some(0));
                 }
+            }
+            AwsEvent::EcsTaskDefinitionReadyForEdit { family, path } => {
+                self.loading = false;
+                // Store the pending edit info - will be processed synchronously
+                self.services.ecs.pending_edit = Some((family, path));
             }
             AwsEvent::ActionCompleted(msg) => {
                 self.loading = false;

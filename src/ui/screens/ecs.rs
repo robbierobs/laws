@@ -720,6 +720,8 @@ fn build_task_definition_lines(td: &EcsTaskDefinition) -> Vec<Line<'static>> {
     lines.push(Line::from(vec![
         Span::styled("[j/k] ", Style::default().fg(THEME.warning)),
         Span::raw("scroll  "),
+        Span::styled("[E] ", Style::default().fg(THEME.warning)),
+        Span::raw("edit  "),
         Span::styled("[X] ", Style::default().fg(THEME.warning)),
         Span::raw("deregister  "),
         Span::styled("[Esc] ", Style::default().fg(THEME.warning)),

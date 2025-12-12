@@ -148,6 +148,8 @@ pub struct S3State {
     pub show_object_viewer: bool,
     /// Scroll offset for the object viewer
     pub viewer_scroll_offset: u16,
+    /// Pending edit operation (bucket, key, path) - for synchronous editor handling
+    pub pending_edit: Option<(String, String, String)>,
 }
 
 impl S3State {
@@ -1269,6 +1271,9 @@ pub struct EcsState {
     pub show_task_definition_selector: bool,
     pub task_definitions_list: Vec<String>,
     pub task_definitions_list_state: TableState,
+
+    // Pending edit operation (family, path) - for synchronous editor handling
+    pub pending_edit: Option<(String, String)>,
 }
 
 impl EcsState {
