@@ -6,11 +6,11 @@ use crate::ui::components::sidebar::Sidebar;
 use super::states::ServiceStates;
 use super::task_manager::TaskManager;
 use super::{Focus, InputMode, Message, Service};
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc};
 
 /// Main application state
-/// 
-/// This struct uses `ServiceStates` which consolidates all service-specific 
+///
+/// This struct uses `ServiceStates` which consolidates all service-specific
 /// fields into organized per-service structs (Ec2State, S3State, etc.).
 pub struct App {
     pub should_quit: bool,
@@ -22,10 +22,10 @@ pub struct App {
     pub aws_clients: Option<AwsClients>,
     pub profile: Option<String>,
     pub region: String,
-    
+
     // Shared state for input handling
     pub input_paused: Arc<AtomicBool>,
-    
+
     // Loading states
     pub loading: bool,
     pub should_refresh: bool,
@@ -34,28 +34,28 @@ pub struct App {
     pub detail_panel_fullscreen: bool,
     pub detail_scroll_offset: u16,
     pub detail_loading: bool,
-    
+
     // Terminal state
     /// Set to true when terminal needs a full redraw (e.g., after external editor)
     pub needs_redraw: bool,
-    
+
     // Config and State
     pub read_only: bool,
     pub pending_action: Option<Message>,
     pub show_confirmation: bool,
-    
+
     // Action Log
     pub action_log: Vec<String>,
     pub action_log_expanded: bool,
     pub action_log_selected_index: usize,
     pub action_log_detail_scroll: u16,
-    
+
     // Service-specific states consolidated into one struct
     pub services: ServiceStates,
-    
+
     // Task manager for async task tracking
     pub tasks: TaskManager,
-    
+
     // Profile/Region Switcher State
     pub available_profiles: Vec<String>,
     pub available_regions: Vec<String>,
@@ -67,13 +67,13 @@ pub struct App {
     pub region_filter: String,
     pub profile_filter_active: bool,
     pub region_filter_active: bool,
-    
+
     // Configuration
     pub config: crate::config::AppConfig,
-    
+
     // Render cache for optimized string formatting
     pub render_cache: RenderCache,
-    
+
     // Global search state
     pub global_search: super::global_search::GlobalSearchState,
 }
@@ -85,7 +85,7 @@ pub struct RenderCache {
     pub aws_info: String,
     /// Last profile used for cache
     cached_profile: Option<String>,
-    /// Last region used for cache  
+    /// Last region used for cache
     cached_region: String,
 }
 
@@ -94,27 +94,33 @@ impl RenderCache {
     pub fn get_aws_info(&mut self, profile: Option<&str>, region: &str) -> &str {
         let profile_changed = self.cached_profile.as_deref() != profile;
         let region_changed = self.cached_region != region;
-        
+
         if profile_changed || region_changed {
             let profile_str = profile.unwrap_or("default");
             self.aws_info = format!("[{}@{}]", profile_str, region);
             self.cached_profile = profile.map(String::from);
             self.cached_region = region.to_string();
         }
-        
+
         &self.aws_info
     }
 }
 
 impl App {
-    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool, input_paused: Arc<AtomicBool>) -> Self {
+    pub fn new(
+        aws_clients: Option<AwsClients>,
+        profile: Option<String>,
+        region: String,
+        read_only: bool,
+        input_paused: Arc<AtomicBool>,
+    ) -> Self {
         // Load available profiles from AWS config
         let available_profiles = crate::utils::aws_profiles::list_profiles();
         let available_regions: Vec<String> = crate::utils::aws_profiles::ALL_REGIONS
             .iter()
             .map(|s| s.to_string())
             .collect();
-        
+
         // Find current profile/region index for pre-selection
         let profile_switcher_index = profile
             .as_ref()
@@ -124,7 +130,7 @@ impl App {
             .iter()
             .position(|r| r == &region)
             .unwrap_or(0);
-        
+
         Self {
             should_quit: false,
             current_service: Service::EC2,
@@ -168,7 +174,7 @@ impl App {
             global_search: super::global_search::GlobalSearchState::new(),
         }
     }
-    
+
     /// Get filtered profile list based on current filter
     pub fn filtered_profiles(&self) -> Vec<&String> {
         if self.profile_filter.is_empty() {
@@ -181,7 +187,7 @@ impl App {
                 .collect()
         }
     }
-    
+
     /// Get filtered region list based on current filter
     pub fn filtered_regions(&self) -> Vec<&String> {
         if self.region_filter.is_empty() {
@@ -194,15 +200,20 @@ impl App {
                 .collect()
         }
     }
-    
+
     pub fn on_tick(&mut self) {
-        // Handle tick events if needed
+        // Manage async tasks
+        self.tasks.check_timeouts();
+        self.tasks.cleanup_completed();
+
+        // Animate global search spinner
+        self.global_search.tick_spinner();
     }
-    
+
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
         crate::ui::render::render(frame, self);
     }
-    
+
     /// Shutdown the app - cancel all async tasks
     pub fn shutdown(&mut self) {
         self.tasks.cancel_all();
@@ -224,7 +235,7 @@ impl App {
             Service::ECR => &mut self.services.ecr,
         }
     }
-    
+
     pub fn get_active_service_handler(&self) -> &dyn super::ServiceInputHandler {
         match self.current_service {
             Service::EC2 => &self.services.ec2,
@@ -303,11 +314,11 @@ mod tests {
     #[test]
     fn test_render_cache_caching() {
         let mut cache = RenderCache::default();
-        
+
         // First call should create the string
         let result1 = cache.get_aws_info(Some("profile"), "us-east-1");
         assert_eq!(result1, "[profile@us-east-1]");
-        
+
         // Second call with same values should return cached version
         let result2 = cache.get_aws_info(Some("profile"), "us-east-1");
         assert_eq!(result2, "[profile@us-east-1]");
@@ -316,7 +327,7 @@ mod tests {
     #[test]
     fn test_render_cache_invalidation_on_profile_change() {
         let mut cache = RenderCache::default();
-        
+
         cache.get_aws_info(Some("profile1"), "us-east-1");
         let result = cache.get_aws_info(Some("profile2"), "us-east-1");
         assert_eq!(result, "[profile2@us-east-1]");
@@ -325,7 +336,7 @@ mod tests {
     #[test]
     fn test_render_cache_invalidation_on_region_change() {
         let mut cache = RenderCache::default();
-        
+
         cache.get_aws_info(Some("profile"), "us-east-1");
         let result = cache.get_aws_info(Some("profile"), "eu-west-1");
         assert_eq!(result, "[profile@eu-west-1]");
@@ -334,7 +345,7 @@ mod tests {
     #[test]
     fn test_render_cache_profile_none_to_some() {
         let mut cache = RenderCache::default();
-        
+
         cache.get_aws_info(None, "us-east-1");
         let result = cache.get_aws_info(Some("new-profile"), "us-east-1");
         assert_eq!(result, "[new-profile@us-east-1]");

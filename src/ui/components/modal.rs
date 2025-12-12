@@ -1,12 +1,13 @@
 //! Modal rendering components
-//! 
+//!
 //! These rendering functions have many arguments which is acceptable
 //! for UI rendering utilities that need various pieces of state.
 
 #![allow(clippy::too_many_arguments)]
-#![allow(clippy::if_same_then_else)]  // Scroll offset calculations intentionally follow same pattern
+#![allow(clippy::if_same_then_else)] // Scroll offset calculations intentionally follow same pattern
 #![allow(clippy::vec_init_then_push)] // Readable line-by-line building
 
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -14,29 +15,32 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
-use crate::ui::theme::THEME;
 
 pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_description: &str) {
     let block = Block::default()
         .title(" Confirm Action ")
-        .title_style(Style::default().fg(THEME.warning).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.warning)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.warning));
 
     // Use fixed size that ensures content fits
     let popup_width = area.width.min(60).max(40);
     let popup_height = 9u16; // Fixed height for 5 lines + border + padding
-    
+
     let popup_area = centered_rect_fixed(popup_width, popup_height, area);
     let inner_area = block.inner(popup_area);
-    
+
     frame.render_widget(Clear, popup_area);
     frame.render_widget(block, popup_area);
-    
+
     // Calculate vertical centering - our content is 5 lines
     let content_height = 5u16;
     let vertical_padding = inner_area.height.saturating_sub(content_height) / 2;
-    
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -54,14 +58,26 @@ pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_descripti
         Line::from(""),
         Line::from(Span::styled(
             action_description,
-            Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         Line::from(vec![
             Span::styled("Press ", Style::default().fg(THEME.muted)),
-            Span::styled("y", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "y",
+                Style::default()
+                    .fg(THEME.success)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" to confirm or ", Style::default().fg(THEME.muted)),
-            Span::styled("n/Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "n/Esc",
+                Style::default()
+                    .fg(THEME.error)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" to cancel", Style::default().fg(THEME.muted)),
         ]),
     ];
@@ -85,7 +101,11 @@ pub fn render_object_viewer_modal(
     let title = format!(" {} ", object_key);
     let block = Block::default()
         .title(title)
-        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
@@ -98,25 +118,30 @@ pub fn render_object_viewer_modal(
             Span::styled(path, Style::default().fg(THEME.muted)),
         ]));
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("─".repeat(60), Style::default().fg(THEME.border)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "─".repeat(60),
+            Style::default().fg(THEME.border),
+        )]));
         lines.push(Line::from(""));
     }
 
     // Show content
     if let Some(text_content) = content {
         // Check if content is likely binary
-        let is_binary = text_content.chars().any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t');
-        
+        let is_binary = text_content
+            .chars()
+            .any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t');
+
         if is_binary {
-            lines.push(Line::from(vec![
-                Span::styled("⚠️  Binary file - cannot display content", Style::default().fg(THEME.warning)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "⚠️  Binary file - cannot display content",
+                Style::default().fg(THEME.warning),
+            )]));
             lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled("File saved to path shown above.", Style::default().fg(THEME.muted)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "File saved to path shown above.",
+                Style::default().fg(THEME.muted),
+            )]));
         } else {
             // Add line numbers and content
             for (i, line) in text_content.lines().enumerate() {
@@ -127,23 +152,27 @@ pub fn render_object_viewer_modal(
             }
         }
     } else {
-        lines.push(Line::from(vec![
-            Span::styled("📦 Binary file or large file - cannot display content inline", Style::default().fg(THEME.warning)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "📦 Binary file or large file - cannot display content inline",
+            Style::default().fg(THEME.warning),
+        )]));
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("File has been saved to the path shown above.", Style::default().fg(THEME.muted)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Use an external viewer to open it.", Style::default().fg(THEME.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "File has been saved to the path shown above.",
+            Style::default().fg(THEME.muted),
+        )]));
+        lines.push(Line::from(vec![Span::styled(
+            "Use an external viewer to open it.",
+            Style::default().fg(THEME.muted),
+        )]));
     }
 
     // Add footer with controls
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("─".repeat(60), Style::default().fg(THEME.border)),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "─".repeat(60),
+        Style::default().fg(THEME.border),
+    )]));
     lines.push(Line::from(vec![
         Span::styled("j/k: Scroll   ", Style::default().fg(THEME.secondary)),
         Span::styled("Esc/q: Close", Style::default().fg(THEME.secondary)),
@@ -154,7 +183,7 @@ pub fn render_object_viewer_modal(
         .scroll((scroll_offset, 0));
 
     let popup_area = centered_rect(80, 80, area);
-    
+
     frame.render_widget(Clear, popup_area); // Clear background
     frame.render_widget(paragraph, popup_area);
 }
@@ -172,16 +201,20 @@ pub fn render_profile_switcher_modal(
 ) {
     let block = Block::default()
         .title(" Select AWS Profile ")
-        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
     let popup_area = centered_rect(55, 70, area);
     let inner_area = block.inner(popup_area);
-    
+
     frame.render_widget(Clear, popup_area);
     frame.render_widget(block, popup_area);
-    
+
     // Calculate layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -194,25 +227,52 @@ pub fn render_profile_switcher_modal(
             Constraint::Length(1), // Scroll indicator
         ])
         .split(inner_area);
-    
+
     // Help line
     let help = Line::from(vec![
-        Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "j/k",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" nav  ", Style::default().fg(THEME.muted)),
-        Span::styled("/", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "/",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" filter  ", Style::default().fg(THEME.muted)),
-        Span::styled("R", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "R",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" read-only  ", Style::default().fg(THEME.muted)),
-        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(THEME.success)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" select  ", Style::default().fg(THEME.muted)),
-        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(THEME.error)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" cancel", Style::default().fg(THEME.muted)),
     ]);
     frame.render_widget(Paragraph::new(help), chunks[0]);
-    
+
     // Filter input
     let filter_style = if filter_active {
-        Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.primary)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.muted)
     };
@@ -223,11 +283,13 @@ pub fn render_profile_switcher_modal(
     };
     let filter_line = Paragraph::new(filter_text).style(filter_style);
     frame.render_widget(filter_line, chunks[1]);
-    
+
     // Read-only toggle
     let checkbox = if read_only { "[✓]" } else { "[ ]" };
     let ro_style = if read_only {
-        Style::default().fg(THEME.warning).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.warning)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.muted)
     };
@@ -236,15 +298,18 @@ pub fn render_profile_switcher_modal(
         Span::styled(" Read-only mode", ro_style),
     ]);
     frame.render_widget(Paragraph::new(readonly_line), chunks[2]);
-    
+
     // Separator
-    let separator = Line::from(Span::styled("─".repeat(chunks[3].width as usize), Style::default().fg(THEME.border)));
+    let separator = Line::from(Span::styled(
+        "─".repeat(chunks[3].width as usize),
+        Style::default().fg(THEME.border),
+    ));
     frame.render_widget(Paragraph::new(separator), chunks[3]);
-    
+
     // Calculate visible area for profiles
     let list_height = chunks[4].height as usize;
     let total_profiles = profiles.len();
-    
+
     // Calculate scroll offset to keep selection visible
     let scroll_offset = if total_profiles <= list_height {
         0
@@ -255,30 +320,40 @@ pub fn render_profile_switcher_modal(
     } else {
         selected_index.saturating_sub(list_height / 2)
     };
-    
+
     // Profile list with scrolling
     let mut lines: Vec<Line> = Vec::new();
-    for (i, profile) in profiles.iter().enumerate().skip(scroll_offset).take(list_height) {
+    for (i, profile) in profiles
+        .iter()
+        .enumerate()
+        .skip(scroll_offset)
+        .take(list_height)
+    {
         let is_selected = i == selected_index;
         let is_current = current_profile.is_some_and(|cp| cp == profile);
-        
+
         let prefix = if is_selected { "▶ " } else { "  " };
         let suffix = if is_current { " (current)" } else { "" };
-        
+
         let style = if is_selected {
-            Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(THEME.selection_fg)
+                .add_modifier(Modifier::BOLD)
         } else if is_current {
             Style::default().fg(THEME.success)
         } else {
             Style::default().fg(THEME.fg)
         };
-        
-        lines.push(Line::from(Span::styled(format!("{}{}{}", prefix, profile, suffix), style)));
+
+        lines.push(Line::from(Span::styled(
+            format!("{}{}{}", prefix, profile, suffix),
+            style,
+        )));
     }
-    
+
     let list = Paragraph::new(lines);
     frame.render_widget(list, chunks[4]);
-    
+
     // Scroll indicator
     if total_profiles > list_height {
         let scroll_pos = if total_profiles <= list_height {
@@ -320,19 +395,23 @@ pub fn render_region_switcher_modal(
     } else {
         " Select AWS Region ".to_string()
     };
-    
+
     let block = Block::default()
         .title(title)
-        .title_style(Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.secondary));
 
     let popup_area = centered_rect(55, 70, area);
     let inner_area = block.inner(popup_area);
-    
+
     frame.render_widget(Clear, popup_area);
     frame.render_widget(block, popup_area);
-    
+
     // Calculate layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -344,23 +423,45 @@ pub fn render_region_switcher_modal(
             Constraint::Length(1), // Scroll indicator
         ])
         .split(inner_area);
-    
+
     // Help line
     let help = Line::from(vec![
-        Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "j/k",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" nav  ", Style::default().fg(THEME.muted)),
-        Span::styled("/", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "/",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" filter  ", Style::default().fg(THEME.muted)),
-        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(THEME.success)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" confirm  ", Style::default().fg(THEME.muted)),
-        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(THEME.error)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" cancel", Style::default().fg(THEME.muted)),
     ]);
     frame.render_widget(Paragraph::new(help), chunks[0]);
-    
+
     // Filter input
     let filter_style = if filter_active {
-        Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.primary)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.muted)
     };
@@ -371,15 +472,18 @@ pub fn render_region_switcher_modal(
     };
     let filter_line = Paragraph::new(filter_text).style(filter_style);
     frame.render_widget(filter_line, chunks[1]);
-    
+
     // Separator
-    let separator = Line::from(Span::styled("─".repeat(chunks[2].width as usize), Style::default().fg(THEME.border)));
+    let separator = Line::from(Span::styled(
+        "─".repeat(chunks[2].width as usize),
+        Style::default().fg(THEME.border),
+    ));
     frame.render_widget(Paragraph::new(separator), chunks[2]);
-    
+
     // Calculate visible area for regions
     let list_height = chunks[3].height as usize;
     let total_regions = regions.len();
-    
+
     // Calculate scroll offset to keep selection visible
     let scroll_offset = if total_regions <= list_height {
         0
@@ -390,30 +494,40 @@ pub fn render_region_switcher_modal(
     } else {
         selected_index.saturating_sub(list_height / 2)
     };
-    
+
     // Region list with scrolling
     let mut lines: Vec<Line> = Vec::new();
-    for (i, region) in regions.iter().enumerate().skip(scroll_offset).take(list_height) {
+    for (i, region) in regions
+        .iter()
+        .enumerate()
+        .skip(scroll_offset)
+        .take(list_height)
+    {
         let is_selected = i == selected_index;
         let is_current = region == current_region;
-        
+
         let prefix = if is_selected { "▶ " } else { "  " };
         let suffix = if is_current { " (current)" } else { "" };
-        
+
         let style = if is_selected {
-            Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(THEME.selection_fg)
+                .add_modifier(Modifier::BOLD)
         } else if is_current {
             Style::default().fg(THEME.success)
         } else {
             Style::default().fg(THEME.fg)
         };
-        
-        lines.push(Line::from(Span::styled(format!("{}{}{}", prefix, region, suffix), style)));
+
+        lines.push(Line::from(Span::styled(
+            format!("{}{}{}", prefix, region, suffix),
+            style,
+        )));
     }
-    
+
     let list = Paragraph::new(lines);
     frame.render_widget(list, chunks[3]);
-    
+
     // Scroll indicator
     if total_regions > list_height {
         let scroll_pos = if total_regions <= list_height {
@@ -464,11 +578,11 @@ fn centered_rect_fixed(width: u16, height: u16, r: Rect) -> Rect {
     // Ensure we don't exceed available space
     let actual_width = width.min(r.width);
     let actual_height = height.min(r.height);
-    
+
     // Calculate centering offsets
     let x_offset = (r.width.saturating_sub(actual_width)) / 2;
     let y_offset = (r.height.saturating_sub(actual_height)) / 2;
-    
+
     Rect {
         x: r.x + x_offset,
         y: r.y + y_offset,
@@ -491,16 +605,20 @@ pub fn render_ecs_service_editor_modal(
     let title = format!(" Edit Service: {} ", service_name);
     let block = Block::default()
         .title(title)
-        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
     let popup_area = centered_rect_fixed(70, 16, area);
     let inner_area = block.inner(popup_area);
-    
+
     frame.render_widget(Clear, popup_area);
     frame.render_widget(block, popup_area);
-    
+
     // Layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -515,25 +633,45 @@ pub fn render_ecs_service_editor_modal(
             Constraint::Length(2), // Submit hint
         ])
         .split(inner_area);
-    
+
     // Help line
     let help = Line::from(vec![
-        Span::styled("Tab/↓↑", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Tab/↓↑",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" navigate  ", Style::default().fg(THEME.muted)),
-        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(THEME.success)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" submit  ", Style::default().fg(THEME.muted)),
-        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(THEME.error)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" cancel", Style::default().fg(THEME.muted)),
     ]);
     frame.render_widget(Paragraph::new(help), chunks[0]);
-    
+
     // Separator
-    let sep = Line::from(Span::styled("─".repeat(chunks[1].width as usize), Style::default().fg(THEME.border)));
+    let sep = Line::from(Span::styled(
+        "─".repeat(chunks[1].width as usize),
+        Style::default().fg(THEME.border),
+    ));
     frame.render_widget(Paragraph::new(sep.clone()), chunks[1]);
-    
+
     // Task definition field
     let td_style = if active_field == 0 {
-        Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.selection_fg)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.fg)
     };
@@ -543,38 +681,52 @@ pub fn render_ecs_service_editor_modal(
         Span::styled(format!("{}{}", task_def, cursor), td_style),
     ]);
     frame.render_widget(Paragraph::new(td_line), chunks[2]);
-    
+
     // CPU field
     let cpu_style = if active_field == 1 {
-        Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.selection_fg)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.fg)
     };
     let cursor = if active_field == 1 { "▏" } else { "" };
-    let cpu_text = if cpu.is_empty() && active_field != 1 { "(unchanged)" } else { cpu };
+    let cpu_text = if cpu.is_empty() && active_field != 1 {
+        "(unchanged)"
+    } else {
+        cpu
+    };
     let cpu_line = Line::from(vec![
         Span::styled("CPU (vCPU units): ", Style::default().fg(THEME.secondary)),
         Span::styled(format!("{}{}", cpu_text, cursor), cpu_style),
     ]);
     frame.render_widget(Paragraph::new(cpu_line), chunks[3]);
-    
+
     // Memory field
     let mem_style = if active_field == 2 {
-        Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.selection_fg)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.fg)
     };
     let cursor = if active_field == 2 { "▏" } else { "" };
-    let mem_text = if memory.is_empty() && active_field != 2 { "(unchanged)" } else { memory };
+    let mem_text = if memory.is_empty() && active_field != 2 {
+        "(unchanged)"
+    } else {
+        memory
+    };
     let mem_line = Line::from(vec![
         Span::styled("Memory (MiB):     ", Style::default().fg(THEME.secondary)),
         Span::styled(format!("{}{}", mem_text, cursor), mem_style),
     ]);
     frame.render_widget(Paragraph::new(mem_line), chunks[4]);
-    
+
     // Force deploy checkbox
     let fd_style = if active_field == 3 {
-        Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(THEME.selection_fg)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(THEME.fg)
     };
@@ -589,15 +741,19 @@ pub fn render_ecs_service_editor_modal(
         },
     ]);
     frame.render_widget(Paragraph::new(fd_line), chunks[5]);
-    
+
     // Separator
     frame.render_widget(Paragraph::new(sep), chunks[6]);
-    
+
     // Submit hint
     let hint = Line::from(vec![
         Span::styled("💡 ", Style::default()),
-        Span::styled("Changing CPU/Memory creates a new task definition revision", 
-            Style::default().fg(THEME.muted).add_modifier(Modifier::ITALIC)),
+        Span::styled(
+            "Changing CPU/Memory creates a new task definition revision",
+            Style::default()
+                .fg(THEME.muted)
+                .add_modifier(Modifier::ITALIC),
+        ),
     ]);
     frame.render_widget(Paragraph::new(hint), chunks[7]);
 }
@@ -618,52 +774,81 @@ pub fn render_task_def_selector_modal(
     let title = format!(" Select Task Definition for: {} ", service_name);
     let block = Block::default()
         .title(title)
-        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
     // Use 90% of screen
     let popup_area = centered_rect(90, 85, area);
     let inner_area = block.inner(popup_area);
-    
+
     frame.render_widget(Clear, popup_area);
     frame.render_widget(block, popup_area);
-    
+
     // Layout: Help | Main content (list + detail) | Force deploy | Status
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2),  // Help
-            Constraint::Min(10),    // Main content
-            Constraint::Length(2),  // Force deploy toggle
-            Constraint::Length(1),  // Status line
+            Constraint::Length(2), // Help
+            Constraint::Min(10),   // Main content
+            Constraint::Length(2), // Force deploy toggle
+            Constraint::Length(1), // Status line
         ])
         .split(inner_area);
-    
+
     // Help line
     let help = Line::from(vec![
-        Span::styled("j/k", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "j/k",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" nav  ", Style::default().fg(THEME.muted)),
-        Span::styled("l/h", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "l/h",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" scroll detail  ", Style::default().fg(THEME.muted)),
-        Span::styled("f", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "f",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" toggle force  ", Style::default().fg(THEME.muted)),
-        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(THEME.success)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" select  ", Style::default().fg(THEME.muted)),
-        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(THEME.error)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" cancel", Style::default().fg(THEME.muted)),
     ]);
     frame.render_widget(Paragraph::new(help), main_chunks[0]);
-    
+
     // Split main content into list (left) and details (right)
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(35),  // List
-            Constraint::Percentage(65),  // Details
+            Constraint::Percentage(35), // List
+            Constraint::Percentage(65), // Details
         ])
         .split(main_chunks[1]);
-    
+
     // Render task definition list
     let list_block = Block::default()
         .title(" Task Definitions ")
@@ -671,7 +856,7 @@ pub fn render_task_def_selector_modal(
         .border_style(Style::default().fg(THEME.border));
     let list_inner = list_block.inner(content_chunks[0]);
     frame.render_widget(list_block, content_chunks[0]);
-    
+
     if loading {
         let loading_text = Paragraph::new("Loading task definitions...")
             .style(Style::default().fg(THEME.muted))
@@ -685,7 +870,7 @@ pub fn render_task_def_selector_modal(
     } else {
         let list_height = list_inner.height as usize;
         let total_items = task_defs.len();
-        
+
         // Calculate scroll offset
         let scroll_offset = if total_items <= list_height {
             0
@@ -696,26 +881,36 @@ pub fn render_task_def_selector_modal(
         } else {
             selected_index.saturating_sub(list_height / 2)
         };
-        
+
         let mut lines: Vec<Line> = Vec::new();
-        for (i, td) in task_defs.iter().enumerate().skip(scroll_offset).take(list_height) {
+        for (i, td) in task_defs
+            .iter()
+            .enumerate()
+            .skip(scroll_offset)
+            .take(list_height)
+        {
             let is_selected = i == selected_index;
             let prefix = if is_selected { "▶ " } else { "  " };
             let display = td.short_name();
-            
+
             let style = if is_selected {
-                Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(THEME.selection_fg)
+                    .add_modifier(Modifier::BOLD)
             } else if td.status == "ACTIVE" {
                 Style::default().fg(THEME.success)
             } else {
                 Style::default().fg(THEME.muted)
             };
-            
-            lines.push(Line::from(Span::styled(format!("{}{}", prefix, display), style)));
+
+            lines.push(Line::from(Span::styled(
+                format!("{}{}", prefix, display),
+                style,
+            )));
         }
         frame.render_widget(Paragraph::new(lines), list_inner);
     }
-    
+
     // Render details pane
     let detail_block = Block::default()
         .title(" Details ")
@@ -723,10 +918,10 @@ pub fn render_task_def_selector_modal(
         .border_style(Style::default().fg(THEME.border));
     let detail_inner = detail_block.inner(content_chunks[1]);
     frame.render_widget(detail_block, content_chunks[1]);
-    
+
     if let Some(td) = task_defs.get(selected_index) {
         let mut detail_lines: Vec<Line> = Vec::new();
-        
+
         detail_lines.push(Line::from(vec![
             Span::styled("Family: ", Style::default().fg(THEME.secondary)),
             Span::styled(&td.family, Style::default().fg(THEME.fg)),
@@ -740,7 +935,7 @@ pub fn render_task_def_selector_modal(
             Span::styled(&td.status, Style::default().fg(td.status_color())),
         ]));
         detail_lines.push(Line::from(""));
-        
+
         // CPU and Memory
         detail_lines.push(Line::from(vec![
             Span::styled("CPU: ", Style::default().fg(THEME.secondary)),
@@ -754,7 +949,7 @@ pub fn render_task_def_selector_modal(
                 Style::default().fg(THEME.fg),
             ),
         ]));
-        
+
         // Network mode
         if let Some(network_mode) = &td.network_mode {
             detail_lines.push(Line::from(vec![
@@ -762,7 +957,7 @@ pub fn render_task_def_selector_modal(
                 Span::styled(network_mode, Style::default().fg(THEME.fg)),
             ]));
         }
-        
+
         // Requires compatibilities
         if !td.requires_compatibilities.is_empty() {
             detail_lines.push(Line::from(vec![
@@ -773,13 +968,13 @@ pub fn render_task_def_selector_modal(
                 ),
             ]));
         }
-        
+
         detail_lines.push(Line::from(""));
         detail_lines.push(Line::from(Span::styled(
             "─ Containers ─",
             Style::default().fg(THEME.border),
         )));
-        
+
         // Container definitions
         for container in &td.container_definitions {
             detail_lines.push(Line::from(vec![
@@ -794,7 +989,7 @@ pub fn render_task_def_selector_modal(
             if let Some(image) = &container.image {
                 // Truncate long image names
                 let display_image = if image.len() > 50 {
-                    format!("...{}", &image[image.len()-47..])
+                    format!("...{}", &image[image.len() - 47..])
                 } else {
                     image.clone()
                 };
@@ -810,7 +1005,10 @@ pub fn render_task_def_selector_modal(
                         format!(
                             "CPU {} | Mem {}",
                             container.cpu,
-                            container.memory.map(|m| m.to_string()).unwrap_or_else(|| "N/A".to_string())
+                            container
+                                .memory
+                                .map(|m| m.to_string())
+                                .unwrap_or_else(|| "N/A".to_string())
                         ),
                         Style::default().fg(THEME.fg),
                     ),
@@ -818,7 +1016,9 @@ pub fn render_task_def_selector_modal(
             }
             // Port mappings
             if !container.port_mappings.is_empty() {
-                let ports: Vec<String> = container.port_mappings.iter()
+                let ports: Vec<String> = container
+                    .port_mappings
+                    .iter()
                     .filter_map(|pm| pm.container_port.map(|p| p.to_string()))
                     .collect();
                 if !ports.is_empty() {
@@ -829,7 +1029,7 @@ pub fn render_task_def_selector_modal(
                 }
             }
         }
-        
+
         // Roles
         if td.task_role_arn.is_some() || td.execution_role_arn.is_some() {
             detail_lines.push(Line::from(""));
@@ -852,24 +1052,32 @@ pub fn render_task_def_selector_modal(
                 ]));
             }
         }
-        
-        let paragraph = Paragraph::new(detail_lines)
-            .scroll((detail_scroll as u16, 0));
+
+        let paragraph = Paragraph::new(detail_lines).scroll((detail_scroll as u16, 0));
         frame.render_widget(paragraph, detail_inner);
     }
-    
+
     // Force deploy toggle
     let checkbox = if force_deploy { "[✓]" } else { "[ ]" };
-    let fd_style = Style::default().fg(if force_deploy { THEME.warning } else { THEME.fg });
+    let fd_style = Style::default().fg(if force_deploy {
+        THEME.warning
+    } else {
+        THEME.fg
+    });
     let force_line = Line::from(vec![
         Span::styled(checkbox, fd_style.add_modifier(Modifier::BOLD)),
         Span::styled(" Force new deployment", fd_style),
         Span::styled("  (Press ", Style::default().fg(THEME.muted)),
-        Span::styled("f", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "f",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" to toggle)", Style::default().fg(THEME.muted)),
     ]);
     frame.render_widget(Paragraph::new(force_line), main_chunks[2]);
-    
+
     // Status line
     let status = if loading {
         Line::from(Span::styled("Loading...", Style::default().fg(THEME.muted)))
@@ -889,7 +1097,10 @@ pub fn render_task_def_selector_modal(
             },
         ])
     };
-    frame.render_widget(Paragraph::new(status).alignment(Alignment::Right), main_chunks[3]);
+    frame.render_widget(
+        Paragraph::new(status).alignment(Alignment::Right),
+        main_chunks[3],
+    );
 }
 
 /// Render the global search modal for searching all resources
@@ -900,19 +1111,25 @@ pub fn render_global_search_modal(
     results: &[crate::app::global_search::SearchResult],
     selected_index: usize,
     tag_mode: bool,
+    loading: bool,
+    spinner: &str,
 ) {
     let block = Block::default()
         .title(" 🔍 Global Search ")
-        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
     let popup_area = centered_rect(70, 75, area);
     let inner_area = block.inner(popup_area);
-    
+
     frame.render_widget(Clear, popup_area);
     frame.render_widget(block, popup_area);
-    
+
     // Layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -925,53 +1142,90 @@ pub fn render_global_search_modal(
             Constraint::Length(1), // Status line
         ])
         .split(inner_area);
-    
+
     // Help line
     let help = Line::from(vec![
-        Span::styled("↑/↓", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "↑/↓",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" nav  ", Style::default().fg(THEME.muted)),
-        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(THEME.success)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" go to  ", Style::default().fg(THEME.muted)),
-        Span::styled("Esc", Style::default().fg(THEME.error).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(THEME.error)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" close  ", Style::default().fg(THEME.muted)),
-        Span::styled("tag:", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "tag:",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" tag search", Style::default().fg(THEME.muted)),
     ]);
     frame.render_widget(Paragraph::new(help), chunks[0]);
-    
+
     // Search input
-    let search_style = Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD);
+    let search_style = Style::default()
+        .fg(THEME.primary)
+        .add_modifier(Modifier::BOLD);
     let search_text = format!("Search: {}▏", query);
     let search_line = Paragraph::new(search_text).style(search_style);
     frame.render_widget(search_line, chunks[1]);
-    
+
     // Mode indicator
     let mode_text = if tag_mode {
-        Line::from(Span::styled("🏷️  Tag search mode", Style::default().fg(THEME.warning)))
+        Line::from(Span::styled(
+            "🏷️  Tag search mode",
+            Style::default().fg(THEME.warning),
+        ))
     } else {
-        Line::from(Span::styled("Search by ID, name, or type", Style::default().fg(THEME.muted)))
+        Line::from(Span::styled(
+            "Search by ID, name, or type",
+            Style::default().fg(THEME.muted),
+        ))
     };
     frame.render_widget(Paragraph::new(mode_text), chunks[2]);
-    
+
     // Separator
     let separator = Line::from(Span::styled(
-        "─".repeat(chunks[3].width as usize), 
-        Style::default().fg(THEME.border)
+        "─".repeat(chunks[3].width as usize),
+        Style::default().fg(THEME.border),
     ));
     frame.render_widget(Paragraph::new(separator), chunks[3]);
-    
+
     // Results list
     let list_height = chunks[4].height as usize;
     let total_results = results.len();
-    
+
     if total_results == 0 {
-        let message = if query.is_empty() {
-            "Type to search all loaded resources..."
+        let message = if loading {
+            format!("{} Fetching resources...", spinner)
+        } else if query.is_empty() {
+            "Type to search all loaded resources...".to_string()
         } else {
-            "No matching resources found"
+            "No matching resources found".to_string()
+        };
+        let style = if loading {
+            Style::default()
+                .fg(THEME.warning)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(THEME.muted)
         };
         let no_results = Paragraph::new(message)
-            .style(Style::default().fg(THEME.muted))
+            .style(style)
             .alignment(Alignment::Center);
         frame.render_widget(no_results, chunks[4]);
     } else {
@@ -985,13 +1239,18 @@ pub fn render_global_search_modal(
         } else {
             selected_index.saturating_sub(list_height / 2)
         };
-        
+
         // Build result lines
         let mut lines: Vec<Line> = Vec::new();
-        for (i, result) in results.iter().enumerate().skip(scroll_offset).take(list_height) {
+        for (i, result) in results
+            .iter()
+            .enumerate()
+            .skip(scroll_offset)
+            .take(list_height)
+        {
             let is_selected = i == selected_index;
             let prefix = if is_selected { "▶ " } else { "  " };
-            
+
             // Service icon/emoji
             let service_icon = match result.service {
                 crate::app::Service::EC2 => "💻",
@@ -1007,31 +1266,33 @@ pub fn render_global_search_modal(
                 crate::app::Service::ECS => "🐳",
                 crate::app::Service::ECR => "📷",
             };
-            
+
             let style = if is_selected {
-                Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(THEME.selection_fg)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(THEME.fg)
             };
-            
+
             let type_style = if is_selected {
                 Style::default().fg(THEME.selection_fg)
             } else {
                 Style::default().fg(THEME.secondary)
             };
-            
+
             let mut spans = vec![
                 Span::styled(prefix, style),
                 Span::styled(format!("{} ", service_icon), style),
                 Span::styled(&result.primary_id, style),
             ];
-            
+
             // Add resource type in brackets
             spans.push(Span::styled(
                 format!(" [{}]", result.resource_type),
                 type_style,
             ));
-            
+
             // Add secondary info if present
             if let Some(ref info) = result.secondary_info {
                 let info_style = if is_selected {
@@ -1041,16 +1302,33 @@ pub fn render_global_search_modal(
                 };
                 spans.push(Span::styled(format!(" - {}", info), info_style));
             }
-            
+
             lines.push(Line::from(spans));
         }
-        
+
         let list = Paragraph::new(lines);
         frame.render_widget(list, chunks[4]);
     }
-    
+
     // Status line
-    let status = if total_results > 0 {
+    let status = if loading {
+        Line::from(vec![
+            Span::styled(
+                format!("{} Fetching resources...", spinner),
+                Style::default()
+                    .fg(THEME.warning)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            if total_results > 0 {
+                Span::styled(
+                    format!(" | {} results so far", total_results),
+                    Style::default().fg(THEME.muted),
+                )
+            } else {
+                Span::raw("")
+            },
+        ])
+    } else if total_results > 0 {
         Line::from(vec![
             Span::styled(
                 format!("{} results", total_results),
@@ -1064,5 +1342,8 @@ pub fn render_global_search_modal(
     } else {
         Line::from("")
     };
-    frame.render_widget(Paragraph::new(status).alignment(Alignment::Right), chunks[5]);
+    frame.render_widget(
+        Paragraph::new(status).alignment(Alignment::Right),
+        chunks[5],
+    );
 }

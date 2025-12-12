@@ -88,6 +88,9 @@ impl SearchResult {
     }
 }
 
+/// Spinner animation frames for loading indicator
+pub const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 /// State for the global search feature
 #[derive(Default)]
 pub struct GlobalSearchState {
@@ -101,6 +104,10 @@ pub struct GlobalSearchState {
     pub scroll_offset: usize,
     /// Whether to search tags specifically (tag: prefix)
     pub tag_search_mode: bool,
+    /// Whether resources are currently being fetched
+    pub loading: bool,
+    /// Current spinner animation frame index
+    pub spinner_frame: usize,
 }
 
 impl GlobalSearchState {
@@ -114,6 +121,20 @@ impl GlobalSearchState {
         self.selected_index = 0;
         self.scroll_offset = 0;
         self.tag_search_mode = false;
+        self.loading = false;
+        self.spinner_frame = 0;
+    }
+
+    /// Advance the spinner animation frame
+    pub fn tick_spinner(&mut self) {
+        if self.loading {
+            self.spinner_frame = (self.spinner_frame + 1) % SPINNER_FRAMES.len();
+        }
+    }
+
+    /// Get the current spinner character
+    pub fn spinner(&self) -> &'static str {
+        SPINNER_FRAMES[self.spinner_frame % SPINNER_FRAMES.len()]
     }
 
     /// Get the currently selected result, if any
@@ -200,11 +221,10 @@ mod tests {
 
     #[test]
     fn test_search_result_matches_tags() {
-        let result = SearchResult::new(Service::EC2, "EC2 Instance", "i-123")
-            .with_tags(vec![
-                ("Name".to_string(), "my-instance".to_string()),
-                ("Environment".to_string(), "production".to_string()),
-            ]);
+        let result = SearchResult::new(Service::EC2, "EC2 Instance", "i-123").with_tags(vec![
+            ("Name".to_string(), "my-instance".to_string()),
+            ("Environment".to_string(), "production".to_string()),
+        ]);
         assert!(result.matches("my-instance"));
         assert!(result.matches("production"));
         assert!(result.matches("Name"));
@@ -239,13 +259,57 @@ mod tests {
         let all_results = vec![
             SearchResult::new(Service::EC2, "EC2", "i-1")
                 .with_tags(vec![("Environment".to_string(), "production".to_string())]),
-            SearchResult::new(Service::EC2, "EC2", "i-2")
-                .with_secondary("prod-server"), // This shouldn't match in tag mode
+            SearchResult::new(Service::EC2, "EC2", "i-2").with_secondary("prod-server"), // This shouldn't match in tag mode
         ];
 
         state.filter(&all_results);
 
         assert_eq!(state.results.len(), 1);
         assert_eq!(state.results[0].primary_id, "i-1");
+    }
+
+    #[test]
+    fn test_spinner_animation() {
+        let mut state = GlobalSearchState::new();
+        state.loading = true;
+
+        // Initial frame
+        assert_eq!(state.spinner_frame, 0);
+        assert_eq!(state.spinner(), "⠋");
+
+        // Tick advances the frame
+        state.tick_spinner();
+        assert_eq!(state.spinner_frame, 1);
+        assert_eq!(state.spinner(), "⠙");
+
+        // Wraps around after all frames
+        for _ in 0..SPINNER_FRAMES.len() {
+            state.tick_spinner();
+        }
+        assert_eq!(state.spinner_frame, 1); // Back to 1 (started at 1, wrapped)
+    }
+
+    #[test]
+    fn test_spinner_does_not_advance_when_not_loading() {
+        let mut state = GlobalSearchState::new();
+        state.loading = false;
+        state.spinner_frame = 0;
+
+        state.tick_spinner();
+        assert_eq!(state.spinner_frame, 0); // Should not advance
+    }
+
+    #[test]
+    fn test_loading_state_cleared_on_clear() {
+        let mut state = GlobalSearchState::new();
+        state.loading = true;
+        state.spinner_frame = 5;
+        state.query = "test".to_string();
+
+        state.clear();
+
+        assert!(!state.loading);
+        assert_eq!(state.spinner_frame, 0);
+        assert!(state.query.is_empty());
     }
 }

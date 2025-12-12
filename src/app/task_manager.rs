@@ -170,6 +170,27 @@ impl TaskManager {
         self.active_tasks.contains_key(key)
     }
 
+    /// Check if any service refresh tasks are active (for global search loading)
+    pub fn is_any_refresh_active(&self) -> bool {
+        const REFRESH_KEYS: &[&str] = &[
+            task_keys::EC2_REFRESH,
+            task_keys::S3_REFRESH,
+            task_keys::RDS_REFRESH,
+            task_keys::DYNAMODB_REFRESH,
+            task_keys::LAMBDA_REFRESH,
+            task_keys::VPC_REFRESH,
+            task_keys::IAM_REFRESH,
+            task_keys::BACKUP_REFRESH,
+            task_keys::CLOUDTRAIL_REFRESH,
+            task_keys::SECRETSMANAGER_REFRESH,
+            task_keys::ECS_REFRESH,
+            task_keys::ECR_REFRESH,
+        ];
+        REFRESH_KEYS
+            .iter()
+            .any(|key| self.active_tasks.contains_key(*key))
+    }
+
     /// Get the number of active tasks
     pub fn active_count(&self) -> usize {
         self.active_tasks.len()

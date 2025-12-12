@@ -2,20 +2,33 @@
 //!
 //! Processes async events from AWS service calls and updates application state.
 
-use super::{App, IamViewMode};
+use super::{App, IamViewMode, InputMode};
 use crate::event::AwsEvent;
 
 impl App {
+    /// Update global search state after a service data load event
+    fn update_global_search_for_event(&mut self) {
+        if self.input_mode == InputMode::GlobalSearch {
+            self.refresh_global_search();
+            // Check if all refresh tasks are done
+            if !self.tasks.is_any_refresh_active() {
+                self.global_search.loading = false;
+            }
+        }
+    }
+
     /// Handle async AWS events and update state accordingly
     pub fn handle_aws_event(&mut self, event: AwsEvent) {
         match event {
             AwsEvent::Ec2InstancesLoaded(instances) => {
                 self.services.ec2.instances = instances;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::S3BucketsLoaded(buckets) => {
                 self.services.s3.buckets = buckets;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::S3ObjectsLoaded(objects) => {
                 self.services.s3.objects = objects;
@@ -31,10 +44,12 @@ impl App {
             AwsEvent::RdsInstancesLoaded(instances) => {
                 self.services.rds.instances = instances;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::DynamoDbTablesLoaded(tables) => {
                 self.services.dynamodb.tables = tables;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::DynamoDbItemsLoaded(items) => {
                 self.services.dynamodb.items = items;
@@ -46,6 +61,7 @@ impl App {
             AwsEvent::LambdaFunctionsLoaded(functions) => {
                 self.services.lambda.functions = functions;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::LambdaFunctionDetailsLoaded {
                 function_name,
@@ -59,26 +75,32 @@ impl App {
             AwsEvent::VpcsLoaded(vpcs) => {
                 self.services.vpc.vpcs = vpcs;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::SubnetsLoaded(subnets) => {
                 self.services.vpc.subnets = subnets;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::SecurityGroupsLoaded(sgs) => {
                 self.services.vpc.security_groups = sgs;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::IamRolesLoaded(roles) => {
                 self.services.iam.roles = roles;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::IamUsersLoaded(users) => {
                 self.services.iam.users = users;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::IamPoliciesLoaded(policies) => {
                 self.services.iam.policies = policies;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::IamUserPoliciesLoaded(policies) => {
                 self.services.iam.current_policies = policies;
@@ -100,6 +122,7 @@ impl App {
             AwsEvent::BackupVaultsLoaded(vaults) => {
                 self.services.backup.vaults = vaults;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::BackupPlansLoaded(plans) => {
                 self.services.backup.plans = plans;
@@ -119,6 +142,7 @@ impl App {
             AwsEvent::CloudTrailTrailsLoaded(trails) => {
                 self.services.cloudtrail.trails = trails;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::CloudTrailEventsLoaded(events) => {
                 self.services.cloudtrail.events = events;
@@ -127,6 +151,7 @@ impl App {
             AwsEvent::SecretsManagerSecretsLoaded(secrets) => {
                 self.services.secretsmanager.secrets = secrets;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::SecretsManagerSecretValueLoaded(value) => {
                 self.services.secretsmanager.secret_value = Some(value);
@@ -136,6 +161,7 @@ impl App {
             AwsEvent::EcsClustersLoaded(clusters) => {
                 self.services.ecs.clusters = clusters;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::EcsServicesLoaded(services) => {
                 self.services.ecs.services = services;
@@ -143,6 +169,7 @@ impl App {
                     self.services.ecs.list_state.select(Some(0));
                 }
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::EcsTasksLoaded(tasks) => {
                 self.services.ecs.tasks = tasks;
@@ -195,7 +222,10 @@ impl App {
                 self.services.ecs.task_definitions_list = task_defs;
                 self.services.ecs.show_task_definition_selector = true;
                 if !self.services.ecs.task_definitions_list.is_empty() {
-                    self.services.ecs.task_definitions_list_state.select(Some(0));
+                    self.services
+                        .ecs
+                        .task_definitions_list_state
+                        .select(Some(0));
                 }
             }
             AwsEvent::EcsTaskDefinitionsForSelectorLoaded(task_defs) => {
@@ -226,6 +256,7 @@ impl App {
             AwsEvent::EcrRepositoriesLoaded(repos) => {
                 self.services.ecr.repositories = repos;
                 self.loading = false;
+                self.update_global_search_for_event();
             }
             AwsEvent::EcrImagesLoaded(images) => {
                 self.services.ecr.images = images;
