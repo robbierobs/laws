@@ -168,13 +168,13 @@ impl App {
             // No-op actions for services without mutations
             // Lambda actions
             ServiceAction::Lambda(crate::app::messages::LambdaAction::InvokeFunction(name)) => {
-                self.handle_invoke_lambda(name, event_tx).await;
+                self.handle_invoke_lambda(name, event_tx);
             }
             ServiceAction::Lambda(crate::app::messages::LambdaAction::DeleteFunction(name)) => {
-                self.handle_delete_lambda(name, event_tx).await;
+                self.handle_delete_lambda(name, event_tx);
             }
             ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(name)) => {
-                self.handle_load_function_details(name, event_tx).await;
+                self.handle_load_function_details(name, event_tx);
             }
             ServiceAction::Backup(_) => {}
             ServiceAction::CloudTrail(action) => {

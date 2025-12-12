@@ -3,6 +3,8 @@
 //! This module contains state structs for ECS-related modals, extracted from
 //! EcsState to reduce its complexity and improve maintainability.
 
+#![allow(dead_code)]
+
 use crate::app::navigation::{nav_down, nav_up};
 use crate::models::ecs::EcsTaskDefinition;
 

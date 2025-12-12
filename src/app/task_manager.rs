@@ -261,6 +261,7 @@ pub mod task_keys {
     pub const DYNAMODB_REFRESH: &str = "dynamodb:refresh";
     pub const DYNAMODB_ITEMS: &str = "dynamodb:items";
     pub const LAMBDA_REFRESH: &str = "lambda:refresh";
+    pub const LAMBDA_DETAILS: &str = "lambda:details";
     pub const VPC_REFRESH: &str = "vpc:refresh";
     pub const IAM_REFRESH: &str = "iam:refresh";
     pub const IAM_POLICIES: &str = "iam:policies";
@@ -278,6 +279,10 @@ pub mod task_keys {
     pub const RDS_ACTION: &str = "rds:action";
     pub const S3_ACTION: &str = "s3:action";
     pub const DYNAMODB_ACTION: &str = "dynamodb:action";
+    pub const LAMBDA_ACTION: &str = "lambda:action";
+    pub const VPC_ACTION: &str = "vpc:action";
+    pub const IAM_ACTION: &str = "iam:action";
+    pub const CLOUDTRAIL_ACTION: &str = "cloudtrail:action";
     pub const SECRETSMANAGER_ACTION: &str = "secretsmanager:action";
 }
 
