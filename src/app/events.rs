@@ -109,6 +109,13 @@ impl App {
                 self.services.backup.jobs = jobs;
                 self.loading = false;
             }
+            AwsEvent::BackupRecoveryPointsLoaded(points) => {
+                self.services.backup.recovery_points = points;
+                if !self.services.backup.recovery_points.is_empty() {
+                    self.services.backup.list_state.select(Some(0));
+                }
+                self.loading = false;
+            }
             AwsEvent::CloudTrailTrailsLoaded(trails) => {
                 self.services.cloudtrail.trails = trails;
                 self.loading = false;

@@ -19,6 +19,7 @@ mod secretsmanager;
 mod view_mode;
 mod vpc;
 mod ecs;
+mod backup;
 
 use super::messages::{
     DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
@@ -176,7 +177,9 @@ impl App {
             ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(name)) => {
                 self.handle_load_function_details(name, event_tx);
             }
-            ServiceAction::Backup(_) => {}
+            ServiceAction::Backup(action) => {
+                self.handle_backup_action(action, event_tx).await;
+            }
             ServiceAction::CloudTrail(action) => {
                 match action {
                     crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {

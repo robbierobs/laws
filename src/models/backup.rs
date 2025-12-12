@@ -103,3 +103,55 @@ impl crate::models::Filterable for BackupJob {
         self.state.to_lowercase().contains(filter)
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecoveryPoint {
+    pub recovery_point_arn: String,
+    pub backup_vault_name: String,
+    pub recovery_point_type: Option<String>,
+    pub status: Option<String>,
+    pub creation_date: Option<String>,
+    pub completion_date: Option<String>,
+    pub backup_size_in_bytes: Option<i64>,
+    pub resource_arn: Option<String>,
+    pub resource_type: Option<String>,
+    pub is_encrypted: bool,
+    pub life_cycle: Option<String>,
+}
+
+impl RecoveryPoint {
+    pub fn from_aws(rp: &aws_sdk_backup::types::RecoveryPointByBackupVault) -> Self {
+        Self {
+            recovery_point_arn: rp.recovery_point_arn().unwrap_or_default().to_string(),
+            backup_vault_name: rp.backup_vault_name().unwrap_or_default().to_string(),
+            recovery_point_type: None, // Not available in RecoveryPointByBackupVault
+            status: rp.status().map(|s| s.as_str().to_string()),
+            creation_date: rp.creation_date().map(|d| d.to_string()),
+            completion_date: rp.completion_date().map(|d| d.to_string()),
+            backup_size_in_bytes: rp.backup_size_in_bytes(),
+            resource_arn: rp.resource_arn().map(|s| s.to_string()),
+            resource_type: rp.resource_type().map(|s| s.to_string()),
+            is_encrypted: rp.is_encrypted(),
+            // Simplify lifecycle to just a string if present, or we can expand later
+            life_cycle: rp.lifecycle().map(|l| format!("{:?}", l)),
+        }
+    }
+
+    pub fn status_color(&self) -> ratatui::style::Color {
+        use crate::ui::theme::THEME;
+        match self.status.as_deref().unwrap_or("").to_uppercase().as_str() {
+            "COMPLETED" => THEME.success,
+            "PARTIAL" => THEME.warning,
+            "DELETING" | "EXPIRED" => THEME.error,
+            _ => THEME.muted,
+        }
+    }
+}
+
+impl crate::models::Filterable for RecoveryPoint {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.recovery_point_arn.to_lowercase().contains(filter) ||
+        self.resource_type.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
+        self.status.as_deref().unwrap_or("").to_lowercase().contains(filter)
+    }
+}

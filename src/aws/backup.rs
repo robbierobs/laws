@@ -63,6 +63,25 @@ impl BackupService {
 
         Ok(jobs)
     }
+
+    pub async fn list_recovery_points(&self, vault_name: &str) -> AppResult<Vec<crate::models::backup::RecoveryPoint>> {
+        let response = self
+            .client
+            .list_recovery_points_by_backup_vault()
+            .backup_vault_name(vault_name)
+            .max_results(50)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("Backup", "list_recovery_points", vault_name, e))?;
+
+        let points = response
+            .recovery_points()
+            .iter()
+            .map(|rp| crate::models::backup::RecoveryPoint::from_aws(rp))
+            .collect();
+
+        Ok(points)
+    }
 }
 
 impl crate::aws::traits::AwsService<BackupVault> for BackupService {

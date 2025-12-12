@@ -13,7 +13,7 @@ pub enum Event {
     Message(crate::app::Message),
 }
 
-use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
+use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
@@ -54,6 +54,7 @@ pub enum AwsEvent {
     BackupVaultsLoaded(Vec<BackupVault>),
     BackupPlansLoaded(Vec<BackupPlan>),
     BackupJobsLoaded(Vec<BackupJob>),
+    BackupRecoveryPointsLoaded(Vec<RecoveryPoint>),
     CloudTrailTrailsLoaded(Vec<Trail>),
     CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
     SecretsManagerSecretsLoaded(Vec<Secret>),

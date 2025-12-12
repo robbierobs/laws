@@ -718,6 +718,11 @@ impl App {
                         .backup
                         .selected_job()
                         .map(|j| j.backup_job_id.clone()),
+                    BackupViewMode::RecoveryPoints => self
+                        .services
+                        .backup
+                        .selected_recovery_point()
+                        .map(|rp| rp.recovery_point_arn.clone()),
                 }
             }
             Service::CloudTrail => {
@@ -890,6 +895,7 @@ impl App {
                 BackupViewMode::Vaults => !self.services.backup.vaults.is_empty(),
                 BackupViewMode::Plans => !self.services.backup.plans.is_empty(),
                 BackupViewMode::Jobs => !self.services.backup.jobs.is_empty(),
+                BackupViewMode::RecoveryPoints => !self.services.backup.recovery_points.is_empty(),
             };
             if has_items {
                 self.services.backup.list_state.select(Some(0));

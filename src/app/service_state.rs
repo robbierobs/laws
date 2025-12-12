@@ -9,7 +9,7 @@
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
 
-use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
+use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
@@ -707,6 +707,7 @@ pub struct BackupState {
     pub vaults: Vec<BackupVault>,
     pub plans: Vec<BackupPlan>,
     pub jobs: Vec<BackupJob>,
+    pub recovery_points: Vec<RecoveryPoint>,
     pub list_state: TableState,
     pub view_mode: BackupViewMode,
 }
@@ -742,6 +743,15 @@ impl BackupState {
             None
         }
     }
+
+    /// Get the currently selected recovery point, if any
+    pub fn selected_recovery_point(&self) -> Option<&RecoveryPoint> {
+        if self.view_mode == BackupViewMode::RecoveryPoints {
+            self.list_state.selected().and_then(|i| self.recovery_points.get(i))
+        } else {
+            None
+        }
+    }
 }
 
 impl ServiceInputHandler for BackupState {
@@ -751,10 +761,26 @@ impl ServiceInputHandler for BackupState {
             BackupViewMode::Vaults => self.vaults.len(),
             BackupViewMode::Plans => self.plans.len(),
             BackupViewMode::Jobs => self.jobs.len(),
+            BackupViewMode::RecoveryPoints => self.recovery_points.len(),
         };
         match key.code {
             KeyCode::Down | KeyCode::Char('j') => self.list_state.nav_down(len),
             KeyCode::Up | KeyCode::Char('k') => self.list_state.nav_up(len),
+            KeyCode::Enter => {
+                if self.view_mode == BackupViewMode::Vaults {
+                    if let Some(vault) = self.selected_vault() {
+                        return InputResult::Message(Message::backup_load_recovery_points(
+                            vault.backup_vault_name.clone(),
+                        ));
+                    }
+                }
+            }
+            KeyCode::Esc | KeyCode::Backspace => {
+                if self.view_mode == BackupViewMode::RecoveryPoints {
+                    // Go back to vaults
+                    return InputResult::Message(Message::backup_leave_vault());
+                }
+            }
             _ => {}
         }
         InputResult::None

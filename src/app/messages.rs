@@ -205,11 +205,12 @@ pub enum BackupViewMode {
     Vaults = 0,
     Plans = 1,
     Jobs = 2,
+    RecoveryPoints = 3,
 }
 
 impl ViewMode for BackupViewMode {
     fn all() -> &'static [Self] {
-        &[Self::Vaults, Self::Plans, Self::Jobs]
+        &[Self::Vaults, Self::Plans, Self::Jobs, Self::RecoveryPoints]
     }
 
     fn index(&self) -> usize {
@@ -221,6 +222,7 @@ impl ViewMode for BackupViewMode {
             0 => Self::Vaults,
             1 => Self::Plans,
             2 => Self::Jobs,
+            3 => Self::RecoveryPoints,
             _ => Self::Vaults,
         }
     }
@@ -230,6 +232,7 @@ impl ViewMode for BackupViewMode {
             Self::Vaults => "Vaults",
             Self::Plans => "Plans",
             Self::Jobs => "Jobs",
+            Self::RecoveryPoints => "Recovery Points",
         }
     }
 }
@@ -464,7 +467,8 @@ pub enum IamAction {
 /// Backup-specific actions (placeholder for future)
 #[derive(Debug, Clone)]
 pub enum BackupAction {
-    // No actions currently supported
+    LoadRecoveryPoints(String),
+    LeaveVault,
 }
 
 /// CloudTrail-specific actions
@@ -794,6 +798,16 @@ impl Message {
     // RDS message constructors
     pub fn rds_delete(instance_id: String) -> Self {
         Message::Service(ServiceAction::Rds(RdsAction::Delete(instance_id)))
+    }
+
+    pub fn backup_load_recovery_points(vault_name: String) -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::LoadRecoveryPoints(
+            vault_name,
+        )))
+    }
+
+    pub fn backup_leave_vault() -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::LeaveVault))
     }
 
     // VPC message constructors
