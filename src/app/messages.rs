@@ -402,6 +402,11 @@ pub enum S3Action {
         bucket: String,
         key: String,
     },
+    /// Edit object in $EDITOR and upload changes
+    EditObject {
+        bucket: String,
+        key: String,
+    },
     LeaveBucket,
 }
 
@@ -499,6 +504,11 @@ pub enum EcsAction {
         cluster_arn: String,
         service_name: String,
     },
+    UpdateServiceTaskDefinition {
+        cluster_arn: String,
+        service_name: String,
+        task_definition_arn: String,
+    },
 
     // Task actions
     StopTask {
@@ -508,6 +518,8 @@ pub enum EcsAction {
 
     // Task definition actions
     DeregisterTaskDefinition(String), // task_definition_arn
+    EditTaskDefinition(String),       // task_definition_arn
+    ListTaskDefinitions(String),      // family name
 }
 
 // ============================================================================
@@ -699,6 +711,10 @@ impl Message {
         Message::Service(ServiceAction::S3(S3Action::OpenObject { bucket, key }))
     }
 
+    pub fn s3_edit_object(bucket: String, key: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key }))
+    }
+
     pub fn s3_leave_bucket() -> Self {
         Message::Service(ServiceAction::S3(S3Action::LeaveBucket))
     }
@@ -877,6 +893,30 @@ impl Message {
         Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(
             task_definition_arn,
         )))
+    }
+
+    pub fn ecs_edit_task_definition(task_definition_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(
+            task_definition_arn,
+        )))
+    }
+
+    pub fn ecs_list_task_definitions(family: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::ListTaskDefinitions(family)))
+    }
+
+    pub fn ecs_update_service_task_definition(
+        cluster_arn: String,
+        service_name: String,
+        task_definition_arn: String,
+    ) -> Self {
+        Message::Service(ServiceAction::Ecs(
+            EcsAction::UpdateServiceTaskDefinition {
+                cluster_arn,
+                service_name,
+                task_definition_arn,
+            },
+        ))
     }
 }
 

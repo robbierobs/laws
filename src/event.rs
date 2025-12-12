@@ -73,6 +73,18 @@ pub enum AwsEvent {
         path: String,
         content: Option<String>,
     },
+    /// S3 object was edited and uploaded successfully
+    S3ObjectEdited {
+        bucket: String,
+        key: String,
+    },
+    /// ECS task definition was edited and registered successfully
+    EcsTaskDefinitionEdited {
+        family: String,
+        new_arn: String,
+    },
+    /// List of task definitions for a family
+    EcsTaskDefinitionsListed(Vec<String>),
     ActionCompleted(String), // Message to display
     Error(String),
 }

@@ -75,6 +75,27 @@ impl App {
                 self.handle_ecs_deregister_task_definition(task_definition_arn, event_tx)
                     .await;
             }
+            EcsAction::EditTaskDefinition(task_definition_arn) => {
+                self.handle_ecs_edit_task_definition(task_definition_arn, event_tx)
+                    .await;
+            }
+            EcsAction::ListTaskDefinitions(family) => {
+                self.handle_ecs_list_task_definitions(family, event_tx)
+                    .await;
+            }
+            EcsAction::UpdateServiceTaskDefinition {
+                cluster_arn,
+                service_name,
+                task_definition_arn,
+            } => {
+                self.handle_ecs_update_service_task_definition(
+                    cluster_arn,
+                    service_name,
+                    task_definition_arn,
+                    event_tx,
+                )
+                .await;
+            }
         }
     }
 
@@ -466,6 +487,237 @@ impl App {
                     tx.send(Event::Aws(AwsEvent::Error(format!(
                         "Failed to deregister task definition {}: {}",
                         td_short, e
+                    ))))
+                    .await
+                    .ok();
+                }
+            }
+        });
+
+        self.tasks.spawn(task_keys::ECS_ACTION, handle);
+    }
+
+    // ========================================================================
+    // Edit Task Definition Handler
+    // ========================================================================
+
+    async fn handle_ecs_edit_task_definition(
+        &mut self,
+        task_definition_arn: String,
+        event_tx: EventSender,
+    ) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.ecs.clone();
+        let tx = event_tx;
+
+        let handle = tokio::spawn(async move {
+            let ecs_client = crate::aws::ecs::EcsClient::new(client);
+
+            // Get the task definition
+            let task_def = match ecs_client
+                .describe_task_definition(&task_definition_arn)
+                .await
+            {
+                Ok(td) => td,
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to fetch task definition: {}",
+                        e
+                    ))))
+                    .await
+                    .ok();
+                    return;
+                }
+            };
+
+            // Serialize to JSON for editing
+            let json = match serde_json::to_string_pretty(&task_def) {
+                Ok(j) => j,
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to serialize task definition: {}",
+                        e
+                    ))))
+                    .await
+                    .ok();
+                    return;
+                }
+            };
+
+            // Write to temp file
+            let temp_dir = std::env::temp_dir().join("lazy_aws");
+            if let Err(e) = std::fs::create_dir_all(&temp_dir) {
+                tx.send(Event::Aws(AwsEvent::Error(format!(
+                    "Failed to create temp directory: {}",
+                    e
+                ))))
+                .await
+                .ok();
+                return;
+            }
+
+            let filename = format!("{}_taskdef.json", task_def.family);
+            let file_path = temp_dir.join(&filename);
+            if let Err(e) = std::fs::write(&file_path, &json) {
+                tx.send(Event::Aws(AwsEvent::Error(format!(
+                    "Failed to write temp file: {}",
+                    e
+                ))))
+                .await
+                .ok();
+                return;
+            }
+
+            // Open in editor
+            match crate::utils::editor::open_in_editor(&file_path) {
+                Ok(_) => {
+                    // Read the edited content
+                    match std::fs::read_to_string(&file_path) {
+                        Ok(edited_json) => {
+                            // Register the edited task definition
+                            match ecs_client.register_task_definition(&edited_json).await {
+                                Ok(new_arn) => {
+                                    tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionEdited {
+                                        family: task_def.family.clone(),
+                                        new_arn,
+                                    }))
+                                    .await
+                                    .ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                                        "Failed to register edited task definition: {}",
+                                        e
+                                    ))))
+                                    .await
+                                    .ok();
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(format!(
+                                "Failed to read edited file: {}",
+                                e
+                            ))))
+                            .await
+                            .ok();
+                        }
+                    }
+
+                    // Clean up temp file
+                    std::fs::remove_file(&file_path).ok();
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to open editor: {}",
+                        e
+                    ))))
+                    .await
+                    .ok();
+                }
+            }
+        });
+
+        self.tasks.spawn(task_keys::ECS_ACTION, handle);
+    }
+
+    // ========================================================================
+    // List Task Definitions Handler
+    // ========================================================================
+
+    async fn handle_ecs_list_task_definitions(&mut self, family: String, event_tx: EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.ecs.clone();
+        let tx = event_tx;
+
+        let handle = tokio::spawn(async move {
+            let ecs_client = crate::aws::ecs::EcsClient::new(client);
+            match ecs_client.list_task_definitions(Some(&family)).await {
+                Ok(task_defs) => {
+                    tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionsListed(task_defs)))
+                        .await
+                        .ok();
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to list task definitions: {}",
+                        e
+                    ))))
+                    .await
+                    .ok();
+                }
+            }
+        });
+
+        self.tasks.spawn(task_keys::ECS_REFRESH, handle);
+    }
+
+    // ========================================================================
+    // Update Service Task Definition Handler
+    // ========================================================================
+
+    async fn handle_ecs_update_service_task_definition(
+        &mut self,
+        cluster_arn: String,
+        service_name: String,
+        task_definition_arn: String,
+        event_tx: EventSender,
+    ) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.ecs.clone();
+        let tx = event_tx.clone();
+        let cluster_arn_clone = cluster_arn.clone();
+
+        let handle = tokio::spawn(async move {
+            let ecs_client = crate::aws::ecs::EcsClient::new(client.clone());
+            
+            // Update the service to use the new task definition
+            match ecs_client.client.update_service()
+                .cluster(&cluster_arn)
+                .service(&service_name)
+                .task_definition(&task_definition_arn)
+                .send()
+                .await
+            {
+                Ok(_) => {
+                    tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        "Updated {} to use task definition {}",
+                        service_name,
+                        task_definition_arn.split('/').last().unwrap_or(&task_definition_arn)
+                    ))))
+                    .await
+                    .ok();
+
+                    // Refresh services list
+                    match ecs_client.list_services(&cluster_arn_clone).await {
+                        Ok(services) => {
+                            tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                                .await
+                                .ok();
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
+                        }
+                    }
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to update service: {}",
+                        e
                     ))))
                     .await
                     .ok();

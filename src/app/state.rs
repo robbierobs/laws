@@ -203,7 +203,7 @@ impl App {
         
         if self.show_confirmation {
             if let Some(action) = &self.pending_action {
-                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction, LambdaAction, VpcAction, IamAction, CloudTrailAction, SecretsManagerAction};
+                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction, LambdaAction, VpcAction, IamAction, CloudTrailAction, SecretsManagerAction, EcsAction};
                 let description = match action {
                     Message::Service(ServiceAction::Ec2(Ec2Action::Start(id))) => format!("Start EC2 Instance {}", id),
                     Message::Service(ServiceAction::Ec2(Ec2Action::Stop(id))) => format!("Stop EC2 Instance {}", id),
@@ -216,6 +216,7 @@ impl App {
                     Message::Service(ServiceAction::Rds(RdsAction::Delete(id))) => format!("Delete RDS Instance {}", id),
 
                     Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key })) => format!("Delete S3 Object s3://{}/{}", bucket, key),
+                    Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key })) => format!("Edit S3 Object s3://{}/{}", bucket, key),
 
                     Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, .. })) => format!("Delete item from DynamoDB table {}", table_name),
 
@@ -231,6 +232,25 @@ impl App {
                     Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(name))) => format!("Delete CloudTrail Trail {}", name),
 
                     Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn))) => format!("Delete Secret {}", arn),
+
+                    Message::Service(ServiceAction::Ecs(EcsAction::StopTask { task_arn, .. })) => {
+                        let short_arn = task_arn.split('/').last().unwrap_or(&task_arn);
+                        format!("Stop ECS Task {}", short_arn)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(arn))) => {
+                        let short_arn = arn.split('/').last().unwrap_or(&arn);
+                        format!("Deregister Task Definition {}", short_arn)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(arn))) => {
+                        let short_arn = arn.split('/').last().unwrap_or(&arn);
+                        format!("Edit Task Definition {}", short_arn)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::UpdateDesiredCount { service_name, desired_count, .. })) => {
+                        format!("Update {} desired count to {}", service_name, desired_count)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::ForceNewDeployment { service_name, .. })) => {
+                        format!("Force new deployment for {}", service_name)
+                    },
 
                     _ => "Unknown Action".to_string(),
                 };

@@ -107,6 +107,111 @@ impl App {
         self.tasks.spawn(task_keys::S3_ACTION, handle);
     }
 
+    pub(super) fn handle_edit_s3_object(
+        &mut self,
+        bucket: String,
+        key: String,
+        event_tx: crate::app::EventSender,
+    ) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.s3.clone();
+        let tx = event_tx.clone();
+
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::s3::S3Service::new(client);
+            
+            // Download the object
+            let bytes = match service.get_object(&bucket, &key).await {
+                Ok(b) => b,
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
+                    return;
+                }
+            };
+
+            // Write to temp file
+            let filename = key.split('/').last().unwrap_or(&key).to_string();
+            let temp_dir = std::env::temp_dir().join("lazy_aws");
+            if let Err(e) = std::fs::create_dir_all(&temp_dir) {
+                tx.send(Event::Aws(AwsEvent::Error(format!(
+                    "Failed to create temp directory: {}",
+                    e
+                ))))
+                .await
+                .ok();
+                return;
+            }
+
+            let file_path = temp_dir.join(&filename);
+            if let Err(e) = std::fs::write(&file_path, &bytes) {
+                tx.send(Event::Aws(AwsEvent::Error(format!(
+                    "Failed to write temp file: {}",
+                    e
+                ))))
+                .await
+                .ok();
+                return;
+            }
+
+            // Open in editor
+            match crate::utils::editor::open_in_editor(&file_path) {
+                Ok(_) => {
+                    // Read the edited content
+                    match std::fs::read(&file_path) {
+                        Ok(edited_bytes) => {
+                            // Upload the edited content
+                            match service.put_object(&bucket, &key, edited_bytes).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::S3ObjectEdited {
+                                        bucket: bucket.clone(),
+                                        key: key.clone(),
+                                    }))
+                                    .await
+                                    .ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                                        "Failed to upload edited object: {}",
+                                        e
+                                    ))))
+                                    .await
+                                    .ok();
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(format!(
+                                "Failed to read edited file: {}",
+                                e
+                            ))))
+                            .await
+                            .ok();
+                        }
+                    }
+
+                    // Clean up temp file
+                    std::fs::remove_file(&file_path).ok();
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                        "Failed to open editor: {}",
+                        e
+                    ))))
+                    .await
+                    .ok();
+                }
+            }
+        });
+
+        self.tasks.spawn(task_keys::S3_ACTION, handle);
+    }
+
     async fn write_s3_object(
         tx: crate::app::EventSender,
         key: String,

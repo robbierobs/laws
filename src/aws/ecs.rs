@@ -1,10 +1,10 @@
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ecs::Client;
 
 pub struct EcsClient {
-    client: Client,
+    pub(crate) client: Client,
 }
 
 impl EcsClient {
@@ -267,6 +267,58 @@ impl EcsClient {
                 format_sdk_error("ECS", "deregister_task_definition", task_definition, e)
             })?;
         Ok(())
+    }
+
+    /// Register a new task definition from JSON (experimental)
+    /// 
+    /// Note: This is a simplified implementation that doesn't support all task definition fields.
+    /// For production use, consider using AWS CLI or Console for task definition editing.
+    pub async fn register_task_definition(&self, _task_def_json: &str) -> AppResult<String> {
+        // For now, return an error indicating this needs to be implemented
+        // The complexity of properly deserializing and registering task definitions
+        // with all their nested types is significant
+        Err(AppError::internal(
+            "Task definition registration via JSON editing is not yet fully implemented. \
+            Please use the ECS console or AWS CLI to register edited task definitions."
+        ))
+    }
+
+    /// List all revisions of a task definition family
+    pub async fn list_task_definitions(
+        &self,
+        family_prefix: Option<&str>,
+    ) -> AppResult<Vec<String>> {
+        let mut task_definitions = Vec::new();
+        let mut next_token: Option<String> = None;
+
+        loop {
+            let mut request = self.client.list_task_definitions();
+            if let Some(family) = family_prefix {
+                request = request.family_prefix(family);
+            }
+            if let Some(token) = next_token {
+                request = request.next_token(token);
+            }
+
+            let output = request
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("ECS", "list_task_definitions", "all", e))?;
+
+            task_definitions.extend(
+                output
+                    .task_definition_arns()
+                    .iter()
+                    .map(|arn| arn.to_string()),
+            );
+
+            next_token = output.next_token().map(|s| s.to_string());
+            if next_token.is_none() {
+                break;
+            }
+        }
+
+        Ok(task_definitions)
     }
 }
 

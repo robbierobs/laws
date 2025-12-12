@@ -77,6 +77,9 @@ impl App {
             ServiceAction::S3(S3Action::OpenObject { bucket, key }) => {
                 self.handle_download_s3_object(bucket, key, true, event_tx);
             }
+            ServiceAction::S3(S3Action::EditObject { bucket, key }) => {
+                self.handle_edit_s3_object(bucket, key, event_tx);
+            }
             ServiceAction::S3(S3Action::LeaveBucket) => {
                 self.services.s3.current_bucket = None;
                 self.services.s3.objects.clear();

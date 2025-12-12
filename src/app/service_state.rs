@@ -226,6 +226,19 @@ impl ServiceInputHandler for S3State {
                         }
                     }
                 }
+                KeyCode::Char('E') => {
+                    // Edit object - download, open in $EDITOR, upload changes
+                    if let Some(i) = self.object_list_state.selected() {
+                        if let Some(obj) = self.objects.get(i) {
+                            if let Some(bucket) = &self.current_bucket {
+                                return InputResult::Action(Message::s3_edit_object(
+                                    bucket.clone(),
+                                    obj.key.clone(),
+                                ));
+                            }
+                        }
+                    }
+                }
                 KeyCode::Char('w') => {
                     // Download/Write object to ~/Downloads
                     if let Some(i) = self.object_list_state.selected() {
@@ -1251,6 +1264,11 @@ pub struct EcsState {
 
     // Detail panel scroll
     pub detail_scroll_offset: usize,
+
+    // Task definition selector modal
+    pub show_task_definition_selector: bool,
+    pub task_definitions_list: Vec<String>,
+    pub task_definitions_list_state: TableState,
 }
 
 impl EcsState {
@@ -1477,6 +1495,14 @@ impl EcsState {
             }
             KeyCode::Home | KeyCode::Char('g') => {
                 self.detail_scroll_offset = 0;
+            }
+            // 'E' - Edit task definition
+            KeyCode::Char('E') => {
+                if let Some(td) = &self.current_task_definition {
+                    return InputResult::Action(Message::ecs_edit_task_definition(
+                        td.task_definition_arn.clone(),
+                    ));
+                }
             }
             // 'X' - Deregister task definition
             KeyCode::Char('X') | KeyCode::Delete => {
