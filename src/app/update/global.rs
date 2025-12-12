@@ -236,7 +236,7 @@ impl App {
             }
             Service::S3 => {
                 let clients = clients.clone();
-                self.refresh_s3(&clients, event_tx).await;
+                self.handle_refresh_s3(&clients, event_tx).await;
             }
             Service::RDS => {
                 let client = clients.rds.clone();
@@ -501,84 +501,6 @@ impl App {
                 });
                 self.tasks.spawn(task_keys::ECS_REFRESH, handle);
             }
-        }
-    }
-
-    async fn refresh_s3(
-        &mut self,
-        clients: &crate::aws::client::AwsClients,
-        event_tx: crate::app::EventSender,
-    ) {
-        let client = clients.s3.clone();
-        let tx = event_tx.clone();
-        let concurrency = self.config.s3_detail_concurrency;
-        let delay = self.config.s3_detail_delay_ms;
-
-        tokio::spawn(async move {
-            let service = crate::aws::s3::S3Service::new(client.clone());
-            match service.list_buckets().await {
-                Ok(buckets) => {
-                    let bucket_names: Vec<String> =
-                        buckets.iter().map(|b| b.name.clone()).collect();
-                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets)))
-                        .await
-                        .ok();
-
-                    // Load details with rate limiting
-                    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency));
-                    for bucket_name in bucket_names.into_iter().take(20) {
-                        let permit = semaphore.clone().acquire_owned().await;
-                        if permit.is_err() {
-                            break;
-                        }
-
-                        let client_clone = client.clone();
-                        let tx_clone = tx.clone();
-                        let name = bucket_name.clone();
-
-                        tokio::spawn(async move {
-                            let _permit = permit;
-                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-                            let service = crate::aws::s3::S3Service::new(client_clone);
-                            let details = service.get_bucket_details(&name).await;
-                            tx_clone
-                                .send(Event::Aws(AwsEvent::S3BucketDetailsLoaded {
-                                    bucket_name: name,
-                                    details,
-                                }))
-                                .await
-                                .ok();
-                        });
-                    }
-                }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                        .await
-                        .ok();
-                }
-            }
-        });
-
-        // Also refresh objects if inside a bucket
-        if let Some(bucket) = &self.services.s3.current_bucket {
-            let bucket_name = bucket.clone();
-            let client = clients.s3.clone();
-            let tx = event_tx.clone();
-            tokio::spawn(async move {
-                let service = crate::aws::s3::S3Service::new(client);
-                match service.list_objects(&bucket_name).await {
-                    Ok(objects) => {
-                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects)))
-                            .await
-                            .ok();
-                    }
-                    Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                            .await
-                            .ok();
-                    }
-                }
-            });
         }
     }
 }

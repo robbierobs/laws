@@ -3,10 +3,78 @@
 //! Handles S3-specific state mutations and async operations.
 
 use super::super::task_manager::task_keys;
-use super::super::App;
+use super::super::{App, Message, ServiceAction};
+use crate::app::messages::S3Action;
 use crate::event::{AwsEvent, Event};
 
 impl App {
+    pub(super) async fn handle_refresh_s3(
+        &mut self,
+        clients: &crate::aws::client::AwsClients,
+        event_tx: crate::app::EventSender,
+    ) {
+        let client = clients.s3.clone();
+        let tx = event_tx.clone();
+        
+        // Settings for rate limiting the detail loading
+        let delay_ms = self.config.s3_detail_delay_ms; // e.g. 50ms
+        
+        // Spawn the main refresh task
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::s3::S3Service::new(client.clone());
+            match service.list_buckets().await {
+                Ok(buckets) => {
+                    // 1. Notify that buckets are loaded
+                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets.clone())))
+                        .await
+                        .ok();
+
+                    // 2. Trigger detail loading for top buckets (rate limited)
+                    // We send messages back to the main loop to spawn tracked tasks
+                    for bucket in buckets.iter().take(20) {
+                        if delay_ms > 0 {
+                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        }
+                        
+                        tx.send(Event::Message(Message::Service(ServiceAction::S3(
+                            S3Action::LoadBucketDetails(bucket.name.clone())
+                        )))).await.ok();
+                    }
+                }
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
+                }
+            }
+        });
+        
+        self.tasks.spawn(task_keys::S3_REFRESH, handle);
+
+        // Also refresh objects if inside a bucket
+        if let Some(bucket) = &self.services.s3.current_bucket {
+            let bucket_name = bucket.clone();
+            let client = clients.s3.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::s3::S3Service::new(client);
+                match service.list_objects(&bucket_name).await {
+                    Ok(objects) => {
+                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects)))
+                            .await
+                            .ok();
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                            .await
+                            .ok();
+                    }
+                }
+            });
+            self.tasks.spawn(task_keys::S3_OBJECTS, handle);
+        }
+    }
+
     pub(super) fn handle_load_s3_objects(
         &mut self,
         bucket: String,
@@ -351,6 +419,8 @@ impl App {
             .ok();
         });
 
-        self.tasks.spawn(task_keys::S3_DETAILS, handle);
+        // Use a unique key per bucket so they don't cancel each other
+        let task_key = format!("{}_{}", task_keys::S3_DETAILS, bucket_name);
+        self.tasks.spawn(task_key, handle);
     }
 }
