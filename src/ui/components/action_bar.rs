@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
-use crate::app::{App, Service};
+use crate::app::{App, Service, ViewMode};
 
 use crate::ui::theme::THEME;
 

@@ -1,6 +1,6 @@
 use ratatui::widgets::TableState;
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
-use crate::app::{IamViewMode, InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{IamViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, ViewMode};
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for IAM service

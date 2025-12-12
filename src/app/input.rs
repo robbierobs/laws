@@ -4,7 +4,7 @@
 
 use super::{
     App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ServiceInputHandler,
-    VpcViewMode,
+    ViewMode, VpcViewMode,
 };
 use crate::ui::components::Component;
 use crossterm::event::{KeyCode, KeyEvent};
