@@ -17,6 +17,7 @@ use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
+use crate::models::ecr::{EcrImage, EcrRepository};
 use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
 use crate::models::lambda::{LambdaFunction, LambdaFunctionDetails};
@@ -24,7 +25,6 @@ use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
-use crate::models::ecr::{EcrImage, EcrRepository};
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -74,6 +74,7 @@ pub enum AwsEvent {
         key: String,
         path: String,
         content: Option<String>,
+        raw_bytes: Option<Vec<u8>>,
     },
     /// S3 object was edited and uploaded successfully
     S3ObjectEdited {

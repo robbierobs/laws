@@ -7,6 +7,7 @@
 #![allow(clippy::if_same_then_else)] // Scroll offset calculations intentionally follow same pattern
 #![allow(clippy::vec_init_then_push)] // Readable line-by-line building
 
+use crate::app::states::s3::ViewerMode;
 use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -89,16 +90,19 @@ pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_descripti
     frame.render_widget(paragraph, chunks[1]);
 }
 
-/// Render a modal to display S3 object content
+/// Render a modal to display S3 object content with text/hex view toggle
 pub fn render_object_viewer_modal(
     frame: &mut Frame,
     area: Rect,
     object_key: &str,
     object_path: Option<&str>,
     content: Option<&str>,
+    raw_bytes: Option<&[u8]>,
     scroll_offset: u16,
+    viewer_mode: ViewerMode,
 ) {
-    let title = format!(" {} ", object_key);
+    let mode_label = viewer_mode.label();
+    let title = format!(" {} [{}] ", object_key, mode_label);
     let block = Block::default()
         .title(title)
         .title_style(
@@ -125,46 +129,73 @@ pub fn render_object_viewer_modal(
         lines.push(Line::from(""));
     }
 
-    // Show content
-    if let Some(text_content) = content {
-        // Check if content is likely binary
-        let is_binary = text_content
-            .chars()
-            .any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t');
+    match viewer_mode {
+        ViewerMode::Text => {
+            // Show content as text
+            if let Some(text_content) = content {
+                // Check if content is likely binary
+                let is_binary = text_content
+                    .chars()
+                    .any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t');
 
-        if is_binary {
-            lines.push(Line::from(vec![Span::styled(
-                "⚠️  Binary file - cannot display content",
-                Style::default().fg(THEME.warning),
-            )]));
-            lines.push(Line::from(""));
-            lines.push(Line::from(vec![Span::styled(
-                "File saved to path shown above.",
-                Style::default().fg(THEME.muted),
-            )]));
-        } else {
-            // Add line numbers and content
-            for (i, line) in text_content.lines().enumerate() {
-                lines.push(Line::from(vec![
-                    Span::styled(format!("{:4} │ ", i + 1), Style::default().fg(THEME.muted)),
-                    Span::raw(line.to_string()),
-                ]));
+                if is_binary {
+                    lines.push(Line::from(vec![Span::styled(
+                        "⚠️  Binary file - press Tab to switch to Hex view",
+                        Style::default().fg(THEME.warning),
+                    )]));
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(vec![Span::styled(
+                        "File saved to path shown above.",
+                        Style::default().fg(THEME.muted),
+                    )]));
+                } else {
+                    // Syntax highlight based on extension
+                    let ext = object_key.rsplit('.').next().unwrap_or("");
+                    let highlight_style = get_syntax_style(ext);
+
+                    for (i, line) in text_content.lines().enumerate() {
+                        lines.push(Line::from(vec![
+                            Span::styled(
+                                format!("{:4} │ ", i + 1),
+                                Style::default().fg(THEME.muted),
+                            ),
+                            Span::styled(line.to_string(), highlight_style),
+                        ]));
+                    }
+                }
+            } else {
+                lines.push(Line::from(vec![Span::styled(
+                    "📦 Binary file or large file - press Tab for Hex view",
+                    Style::default().fg(THEME.warning),
+                )]));
             }
         }
-    } else {
-        lines.push(Line::from(vec![Span::styled(
-            "📦 Binary file or large file - cannot display content inline",
-            Style::default().fg(THEME.warning),
-        )]));
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![Span::styled(
-            "File has been saved to the path shown above.",
-            Style::default().fg(THEME.muted),
-        )]));
-        lines.push(Line::from(vec![Span::styled(
-            "Use an external viewer to open it.",
-            Style::default().fg(THEME.muted),
-        )]));
+        ViewerMode::Hex => {
+            // Show hex dump
+            if let Some(bytes) = raw_bytes {
+                let hex_lines = format_hex_dump(bytes, 16);
+                for line in hex_lines {
+                    lines.push(Line::from(vec![Span::styled(
+                        line,
+                        Style::default().fg(THEME.fg),
+                    )]));
+                }
+            } else if let Some(text_content) = content {
+                let bytes = text_content.as_bytes();
+                let hex_lines = format_hex_dump(bytes, 16);
+                for line in hex_lines {
+                    lines.push(Line::from(vec![Span::styled(
+                        line,
+                        Style::default().fg(THEME.fg),
+                    )]));
+                }
+            } else {
+                lines.push(Line::from(vec![Span::styled(
+                    "No content available for hex view",
+                    Style::default().fg(THEME.warning),
+                )]));
+            }
+        }
     }
 
     // Add footer with controls
@@ -175,6 +206,7 @@ pub fn render_object_viewer_modal(
     )]));
     lines.push(Line::from(vec![
         Span::styled("j/k: Scroll   ", Style::default().fg(THEME.secondary)),
+        Span::styled("Tab: Toggle View   ", Style::default().fg(THEME.secondary)),
         Span::styled("Esc/q: Close", Style::default().fg(THEME.secondary)),
     ]));
 
@@ -186,6 +218,125 @@ pub fn render_object_viewer_modal(
 
     frame.render_widget(Clear, popup_area); // Clear background
     frame.render_widget(paragraph, popup_area);
+}
+
+/// Get syntax highlighting style based on file extension
+fn get_syntax_style(ext: &str) -> Style {
+    match ext.to_lowercase().as_str() {
+        // JSON - cyan
+        "json" => Style::default().fg(THEME.primary),
+        // YAML - green
+        "yaml" | "yml" => Style::default().fg(THEME.success),
+        // XML/HTML - yellow
+        "xml" | "html" | "htm" => Style::default().fg(THEME.warning),
+        // Code files - default with slight highlight
+        "rs" | "py" | "js" | "ts" | "go" | "java" | "c" | "cpp" | "h" => {
+            Style::default().fg(THEME.fg)
+        }
+        // Config files - muted
+        "toml" | "ini" | "cfg" | "conf" => Style::default().fg(THEME.secondary),
+        // Markdown - default
+        "md" | "txt" => Style::default().fg(THEME.fg),
+        // Default
+        _ => Style::default().fg(THEME.fg),
+    }
+}
+
+/// Format bytes as a hex dump with ASCII representation
+fn format_hex_dump(bytes: &[u8], bytes_per_line: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    for (offset, chunk) in bytes.chunks(bytes_per_line).enumerate() {
+        let addr = offset * bytes_per_line;
+        let hex_part: Vec<String> = chunk.iter().map(|b| format!("{:02x}", b)).collect();
+        let hex_str = hex_part.join(" ");
+
+        // Pad hex string to fixed width
+        let hex_padded = format!("{:width$}", hex_str, width = bytes_per_line * 3 - 1);
+
+        // ASCII representation
+        let ascii: String = chunk
+            .iter()
+            .map(|&b| {
+                if b.is_ascii_graphic() || b == b' ' {
+                    b as char
+                } else {
+                    '.'
+                }
+            })
+            .collect();
+
+        lines.push(format!("{:08x}  {}  |{}|", addr, hex_padded, ascii));
+    }
+    lines
+}
+
+/// Render a modal for S3 bucket creation
+pub fn render_s3_bucket_creation_modal(frame: &mut Frame, area: Rect, bucket_name: &str) {
+    let block = Block::default()
+        .title(" Create S3 Bucket ")
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.primary));
+
+    let popup_width = area.width.min(60).max(40);
+    let popup_height = 11u16;
+
+    let popup_area = centered_rect_fixed(popup_width, popup_height, area);
+    let inner_area = block.inner(popup_area);
+
+    frame.render_widget(Clear, popup_area);
+    frame.render_widget(block, popup_area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Title
+            Constraint::Length(1), // Spacer
+            Constraint::Length(1), // Input label
+            Constraint::Length(1), // Input field
+            Constraint::Length(1), // Spacer
+            Constraint::Length(2), // Rules
+            Constraint::Length(1), // Spacer
+            Constraint::Length(1), // Controls
+        ])
+        .split(inner_area);
+
+    // Title
+    let title = Paragraph::new("Enter a name for the new bucket:")
+        .style(Style::default().fg(THEME.fg))
+        .alignment(Alignment::Center);
+    frame.render_widget(title, chunks[0]);
+
+    // Input field with cursor
+    let input_text = format!("▸ {}_", bucket_name);
+    let input = Paragraph::new(input_text)
+        .style(
+            Style::default()
+                .fg(THEME.selection_fg)
+                .add_modifier(Modifier::BOLD),
+        )
+        .alignment(Alignment::Center);
+    frame.render_widget(input, chunks[3]);
+
+    // Naming rules
+    let rules = Paragraph::new("Lowercase letters, numbers, hyphens, periods only")
+        .style(Style::default().fg(THEME.muted))
+        .alignment(Alignment::Center);
+    frame.render_widget(rules, chunks[5]);
+
+    // Controls
+    let controls = Paragraph::new(vec![Line::from(vec![
+        Span::styled("Enter", Style::default().fg(THEME.success)),
+        Span::styled(": Create   ", Style::default().fg(THEME.muted)),
+        Span::styled("Esc", Style::default().fg(THEME.error)),
+        Span::styled(": Cancel", Style::default().fg(THEME.muted)),
+    ])])
+    .alignment(Alignment::Center);
+    frame.render_widget(controls, chunks[7]);
 }
 
 /// Render the profile switcher modal with scrollbar and filter support
@@ -1346,4 +1497,69 @@ pub fn render_global_search_modal(
         Paragraph::new(status).alignment(Alignment::Right),
         chunks[5],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_hex_dump_basic() {
+        let bytes = b"Hello";
+        let lines = format_hex_dump(bytes, 16);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("48 65 6c 6c 6f"));
+        assert!(lines[0].contains("|Hello|"));
+    }
+
+    #[test]
+    fn test_format_hex_dump_multi_line() {
+        let bytes = b"0123456789ABCDEF0123";
+        let lines = format_hex_dump(bytes, 16);
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("00000000"));
+        assert!(lines[1].starts_with("00000010"));
+    }
+
+    #[test]
+    fn test_format_hex_dump_non_printable() {
+        let bytes = &[0x00, 0x01, 0x41, 0x42]; // null, SOH, A, B
+        let lines = format_hex_dump(bytes, 16);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("|..AB|"));
+    }
+
+    #[test]
+    fn test_get_syntax_style_json() {
+        let style = get_syntax_style("json");
+        assert_eq!(style.fg, Some(THEME.primary));
+    }
+
+    #[test]
+    fn test_get_syntax_style_yaml() {
+        let style = get_syntax_style("yaml");
+        assert_eq!(style.fg, Some(THEME.success));
+
+        let style_yml = get_syntax_style("yml");
+        assert_eq!(style_yml.fg, Some(THEME.success));
+    }
+
+    #[test]
+    fn test_get_syntax_style_xml() {
+        let style = get_syntax_style("xml");
+        assert_eq!(style.fg, Some(THEME.warning));
+    }
+
+    #[test]
+    fn test_get_syntax_style_unknown() {
+        let style = get_syntax_style("xyz");
+        assert_eq!(style.fg, Some(THEME.fg));
+    }
+
+    #[test]
+    fn test_get_syntax_style_case_insensitive() {
+        let style_upper = get_syntax_style("JSON");
+        let style_lower = get_syntax_style("json");
+        assert_eq!(style_upper.fg, style_lower.fg);
+    }
 }

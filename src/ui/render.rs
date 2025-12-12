@@ -162,7 +162,9 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
             .unwrap_or("Unknown");
         let object_path = app.services.s3.opened_object_path.as_deref();
         let content = app.services.s3.opened_object_content.as_deref();
+        let raw_bytes = app.services.s3.opened_object_bytes.as_deref();
         let scroll = app.services.s3.viewer_scroll_offset;
+        let viewer_mode = app.services.s3.viewer_mode;
 
         crate::ui::components::modal::render_object_viewer_modal(
             frame,
@@ -170,7 +172,18 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
             object_key,
             object_path,
             content,
+            raw_bytes,
             scroll,
+            viewer_mode,
+        );
+    }
+
+    // Render S3 bucket creation modal
+    if app.input_mode == InputMode::S3BucketCreation {
+        crate::ui::components::modal::render_s3_bucket_creation_modal(
+            frame,
+            frame.area(),
+            &app.services.s3.create_bucket_input,
         );
     }
 
@@ -208,6 +221,9 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
                 }
                 Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key })) => {
                     format!("Edit S3 Object s3://{}/{}", bucket, key)
+                }
+                Message::Service(ServiceAction::S3(S3Action::DeleteBucket(name))) => {
+                    format!("Delete S3 Bucket '{}' (must be empty)", name)
                 }
 
                 Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem {

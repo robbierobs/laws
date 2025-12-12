@@ -1,8 +1,32 @@
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
-use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
-use crossterm::event::{KeyCode, KeyEvent};
+
+/// Viewer mode for S3 object content
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ViewerMode {
+    #[default]
+    Text,
+    Hex,
+}
+
+impl ViewerMode {
+    pub fn next(self) -> Self {
+        match self {
+            ViewerMode::Text => ViewerMode::Hex,
+            ViewerMode::Hex => ViewerMode::Text,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ViewerMode::Text => "Text",
+            ViewerMode::Hex => "Hex",
+        }
+    }
+}
 
 /// State for S3 service
 #[derive(Default)]
@@ -23,8 +47,16 @@ pub struct S3State {
     pub show_object_viewer: bool,
     /// Scroll offset for the object viewer
     pub viewer_scroll_offset: u16,
+    /// Current viewer mode (Text or Hex)
+    pub viewer_mode: ViewerMode,
+    /// Raw bytes of the opened object (for hex view)
+    pub opened_object_bytes: Option<Vec<u8>>,
     /// Pending edit operation (bucket, key, path) - for synchronous editor handling
     pub pending_edit: Option<(String, String, String)>,
+    /// Whether bucket creation modal is shown
+    pub show_create_bucket_modal: bool,
+    /// Input buffer for new bucket name
+    pub create_bucket_input: String,
 }
 
 impl S3State {
@@ -41,6 +73,17 @@ impl S3State {
     /// Get the currently selected bucket, if any
     pub fn selected_bucket(&self) -> Option<&S3Bucket> {
         self.list_state.selected().and_then(|i| self.buckets.get(i))
+    }
+
+    /// Reset bucket creation modal state
+    pub fn reset_create_bucket_modal(&mut self) {
+        self.show_create_bucket_modal = false;
+        self.create_bucket_input.clear();
+    }
+
+    /// Toggle viewer mode
+    pub fn toggle_viewer_mode(&mut self) {
+        self.viewer_mode = self.viewer_mode.next();
     }
 
     /// Get the currently selected object, if any
@@ -143,6 +186,18 @@ impl ServiceInputHandler for S3State {
                         }
                     }
                 }
+                KeyCode::Char('C') => {
+                    // Show create bucket modal - transition to input mode
+                    self.show_create_bucket_modal = true;
+                    self.create_bucket_input.clear();
+                    return InputResult::OpenInputMode(crate::app::InputMode::S3BucketCreation);
+                }
+                KeyCode::Char('X') => {
+                    // Delete selected bucket (requires confirmation)
+                    if let Some(bucket) = self.selected_bucket() {
+                        return InputResult::Action(Message::s3_delete_bucket(bucket.name.clone()));
+                    }
+                }
                 _ => {}
             }
         }
@@ -163,5 +218,67 @@ impl ServiceInputHandler for S3State {
         } else {
             self.selected_bucket().map(|b| b.name.clone())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_viewer_mode_toggle() {
+        assert_eq!(ViewerMode::Text.next(), ViewerMode::Hex);
+        assert_eq!(ViewerMode::Hex.next(), ViewerMode::Text);
+    }
+
+    #[test]
+    fn test_viewer_mode_labels() {
+        assert_eq!(ViewerMode::Text.label(), "Text");
+        assert_eq!(ViewerMode::Hex.label(), "Hex");
+    }
+
+    #[test]
+    fn test_s3_state_default() {
+        let state = S3State::new();
+        assert!(state.buckets.is_empty());
+        assert!(state.objects.is_empty());
+        assert!(state.current_bucket.is_none());
+        assert!(!state.show_object_viewer);
+        assert!(!state.show_create_bucket_modal);
+        assert!(state.create_bucket_input.is_empty());
+        assert_eq!(state.viewer_mode, ViewerMode::Text);
+    }
+
+    #[test]
+    fn test_reset_create_bucket_modal() {
+        let mut state = S3State::new();
+        state.show_create_bucket_modal = true;
+        state.create_bucket_input = "test-bucket".to_string();
+
+        state.reset_create_bucket_modal();
+
+        assert!(!state.show_create_bucket_modal);
+        assert!(state.create_bucket_input.is_empty());
+    }
+
+    #[test]
+    fn test_toggle_viewer_mode() {
+        let mut state = S3State::new();
+        assert_eq!(state.viewer_mode, ViewerMode::Text);
+
+        state.toggle_viewer_mode();
+        assert_eq!(state.viewer_mode, ViewerMode::Hex);
+
+        state.toggle_viewer_mode();
+        assert_eq!(state.viewer_mode, ViewerMode::Text);
+    }
+
+    #[test]
+    fn test_is_viewing_objects() {
+        let mut state = S3State::new();
+        assert!(!state.is_viewing_objects());
+
+        state.current_bucket = Some("test-bucket".to_string());
+        assert!(state.is_viewing_objects());
     }
 }

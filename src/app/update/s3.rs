@@ -6,6 +6,7 @@ use super::super::task_manager::task_keys;
 use super::super::{App, Message, ServiceAction};
 use crate::app::messages::S3Action;
 use crate::event::{AwsEvent, Event};
+use std::sync::Arc;
 
 impl App {
     pub(super) async fn handle_refresh_s3(
@@ -15,10 +16,10 @@ impl App {
     ) {
         let client = clients.s3.clone();
         let tx = event_tx.clone();
-        
+
         // Settings for rate limiting the detail loading
         let delay_ms = self.config.s3_detail_delay_ms; // e.g. 50ms
-        
+
         // Spawn the main refresh task
         let handle = tokio::spawn(async move {
             let service = crate::aws::s3::S3Service::new(client.clone());
@@ -35,10 +36,12 @@ impl App {
                         if delay_ms > 0 {
                             tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
                         }
-                        
+
                         tx.send(Event::Message(Message::Service(ServiceAction::S3(
-                            S3Action::LoadBucketDetails(bucket.name.clone())
-                        )))).await.ok();
+                            S3Action::LoadBucketDetails(bucket.name.clone()),
+                        ))))
+                        .await
+                        .ok();
                     }
                 }
                 Err(e) => {
@@ -48,7 +51,7 @@ impl App {
                 }
             }
         });
-        
+
         self.tasks.spawn(task_keys::S3_REFRESH, handle);
 
         // Also refresh objects if inside a bucket
@@ -115,22 +118,80 @@ impl App {
         key: String,
         event_tx: crate::app::EventSender,
     ) {
-        self.spawn_aws_task(event_tx, task_keys::S3_ACTION, move |clients, tx| async move {
-            let service = crate::aws::s3::S3Service::new(clients.s3.clone());
-            match service.delete_object(&bucket, &key).await {
-                Ok(_) => {
-                    let msg = format!("Deleted object {}/{}", bucket, key);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
-                        .await
-                        .ok();
+        self.spawn_aws_task(
+            event_tx,
+            task_keys::S3_ACTION,
+            move |clients, tx| async move {
+                let service = crate::aws::s3::S3Service::new(clients.s3.clone());
+                match service.delete_object(&bucket, &key).await {
+                    Ok(_) => {
+                        let msg = format!("Deleted object {}/{}", bucket, key);
+                        tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                            .await
+                            .ok();
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                            .await
+                            .ok();
+                    }
                 }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                        .await
-                        .ok();
+            },
+        );
+    }
+
+    pub(super) fn handle_create_s3_bucket(
+        &mut self,
+        bucket_name: String,
+        event_tx: crate::app::EventSender,
+    ) {
+        let region = Arc::new(self.region.clone());
+        self.spawn_aws_task(event_tx, task_keys::S3_ACTION, move |clients, tx| {
+            let region = region.clone();
+            async move {
+                let service = crate::aws::s3::S3Service::new(clients.s3.clone());
+                match service.create_bucket(&bucket_name, &region).await {
+                    Ok(_) => {
+                        let msg = format!("Created bucket '{}'", bucket_name);
+                        tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                            .await
+                            .ok();
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                            .await
+                            .ok();
+                    }
                 }
             }
         });
+    }
+
+    pub(super) fn handle_delete_s3_bucket(
+        &mut self,
+        bucket_name: String,
+        event_tx: crate::app::EventSender,
+    ) {
+        self.spawn_aws_task(
+            event_tx,
+            task_keys::S3_ACTION,
+            move |clients, tx| async move {
+                let service = crate::aws::s3::S3Service::new(clients.s3.clone());
+                match service.delete_bucket(&bucket_name).await {
+                    Ok(_) => {
+                        let msg = format!("Deleted bucket '{}'", bucket_name);
+                        tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                            .await
+                            .ok();
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                            .await
+                            .ok();
+                    }
+                }
+            },
+        );
     }
 
     pub(super) fn handle_download_s3_object(
@@ -140,19 +201,23 @@ impl App {
         open_mode: bool,
         event_tx: crate::app::EventSender,
     ) {
-        self.spawn_aws_task(event_tx, task_keys::S3_ACTION, move |clients, tx| async move {
-            let service = crate::aws::s3::S3Service::new(clients.s3.clone());
-            match service.get_object(&bucket, &key).await {
-                Ok(bytes) => {
-                    Self::write_s3_object(tx, key, bytes, open_mode).await;
+        self.spawn_aws_task(
+            event_tx,
+            task_keys::S3_ACTION,
+            move |clients, tx| async move {
+                let service = crate::aws::s3::S3Service::new(clients.s3.clone());
+                match service.get_object(&bucket, &key).await {
+                    Ok(bytes) => {
+                        Self::write_s3_object(tx, key, bytes, open_mode).await;
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                            .await
+                            .ok();
+                    }
                 }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                        .await
-                        .ok();
-                }
-            }
-        });
+            },
+        );
     }
 
     /// Phase 1: Download S3 object for editing (async)
@@ -173,7 +238,7 @@ impl App {
 
         let handle = tokio::spawn(async move {
             let service = crate::aws::s3::S3Service::new(client);
-            
+
             // Download the object
             let bytes = match service.get_object(&bucket, &key).await {
                 Ok(b) => b,
@@ -232,19 +297,19 @@ impl App {
         event_tx: crate::app::EventSender,
     ) {
         use std::sync::atomic::Ordering;
-        
+
         // Pause input handling before opening editor
         self.input_paused.store(true, Ordering::SeqCst);
-        
+
         // Open in editor (this blocks until editor closes)
         let editor_result = crate::utils::editor::open_in_editor(&path);
-        
+
         // Resume input handling after editor closes
         self.input_paused.store(false, Ordering::SeqCst);
-        
+
         // Force terminal redraw after editor
         self.needs_redraw = true;
-        
+
         match editor_result {
             Ok(_) => {
                 // Read the edited content and upload
@@ -254,17 +319,20 @@ impl App {
                         let Some(clients) = &self.aws_clients else {
                             return;
                         };
-                        
+
                         self.loading = true;
                         let client = clients.s3.clone();
                         let tx = event_tx;
                         let bucket_clone = bucket.clone();
                         let key_clone = key.clone();
                         let path_clone = path.clone();
-                        
+
                         let handle = tokio::spawn(async move {
                             let service = crate::aws::s3::S3Service::new(client);
-                            match service.put_object(&bucket_clone, &key_clone, edited_bytes).await {
+                            match service
+                                .put_object(&bucket_clone, &key_clone, edited_bytes)
+                                .await
+                            {
                                 Ok(_) => {
                                     tx.send(Event::Aws(AwsEvent::S3ObjectEdited {
                                         bucket: bucket_clone,
@@ -285,18 +353,20 @@ impl App {
                             // Clean up temp file
                             std::fs::remove_file(&path_clone).ok();
                         });
-                        
+
                         self.tasks.spawn(task_keys::S3_ACTION, handle);
                     }
                     Err(e) => {
                         self.error_message = Some(format!("Failed to read edited file: {}", e));
-                        self.action_log.push(format!("[ERROR] Failed to read edited file: {}", e));
+                        self.action_log
+                            .push(format!("[ERROR] Failed to read edited file: {}", e));
                     }
                 }
             }
             Err(e) => {
                 self.error_message = Some(format!("Failed to open editor: {}", e));
-                self.action_log.push(format!("[ERROR] Failed to open editor: {}", e));
+                self.action_log
+                    .push(format!("[ERROR] Failed to open editor: {}", e));
             }
         }
     }
@@ -335,6 +405,12 @@ impl App {
             Ok(_) => {
                 let path_str = file_path.to_string_lossy().to_string();
                 if open_mode {
+                    // Keep raw bytes for hex view (limit to 1MB)
+                    let raw_bytes = if bytes.len() < 1024 * 1024 {
+                        Some(bytes.clone())
+                    } else {
+                        None
+                    };
                     let content = if bytes.len() < 1024 * 1024 {
                         String::from_utf8(bytes).ok()
                     } else {
@@ -344,6 +420,7 @@ impl App {
                         key,
                         path: path_str,
                         content,
+                        raw_bytes,
                     }))
                     .await
                     .ok();

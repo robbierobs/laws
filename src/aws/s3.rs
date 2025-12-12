@@ -101,7 +101,8 @@ impl S3Service {
             .send()
             .await
         {
-            details.tags = resp.tag_set()
+            details.tags = resp
+                .tag_set()
                 .iter()
                 .map(|t| (t.key().to_string(), t.value().to_string()))
                 .collect();
@@ -155,6 +156,38 @@ impl S3Service {
         Ok(())
     }
 
+    /// Create a new S3 bucket
+    pub async fn create_bucket(&self, bucket_name: &str, region: &str) -> AppResult<()> {
+        let mut request = self.client.create_bucket().bucket(bucket_name);
+
+        // For regions other than us-east-1, we need to specify LocationConstraint
+        if region != "us-east-1" {
+            use aws_sdk_s3::types::{BucketLocationConstraint, CreateBucketConfiguration};
+            let constraint = BucketLocationConstraint::from(region);
+            let config = CreateBucketConfiguration::builder()
+                .location_constraint(constraint)
+                .build();
+            request = request.create_bucket_configuration(config);
+        }
+
+        request
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("S3", "create_bucket", bucket_name, e))?;
+        Ok(())
+    }
+
+    /// Delete an S3 bucket (must be empty)
+    pub async fn delete_bucket(&self, bucket_name: &str) -> AppResult<()> {
+        self.client
+            .delete_bucket()
+            .bucket(bucket_name)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("S3", "delete_bucket", bucket_name, e))?;
+        Ok(())
+    }
+
     /// Download an object from S3 and return its contents as bytes
     pub async fn get_object(&self, bucket_name: &str, key: &str) -> AppResult<Vec<u8>> {
         let response = self
@@ -178,12 +211,7 @@ impl S3Service {
     }
 
     /// Upload (put) an object to S3
-    pub async fn put_object(
-        &self,
-        bucket_name: &str,
-        key: &str,
-        data: Vec<u8>,
-    ) -> AppResult<()> {
+    pub async fn put_object(&self, bucket_name: &str, key: &str, data: Vec<u8>) -> AppResult<()> {
         self.client
             .put_object()
             .bucket(bucket_name)
@@ -199,9 +227,8 @@ impl S3Service {
 impl crate::aws::traits::AwsService<S3Bucket> for S3Service {
     fn list<'a>(
         &'a self,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = AppResult<Vec<S3Bucket>>> + Send + 'a>,
-    > {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<S3Bucket>>> + Send + 'a>>
+    {
         Box::pin(self.list_buckets())
     }
 }

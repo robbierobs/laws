@@ -1,3 +1,6 @@
+use crate::app::App;
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
+use crate::ui::components::table::render_table;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
@@ -5,11 +8,13 @@ use ratatui::{
     widgets::{Cell, Row},
     Frame,
 };
-use crate::app::App;
-use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
-use crate::ui::components::table::render_table;
 
-pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(
+    frame: &mut Frame,
+    list_area: Option<Rect>,
+    detail_area: Option<Rect>,
+    app: &mut App,
+) {
     if let Some(bucket_name) = app.services.s3.current_bucket.clone() {
         // Viewing objects mode
         if let Some(area) = list_area {
@@ -35,9 +40,15 @@ use crate::models::Filterable;
 
 fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.s3.buckets.iter()
+    let rows = app
+        .services
+        .s3
+        .buckets
+        .iter()
         .filter(|b| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             b.matches_filter(&filter)
         })
         .map(|bucket| {
@@ -47,7 +58,7 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(bucket.creation_date.as_deref().unwrap_or("-")),
                 Cell::from(bucket.region.as_deref().unwrap_or("-")),
             ];
-            
+
             Row::new(cells).height(1)
         });
 
@@ -61,7 +72,7 @@ fn render_buckets(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(30), // Creation Date
             Constraint::Min(10),    // Region
         ],
-        "S3 Buckets",
+        "S3 Buckets (Enter: Browse, C: Create, X: Delete)",
         matches!(app.focus, crate::app::Focus::Main),
         &mut app.services.s3.list_state,
     );
@@ -71,7 +82,9 @@ fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
     let content = if let Some(bucket) = app.services.s3.selected_bucket() {
         build_bucket_detail_lines(bucket, app)
     } else {
-        vec![Line::from("Select a bucket to view details (use j/k to navigate)")]
+        vec![Line::from(
+            "Select a bucket to view details (use j/k to navigate)",
+        )]
     };
 
     render_detail_panel(
@@ -84,7 +97,10 @@ fn render_bucket_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) -> Vec<Line<'static>> {
+fn build_bucket_detail_lines(
+    bucket: &crate::models::s3::S3Bucket,
+    app: &App,
+) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::from(vec![
             Span::styled("Bucket Name: ", Style::default().fg(THEME.primary)),
@@ -92,16 +108,24 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
         ]),
         Line::from(vec![
             Span::styled("Creation Date: ", Style::default().fg(THEME.primary)),
-            Span::raw(bucket.creation_date.clone().unwrap_or_else(|| "-".to_string())),
+            Span::raw(
+                bucket
+                    .creation_date
+                    .clone()
+                    .unwrap_or_else(|| "-".to_string()),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Region: ", Style::default().fg(THEME.primary)),
             Span::raw(bucket.region.clone().unwrap_or_else(|| "-".to_string())),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Configuration ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
     ];
 
     // Check if we have cached details for this bucket
@@ -124,7 +148,9 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
             ]));
 
             // Encryption
-            let encryption_text = details.encryption.clone()
+            let encryption_text = details
+                .encryption
+                .clone()
                 .unwrap_or_else(|| "None/Unknown".to_string());
             lines.push(Line::from(vec![
                 Span::styled("Encryption: ", Style::default().fg(THEME.primary)),
@@ -134,9 +160,12 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
             // Tags
             if !details.tags.is_empty() {
                 lines.push(Line::from(""));
-                lines.push(Line::from(vec![
-                    Span::styled("─── Tags ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-                ]));
+                lines.push(Line::from(vec![Span::styled(
+                    "─── Tags ───",
+                    Style::default()
+                        .fg(THEME.secondary)
+                        .add_modifier(Modifier::BOLD),
+                )]));
                 for (key, value) in &details.tags {
                     lines.push(Line::from(vec![
                         Span::styled(format!("{}: ", key), Style::default().fg(THEME.primary)),
@@ -146,12 +175,16 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
             }
 
             lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled("─── Statistics ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "─── Statistics ───",
+                Style::default()
+                    .fg(THEME.secondary)
+                    .add_modifier(Modifier::BOLD),
+            )]));
 
             // Object count
-            let object_count_text = details.object_count
+            let object_count_text = details
+                .object_count
                 .map(|c| c.to_string())
                 .unwrap_or_else(|| "-".to_string());
             lines.push(Line::from(vec![
@@ -160,7 +193,8 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
             ]));
 
             // Total size
-            let total_size_text = details.total_size
+            let total_size_text = details
+                .total_size
                 .map(format_size)
                 .unwrap_or_else(|| "-".to_string());
             lines.push(Line::from(vec![
@@ -180,9 +214,15 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
 
 fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &str) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.s3.objects.iter()
+    let rows = app
+        .services
+        .s3
+        .objects
+        .iter()
         .filter(|o| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             o.matches_filter(&filter)
         })
         .map(|obj| {
@@ -193,11 +233,14 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
                 Cell::from(obj.last_modified.as_deref().unwrap_or("-")),
                 Cell::from(obj.storage_class.as_deref().unwrap_or("STANDARD")),
             ];
-            
+
             Row::new(cells).height(1)
         });
 
-    let title = format!("Objects in {} (Esc: Back, D: Delete)", bucket_name);
+    let title = format!(
+        "Objects in {} (o: View, w: Download, X: Delete, Esc: Back)",
+        bucket_name
+    );
 
     render_table(
         frame,
@@ -218,7 +261,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
 
 fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.services.s3.object_list_state.selected();
-    
+
     let content = if let Some(idx) = selected {
         if let Some(object) = app.services.s3.objects.get(idx) {
             build_object_detail_lines(object, app.services.s3.current_bucket.as_deref())
@@ -226,7 +269,9 @@ fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
             vec![Line::from("No object selected")]
         }
     } else {
-        vec![Line::from("Select an object to view details (use j/k to navigate)")]
+        vec![Line::from(
+            "Select an object to view details (use j/k to navigate)",
+        )]
     };
 
     render_detail_panel(
@@ -239,18 +284,22 @@ fn render_object_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_object_detail_lines(object: &crate::models::s3::S3Object, bucket_name: Option<&str>) -> Vec<Line<'static>> {
-    let mut lines = vec![
-        Line::from(vec![
-            Span::styled("Key: ", Style::default().fg(THEME.primary)),
-            Span::raw(object.key.clone()),
-        ]),
-    ];
+fn build_object_detail_lines(
+    object: &crate::models::s3::S3Object,
+    bucket_name: Option<&str>,
+) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::from(vec![
+        Span::styled("Key: ", Style::default().fg(THEME.primary)),
+        Span::raw(object.key.clone()),
+    ])];
 
     if let Some(bucket) = bucket_name {
         lines.push(Line::from(vec![
             Span::styled("S3 URI: ", Style::default().fg(THEME.primary)),
-            Span::styled(format!("s3://{}/{}", bucket, object.key), Style::default().fg(THEME.selection_fg)),
+            Span::styled(
+                format!("s3://{}/{}", bucket, object.key),
+                Style::default().fg(THEME.selection_fg),
+            ),
         ]));
     }
 
@@ -261,13 +310,23 @@ fn build_object_detail_lines(object: &crate::models::s3::S3Object, bucket_name: 
     ]));
     lines.push(Line::from(vec![
         Span::styled("Last Modified: ", Style::default().fg(THEME.primary)),
-        Span::raw(object.last_modified.clone().unwrap_or_else(|| "-".to_string())),
+        Span::raw(
+            object
+                .last_modified
+                .clone()
+                .unwrap_or_else(|| "-".to_string()),
+        ),
     ]));
     lines.push(Line::from(vec![
         Span::styled("Storage Class: ", Style::default().fg(THEME.primary)),
-        Span::raw(object.storage_class.clone().unwrap_or_else(|| "STANDARD".to_string())),
+        Span::raw(
+            object
+                .storage_class
+                .clone()
+                .unwrap_or_else(|| "STANDARD".to_string()),
+        ),
     ]));
-    
+
     if let Some(etag) = &object.etag {
         lines.push(Line::from(vec![
             Span::styled("ETag: ", Style::default().fg(THEME.primary)),

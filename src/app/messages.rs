@@ -78,7 +78,12 @@ pub enum VpcViewMode {
 
 impl ViewMode for VpcViewMode {
     fn all() -> &'static [Self] {
-        &[Self::Vpcs, Self::Subnets, Self::SecurityGroups, Self::SecurityGroupRules]
+        &[
+            Self::Vpcs,
+            Self::Subnets,
+            Self::SecurityGroups,
+            Self::SecurityGroupRules,
+        ]
     }
 
     fn main_tabs() -> &'static [Self] {
@@ -130,7 +135,14 @@ pub enum IamViewMode {
 
 impl ViewMode for IamViewMode {
     fn all() -> &'static [Self] {
-        &[Self::Users, Self::Roles, Self::Policies, Self::UserAttachedPolicies, Self::RoleAttachedPolicies, Self::PolicyDocument]
+        &[
+            Self::Users,
+            Self::Roles,
+            Self::Policies,
+            Self::UserAttachedPolicies,
+            Self::RoleAttachedPolicies,
+            Self::PolicyDocument,
+        ]
     }
 
     fn main_tabs() -> &'static [Self] {
@@ -394,6 +406,10 @@ pub enum Ec2Action {
 pub enum S3Action {
     LoadObjects(String),
     LoadBucketDetails(String),
+    /// Create a new S3 bucket
+    CreateBucket(String),
+    /// Delete an S3 bucket (must be empty)
+    DeleteBucket(String),
     DeleteObject {
         bucket: String,
         key: String,
@@ -542,7 +558,7 @@ pub enum EcsAction {
     DeregisterTaskDefinition(String), // task_definition_arn
     EditTaskDefinition(String),       // task_definition_arn
     #[allow(dead_code)] // Planned: list all revisions of a task definition family
-    ListTaskDefinitions(String),      // family name
+    ListTaskDefinitions(String), // family name
     /// Load full task definitions for the selector modal
     LoadTaskDefinitionsForSelector(String), // family name
 }
@@ -604,7 +620,10 @@ pub enum GlobalMessage {
     /// Close global search modal
     CloseGlobalSearch,
     /// Navigate to a search result (service + resource ID)
-    GotoSearchResult { service: Service, resource_id: String },
+    GotoSearchResult {
+        service: Service,
+        resource_id: String,
+    },
 }
 
 /// Service-specific messages
@@ -722,7 +741,10 @@ impl Message {
     }
 
     pub fn goto_search_result(service: Service, resource_id: String) -> Self {
-        Message::Global(GlobalMessage::GotoSearchResult { service, resource_id })
+        Message::Global(GlobalMessage::GotoSearchResult {
+            service,
+            resource_id,
+        })
     }
 
     // EC2 message constructors
@@ -769,6 +791,14 @@ impl Message {
 
     pub fn s3_leave_bucket() -> Self {
         Message::Service(ServiceAction::S3(S3Action::LeaveBucket))
+    }
+
+    pub fn s3_create_bucket(name: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::CreateBucket(name)))
+    }
+
+    pub fn s3_delete_bucket(name: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::DeleteBucket(name)))
     }
 
     // RDS message constructors
@@ -988,13 +1018,11 @@ impl Message {
         service_name: String,
         task_definition_arn: String,
     ) -> Self {
-        Message::Service(ServiceAction::Ecs(
-            EcsAction::UpdateServiceTaskDefinition {
-                cluster_arn,
-                service_name,
-                task_definition_arn,
-            },
-        ))
+        Message::Service(ServiceAction::Ecs(EcsAction::UpdateServiceTaskDefinition {
+            cluster_arn,
+            service_name,
+            task_definition_arn,
+        }))
     }
 
     /// Create a message to update an ECS service with optional task definition, CPU, and memory changes
@@ -1022,7 +1050,6 @@ impl Message {
             EcsAction::LoadTaskDefinitionsForSelector(family),
         ))
     }
-
 
     pub fn ecr_load_images(repository_name: String) -> Self {
         Message::Service(ServiceAction::Ecr(EcrAction::LoadImages(repository_name)))
@@ -1059,6 +1086,8 @@ pub enum InputMode {
     EcsTaskDefSelector,
     /// Global search modal
     GlobalSearch,
+    /// S3 bucket creation modal
+    S3BucketCreation,
 }
 
 #[cfg(test)]

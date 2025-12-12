@@ -189,14 +189,21 @@ impl App {
                 self.action_log
                     .push(format!("[SUCCESS] Downloaded '{}' to {}", key, path));
             }
-            AwsEvent::S3ObjectOpened { key, path, content } => {
+            AwsEvent::S3ObjectOpened {
+                key,
+                path,
+                content,
+                raw_bytes,
+            } => {
                 self.loading = false;
                 // Store the opened content for display in popup
                 self.services.s3.opened_object_key = Some(key.clone());
                 self.services.s3.opened_object_content = content;
+                self.services.s3.opened_object_bytes = raw_bytes;
                 self.services.s3.opened_object_path = Some(path.clone());
                 self.services.s3.show_object_viewer = true;
                 self.services.s3.viewer_scroll_offset = 0;
+                self.services.s3.viewer_mode = crate::app::states::s3::ViewerMode::Text;
                 self.action_log.push(format!("[SUCCESS] Opened '{}'", key));
             }
             AwsEvent::S3ObjectEdited { bucket, key } => {

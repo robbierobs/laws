@@ -38,7 +38,9 @@ impl App {
                     self.services.s3.opened_object_content = None;
                     self.services.s3.opened_object_path = None;
                     self.services.s3.opened_object_key = None;
+                    self.services.s3.opened_object_bytes = None;
                     self.services.s3.viewer_scroll_offset = 0;
+                    self.services.s3.viewer_mode = crate::app::states::s3::ViewerMode::Text;
                 }
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.services.s3.viewer_scroll_offset =
@@ -65,6 +67,50 @@ impl App {
                 KeyCode::PageUp => {
                     self.services.s3.viewer_scroll_offset =
                         self.services.s3.viewer_scroll_offset.saturating_sub(20);
+                }
+                KeyCode::Tab => {
+                    // Toggle between Text and Hex view
+                    self.services.s3.toggle_viewer_mode();
+                    self.services.s3.viewer_scroll_offset = 0;
+                }
+                _ => {}
+            }
+            return None;
+        }
+
+        // Handle S3 bucket creation modal
+        if self.input_mode == InputMode::S3BucketCreation {
+            match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.services.s3.reset_create_bucket_modal();
+                }
+                KeyCode::Enter => {
+                    // Sanitize: lowercase, replace whitespace with hyphen, keep only valid chars
+                    let name: String = self
+                        .services
+                        .s3
+                        .create_bucket_input
+                        .trim()
+                        .to_lowercase()
+                        .chars()
+                        .map(|c| if c.is_whitespace() { '-' } else { c })
+                        .filter(|c| {
+                            c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-' || *c == '.'
+                        })
+                        .collect();
+                    if !name.is_empty() {
+                        self.input_mode = InputMode::Normal;
+                        self.services.s3.show_create_bucket_modal = false;
+                        return Some(Message::s3_create_bucket(name));
+                    }
+                }
+                KeyCode::Backspace => {
+                    self.services.s3.create_bucket_input.pop();
+                }
+                KeyCode::Char(c) => {
+                    // Allow any character, sanitize on submit
+                    self.services.s3.create_bucket_input.push(c);
                 }
                 _ => {}
             }

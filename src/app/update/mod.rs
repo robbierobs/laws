@@ -3,8 +3,8 @@
 //! Handles all application messages and updates state accordingly.
 //! Split into submodules by domain for maintainability.
 
-mod dynamodb;
 mod cloudtrail;
+mod dynamodb;
 mod ec2;
 mod global;
 mod iam;
@@ -13,14 +13,13 @@ pub mod instance_actions;
 mod lambda;
 mod rds;
 
-
+mod backup;
+mod ecr;
+mod ecs;
 mod s3;
 mod secretsmanager;
 mod view_mode;
 mod vpc;
-mod ecs;
-mod backup;
-mod ecr;
 
 use super::messages::{
     DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
@@ -69,6 +68,12 @@ impl App {
             }
             ServiceAction::S3(S3Action::LoadBucketDetails(bucket)) => {
                 self.handle_load_bucket_details(bucket, event_tx);
+            }
+            ServiceAction::S3(S3Action::CreateBucket(name)) => {
+                self.handle_create_s3_bucket(name, event_tx);
+            }
+            ServiceAction::S3(S3Action::DeleteBucket(name)) => {
+                self.handle_delete_s3_bucket(name, event_tx);
             }
             ServiceAction::S3(S3Action::DeleteObject { bucket, key }) => {
                 self.handle_delete_s3_object(bucket, key, event_tx);
@@ -175,27 +180,27 @@ impl App {
             ServiceAction::Lambda(crate::app::messages::LambdaAction::DeleteFunction(name)) => {
                 self.handle_delete_lambda(name, event_tx);
             }
-            ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(name)) => {
+            ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(
+                name,
+            )) => {
                 self.handle_load_function_details(name, event_tx);
             }
             ServiceAction::Backup(action) => {
                 self.handle_backup_action(action, event_tx).await;
             }
-            ServiceAction::CloudTrail(action) => {
-                match action {
-                    crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {
-                        self.services.cloudtrail.selected_event_detail = Some(json);
-                        self.services.cloudtrail.show_detail_modal = true;
-                    }
-                    crate::app::messages::CloudTrailAction::CloseEventDetails => {
-                        self.services.cloudtrail.show_detail_modal = false;
-                        self.services.cloudtrail.selected_event_detail = None;
-                    }
-                    crate::app::messages::CloudTrailAction::DeleteTrail(name) => {
-                        self.handle_delete_trail(name, event_tx);
-                    }
+            ServiceAction::CloudTrail(action) => match action {
+                crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {
+                    self.services.cloudtrail.selected_event_detail = Some(json);
+                    self.services.cloudtrail.show_detail_modal = true;
                 }
-            }
+                crate::app::messages::CloudTrailAction::CloseEventDetails => {
+                    self.services.cloudtrail.show_detail_modal = false;
+                    self.services.cloudtrail.selected_event_detail = None;
+                }
+                crate::app::messages::CloudTrailAction::DeleteTrail(name) => {
+                    self.handle_delete_trail(name, event_tx);
+                }
+            },
             ServiceAction::Ecs(action) => {
                 self.handle_ecs_action(action, event_tx).await;
             }
