@@ -3,8 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use super::{
-    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service,
-    ViewMode, VpcViewMode,
+    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ViewMode, VpcViewMode,
 };
 use crate::ui::components::Component;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -97,11 +96,13 @@ impl App {
                     return None;
                 }
                 KeyCode::PageDown => {
-                    self.action_log_detail_scroll = self.action_log_detail_scroll.saturating_add(10);
+                    self.action_log_detail_scroll =
+                        self.action_log_detail_scroll.saturating_add(10);
                     return None;
                 }
                 KeyCode::PageUp => {
-                    self.action_log_detail_scroll = self.action_log_detail_scroll.saturating_sub(10);
+                    self.action_log_detail_scroll =
+                        self.action_log_detail_scroll.saturating_sub(10);
                     return None;
                 }
                 KeyCode::Home | KeyCode::Char('g') => {
@@ -321,12 +322,12 @@ impl App {
                 }
                 KeyCode::Tab | KeyCode::Down => {
                     // Cycle through fields: 0=task_def, 1=cpu, 2=memory, 3=force_deploy
-                    self.services.ecs.service_editor.active_field = 
+                    self.services.ecs.service_editor.active_field =
                         (self.services.ecs.service_editor.active_field + 1) % 4;
                 }
                 KeyCode::BackTab | KeyCode::Up => {
                     // Cycle backwards
-                    self.services.ecs.service_editor.active_field = 
+                    self.services.ecs.service_editor.active_field =
                         (self.services.ecs.service_editor.active_field + 3) % 4;
                 }
                 KeyCode::Char(' ') => {
@@ -335,14 +336,18 @@ impl App {
                         self.services.ecs.service_editor.toggle_force_deploy();
                     }
                 }
-                KeyCode::Backspace => {
-                    match self.services.ecs.service_editor.active_field {
-                        0 => { self.services.ecs.service_editor.task_def.pop(); }
-                        1 => { self.services.ecs.service_editor.cpu.pop(); }
-                        2 => { self.services.ecs.service_editor.memory.pop(); }
-                        _ => {}
+                KeyCode::Backspace => match self.services.ecs.service_editor.active_field {
+                    0 => {
+                        self.services.ecs.service_editor.task_def.pop();
                     }
-                }
+                    1 => {
+                        self.services.ecs.service_editor.cpu.pop();
+                    }
+                    2 => {
+                        self.services.ecs.service_editor.memory.pop();
+                    }
+                    _ => {}
+                },
                 KeyCode::Char(c) => {
                     match self.services.ecs.service_editor.active_field {
                         0 => self.services.ecs.service_editor.task_def.push(c),
@@ -397,7 +402,8 @@ impl App {
                                 force_deploy,
                             ));
                         } else {
-                            self.error_message = Some("Please specify at least one change".to_string());
+                            self.error_message =
+                                Some("Please specify at least one change".to_string());
                         }
                     }
                 }
@@ -439,19 +445,19 @@ impl App {
                 }
                 KeyCode::Enter => {
                     // Submit the selection - request confirmation
-                    if let (
-                        Some(cluster_arn),
-                        Some(service_name),
-                        Some(task_def),
-                    ) = (
+                    if let (Some(cluster_arn), Some(service_name), Some(task_def)) = (
                         self.services.ecs.selected_cluster_arn.clone(),
                         self.services.ecs.task_def_selector.service_name.clone(),
-                        self.services.ecs.task_def_selector.selected().map(|td| td.task_definition_arn.clone()),
+                        self.services
+                            .ecs
+                            .task_def_selector
+                            .selected()
+                            .map(|td| td.task_definition_arn.clone()),
                     ) {
                         let force_deploy = self.services.ecs.task_def_selector.force_deploy;
                         self.input_mode = InputMode::Normal;
                         self.services.ecs.reset_task_def_selector();
-                        
+
                         // Request confirmation for the task definition change
                         return self.request_action(Message::ecs_update_service(
                             cluster_arn,
@@ -475,10 +481,14 @@ impl App {
                     self.input_mode = InputMode::Normal;
                     self.global_search.clear();
                 }
-                KeyCode::Down | KeyCode::Char('j') if key.modifiers.is_empty() || self.global_search.query.is_empty() => {
+                KeyCode::Down | KeyCode::Char('j')
+                    if key.modifiers.is_empty() || self.global_search.query.is_empty() =>
+                {
                     self.global_search.nav_down();
                 }
-                KeyCode::Up | KeyCode::Char('k') if key.modifiers.is_empty() || self.global_search.query.is_empty() => {
+                KeyCode::Up | KeyCode::Char('k')
+                    if key.modifiers.is_empty() || self.global_search.query.is_empty() =>
+                {
                     self.global_search.nav_up();
                 }
                 KeyCode::Enter => {
@@ -542,8 +552,6 @@ impl App {
                     }
                 }
 
-
-
                 // Arrow navigation for view modes
                 match key.code {
                     KeyCode::Right | KeyCode::Char('l') => match self.current_service {
@@ -586,9 +594,12 @@ impl App {
                         // For EcsTaskDefSelector, we need to trigger loading task definitions
                         if mode == InputMode::EcsTaskDefSelector {
                             // Get the family from the current service's task definition
-                            if let Some(service) = self.services.ecs.services.get(
-                                self.services.ecs.list_state.selected().unwrap_or(0)
-                            ) {
+                            if let Some(service) = self
+                                .services
+                                .ecs
+                                .services
+                                .get(self.services.ecs.list_state.selected().unwrap_or(0))
+                            {
                                 if let Some(td_arn) = &service.task_definition {
                                     // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
                                     let family = td_arn
@@ -596,9 +607,11 @@ impl App {
                                         .next_back()
                                         .and_then(|f| f.split(':').next())
                                         .map(|f| f.to_string());
-                                    
+
                                     if let Some(family) = family {
-                                        return Some(Message::ecs_load_task_definitions_for_selector(family));
+                                        return Some(
+                                            Message::ecs_load_task_definitions_for_selector(family),
+                                        );
                                     }
                                 }
                             }
@@ -622,7 +635,7 @@ impl App {
             KeyCode::Char('r') => Some(Message::refresh()),
             KeyCode::Char('y') => self.handle_copy(),
             KeyCode::Char('q') => Some(Message::quit()),
-            KeyCode::Char('?') => Some(Message::open_global_search()), // Shift+/ for global search
+            KeyCode::Char('?') | KeyCode::Char('S') => Some(Message::open_global_search()),
             KeyCode::Char('P') => Some(Message::open_profile_switcher()),
             KeyCode::Char('1') => Some(Message::navigate(Service::EC2)),
             KeyCode::Char('2') => Some(Message::navigate(Service::S3)),
@@ -846,19 +859,28 @@ impl App {
 
         // RDS Instances
         for instance in &self.services.rds.instances {
-            let mut result = SearchResult::new(Service::RDS, "RDS Instance", &instance.db_instance_identifier);
+            let mut result = SearchResult::new(
+                Service::RDS,
+                "RDS Instance",
+                &instance.db_instance_identifier,
+            );
             result = result.with_secondary(instance.engine.clone());
             results.push(result);
         }
 
         // DynamoDB Tables
         for table in &self.services.dynamodb.tables {
-            results.push(SearchResult::new(Service::DynamoDB, "DynamoDB Table", &table.table_name));
+            results.push(SearchResult::new(
+                Service::DynamoDB,
+                "DynamoDB Table",
+                &table.table_name,
+            ));
         }
 
         // Lambda Functions
         for func in &self.services.lambda.functions {
-            let mut result = SearchResult::new(Service::Lambda, "Lambda Function", &func.function_name);
+            let mut result =
+                SearchResult::new(Service::Lambda, "Lambda Function", &func.function_name);
             if let Some(ref desc) = func.description {
                 if !desc.is_empty() {
                     result = result.with_secondary(desc.clone());
@@ -906,17 +928,29 @@ impl App {
 
         // IAM Policies
         for policy in &self.services.iam.policies {
-            results.push(SearchResult::new(Service::IAM, "IAM Policy", &policy.policy_name));
+            results.push(SearchResult::new(
+                Service::IAM,
+                "IAM Policy",
+                &policy.policy_name,
+            ));
         }
 
         // Backup Vaults
         for vault in &self.services.backup.vaults {
-            results.push(SearchResult::new(Service::Backup, "Backup Vault", &vault.backup_vault_name));
+            results.push(SearchResult::new(
+                Service::Backup,
+                "Backup Vault",
+                &vault.backup_vault_name,
+            ));
         }
 
         // CloudTrail Trails
         for trail in &self.services.cloudtrail.trails {
-            results.push(SearchResult::new(Service::CloudTrail, "CloudTrail Trail", &trail.name));
+            results.push(SearchResult::new(
+                Service::CloudTrail,
+                "CloudTrail Trail",
+                &trail.name,
+            ));
         }
 
         // Secrets Manager Secrets
@@ -932,17 +966,29 @@ impl App {
 
         // ECS Clusters
         for cluster in &self.services.ecs.clusters {
-            results.push(SearchResult::new(Service::ECS, "ECS Cluster", &cluster.cluster_name));
+            results.push(SearchResult::new(
+                Service::ECS,
+                "ECS Cluster",
+                &cluster.cluster_name,
+            ));
         }
 
-        // ECS Services  
+        // ECS Services
         for service in &self.services.ecs.services {
-            results.push(SearchResult::new(Service::ECS, "ECS Service", &service.service_name));
+            results.push(SearchResult::new(
+                Service::ECS,
+                "ECS Service",
+                &service.service_name,
+            ));
         }
 
         // ECR Repositories
         for repo in &self.services.ecr.repositories {
-            results.push(SearchResult::new(Service::ECR, "ECR Repository", &repo.repository_name));
+            results.push(SearchResult::new(
+                Service::ECR,
+                "ECR Repository",
+                &repo.repository_name,
+            ));
         }
 
         results
