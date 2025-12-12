@@ -504,6 +504,7 @@ pub enum EcsAction {
         cluster_arn: String,
         service_name: String,
     },
+    #[allow(dead_code)] // Planned: update service to use different task definition
     UpdateServiceTaskDefinition {
         cluster_arn: String,
         service_name: String,
@@ -519,6 +520,7 @@ pub enum EcsAction {
     // Task definition actions
     DeregisterTaskDefinition(String), // task_definition_arn
     EditTaskDefinition(String),       // task_definition_arn
+    #[allow(dead_code)] // Planned: list all revisions of a task definition family
     ListTaskDefinitions(String),      // family name
 }
 
@@ -901,10 +903,12 @@ impl Message {
         )))
     }
 
+    #[allow(dead_code)] // Planned: list all revisions of a task definition family
     pub fn ecs_list_task_definitions(family: String) -> Self {
         Message::Service(ServiceAction::Ecs(EcsAction::ListTaskDefinitions(family)))
     }
 
+    #[allow(dead_code)] // Planned: update service to use different task definition
     pub fn ecs_update_service_task_definition(
         cluster_arn: String,
         service_name: String,

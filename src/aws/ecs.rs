@@ -274,6 +274,7 @@ impl EcsClient {
     /// The JSON should be an EcsTaskDefinition struct. This function strips read-only
     /// fields (taskDefinitionArn, revision, status, registeredAt, registeredBy) and
     /// uses the remaining fields to register a new revision.
+    #[allow(irrefutable_let_patterns)] // AWS SDK types parse() never fails
     pub async fn register_task_definition(&self, task_def_json: &str) -> AppResult<String> {
         // Parse the JSON into our model
         let task_def: crate::models::ecs::EcsTaskDefinition = serde_json::from_str(task_def_json)
