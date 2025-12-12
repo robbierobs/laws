@@ -4,6 +4,7 @@
 
 use super::super::task_manager::task_keys;
 use super::super::{App, GlobalMessage, InputMode, Message, Service};
+use super::refresh::spawn_list_task;
 use crate::aws::traits::AwsService;
 use crate::event::{AwsEvent, Event};
 
@@ -249,22 +250,12 @@ impl App {
         match self.current_service {
             Service::EC2 => {
                 let client = clients.ec2.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::ec2::Ec2Service::new(client);
-                    match service.list().await {
-                        Ok(instances) => {
-                            tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move { crate::aws::ec2::Ec2Service::new(client).list().await },
+                    AwsEvent::Ec2InstancesLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::EC2_REFRESH, handle);
             }
             Service::S3 => {
@@ -273,193 +264,57 @@ impl App {
             }
             Service::RDS => {
                 let client = clients.rds.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::rds::RdsService::new(client);
-                    match service.list_instances().await {
-                        Ok(instances) => {
-                            tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move {
+                        crate::aws::rds::RdsService::new(client)
+                            .list_instances()
+                            .await
+                    },
+                    AwsEvent::RdsInstancesLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::RDS_REFRESH, handle);
             }
             Service::DynamoDB => {
                 let client = clients.dynamodb.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::dynamodb::DynamoDbService::new(client);
-                    match service.list_tables().await {
-                        Ok(tables) => {
-                            tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move {
+                        crate::aws::dynamodb::DynamoDbService::new(client)
+                            .list_tables()
+                            .await
+                    },
+                    AwsEvent::DynamoDbTablesLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::DYNAMODB_REFRESH, handle);
             }
             Service::Lambda => {
                 let client = clients.lambda.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::lambda::LambdaService::new(client);
-                    match service.list_functions().await {
-                        Ok(functions) => {
-                            tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move {
+                        crate::aws::lambda::LambdaService::new(client)
+                            .list_functions()
+                            .await
+                    },
+                    AwsEvent::LambdaFunctionsLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::LAMBDA_REFRESH, handle);
             }
             Service::VPC => {
                 let client = clients.ec2.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::vpc::VpcService::new(client);
-                    match service.list_vpcs().await {
-                        Ok(vpcs) => {
-                            tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).await.ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                    match service.list_subnets(None).await {
-                        Ok(subnets) => {
-                            tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                    match service.list_security_groups(None).await {
-                        Ok(sgs) => {
-                            tx.send(Event::Aws(AwsEvent::SecurityGroupsLoaded(sgs)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
-                self.tasks.spawn(task_keys::VPC_REFRESH, handle);
+                self.refresh_vpc(client, event_tx);
             }
             Service::IAM => {
                 let client = clients.iam.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::iam::IamService::new(client);
-                    match service.list_users().await {
-                        Ok(users) => {
-                            tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                    match service.list_roles().await {
-                        Ok(roles) => {
-                            tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                    match service.list_policies().await {
-                        Ok(policies) => {
-                            tx.send(Event::Aws(AwsEvent::IamPoliciesLoaded(policies)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
-                self.tasks.spawn(task_keys::IAM_REFRESH, handle);
+                self.refresh_iam(client, event_tx);
             }
             Service::Backup => {
                 let client = clients.backup.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::backup::BackupService::new(client);
-                    match service.list_backup_vaults().await {
-                        Ok(vaults) => {
-                            tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                    match service.list_backup_plans().await {
-                        Ok(plans) => {
-                            tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                    match service.list_backup_jobs().await {
-                        Ok(jobs) => {
-                            tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
-                self.tasks.spawn(task_keys::BACKUP_REFRESH, handle);
+                self.refresh_backup(client, event_tx);
             }
             Service::CloudTrail => {
                 let client = clients.cloudtrail.clone();
@@ -467,95 +322,136 @@ impl App {
                 let limit = self.config.max_cloudtrail_events as i32;
                 let handle = tokio::spawn(async move {
                     let service = crate::aws::cloudtrail::CloudTrailService::new(client);
-                    match service.list_trails().await {
-                        Ok(trails) => {
-                            tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
+                    if let Ok(trails) = service.list_trails().await {
+                        tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails)))
+                            .await
+                            .ok();
                     }
-                    match service.lookup_events(limit).await {
-                        Ok(events) => {
-                            tx.send(Event::Aws(AwsEvent::CloudTrailEventsLoaded(events)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
+                    if let Ok(events) = service.lookup_events(limit).await {
+                        tx.send(Event::Aws(AwsEvent::CloudTrailEventsLoaded(events)))
+                            .await
+                            .ok();
                     }
                 });
                 self.tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
             }
             Service::SecretsManager => {
                 let client = clients.secretsmanager.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let service = crate::aws::secretsmanager::SecretsManagerService::new(client);
-                    match service.list_secrets().await {
-                        Ok(secrets) => {
-                            tx.send(Event::Aws(AwsEvent::SecretsManagerSecretsLoaded(secrets)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move {
+                        crate::aws::secretsmanager::SecretsManagerService::new(client)
+                            .list_secrets()
+                            .await
+                    },
+                    AwsEvent::SecretsManagerSecretsLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
             }
             Service::ECS => {
                 let client = clients.ecs.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    let ecs_client = crate::aws::ecs::EcsClient::new(client);
-                    match ecs_client.list_clusters().await {
-                        Ok(clusters) => {
-                            tx.send(Event::Aws(AwsEvent::EcsClustersLoaded(clusters)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move {
+                        crate::aws::ecs::EcsClient::new(client)
+                            .list_clusters()
+                            .await
+                    },
+                    AwsEvent::EcsClustersLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::ECS_REFRESH, handle);
             }
             Service::ECR => {
                 let client = clients.ecr.clone();
-                let tx = event_tx.clone();
-                let handle = tokio::spawn(async move {
-                    // Create wrapper service
-                    let ecr_service = crate::aws::ecr::EcrService::new(client);
-                    match ecr_service.list_repositories().await {
-                        Ok(repos) => {
-                            tx.send(Event::Aws(AwsEvent::EcrRepositoriesLoaded(repos)))
-                                .await
-                                .ok();
-                        }
-                        Err(e) => {
-                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                                .await
-                                .ok();
-                        }
-                    }
-                });
+                let handle = spawn_list_task(
+                    event_tx,
+                    move || async move {
+                        crate::aws::ecr::EcrService::new(client)
+                            .list_repositories()
+                            .await
+                    },
+                    AwsEvent::EcrRepositoriesLoaded,
+                    true,
+                );
                 self.tasks.spawn(task_keys::ECR_REFRESH, handle);
             }
         }
+    }
+
+    /// Helper for VPC refresh (multiple resources)
+    fn refresh_vpc(&mut self, client: aws_sdk_ec2::Client, event_tx: crate::app::EventSender) {
+        let tx = event_tx;
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::vpc::VpcService::new(client);
+            if let Ok(vpcs) = service.list_vpcs().await {
+                tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).await.ok();
+            }
+            if let Ok(subnets) = service.list_subnets(None).await {
+                tx.send(Event::Aws(AwsEvent::SubnetsLoaded(subnets)))
+                    .await
+                    .ok();
+            }
+            if let Ok(sgs) = service.list_security_groups(None).await {
+                tx.send(Event::Aws(AwsEvent::SecurityGroupsLoaded(sgs)))
+                    .await
+                    .ok();
+            }
+        });
+        self.tasks.spawn(task_keys::VPC_REFRESH, handle);
+    }
+
+    /// Helper for IAM refresh (multiple resources)
+    fn refresh_iam(&mut self, client: aws_sdk_iam::Client, event_tx: crate::app::EventSender) {
+        let tx = event_tx;
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::iam::IamService::new(client);
+            if let Ok(users) = service.list_users().await {
+                tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users)))
+                    .await
+                    .ok();
+            }
+            if let Ok(roles) = service.list_roles().await {
+                tx.send(Event::Aws(AwsEvent::IamRolesLoaded(roles)))
+                    .await
+                    .ok();
+            }
+            if let Ok(policies) = service.list_policies().await {
+                tx.send(Event::Aws(AwsEvent::IamPoliciesLoaded(policies)))
+                    .await
+                    .ok();
+            }
+        });
+        self.tasks.spawn(task_keys::IAM_REFRESH, handle);
+    }
+
+    /// Helper for Backup refresh (multiple resources)
+    fn refresh_backup(
+        &mut self,
+        client: aws_sdk_backup::Client,
+        event_tx: crate::app::EventSender,
+    ) {
+        let tx = event_tx;
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::backup::BackupService::new(client);
+            if let Ok(vaults) = service.list_backup_vaults().await {
+                tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults)))
+                    .await
+                    .ok();
+            }
+            if let Ok(plans) = service.list_backup_plans().await {
+                tx.send(Event::Aws(AwsEvent::BackupPlansLoaded(plans)))
+                    .await
+                    .ok();
+            }
+            if let Ok(jobs) = service.list_backup_jobs().await {
+                tx.send(Event::Aws(AwsEvent::BackupJobsLoaded(jobs)))
+                    .await
+                    .ok();
+            }
+        });
+        self.tasks.spawn(task_keys::BACKUP_REFRESH, handle);
     }
 
     /// Refresh all services in parallel for global search
@@ -568,183 +464,129 @@ impl App {
         self.action_log
             .push("Loading all services for global search...".to_string());
 
-        // EC2
-        {
-            let client = clients.ec2.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::ec2::Ec2Service::new(client);
-                if let Ok(instances) = service.list().await {
-                    tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::EC2_REFRESH, handle);
-        }
+        // Simple services - use spawn_list_task with report_errors=false
+        let ec2_client = clients.ec2.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move { crate::aws::ec2::Ec2Service::new(ec2_client).list().await },
+            AwsEvent::Ec2InstancesLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::EC2_REFRESH, handle);
 
-        // S3
-        {
-            let client = clients.s3.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::s3::S3Service::new(client);
-                if let Ok(buckets) = service.list_buckets().await {
-                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::S3_REFRESH, handle);
-        }
+        let s3_client = clients.s3.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::s3::S3Service::new(s3_client)
+                    .list_buckets()
+                    .await
+            },
+            AwsEvent::S3BucketsLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::S3_REFRESH, handle);
 
-        // RDS
-        {
-            let client = clients.rds.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::rds::RdsService::new(client);
-                if let Ok(instances) = service.list_instances().await {
-                    tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::RDS_REFRESH, handle);
-        }
+        let rds_client = clients.rds.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::rds::RdsService::new(rds_client)
+                    .list_instances()
+                    .await
+            },
+            AwsEvent::RdsInstancesLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::RDS_REFRESH, handle);
 
-        // DynamoDB
-        {
-            let client = clients.dynamodb.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::dynamodb::DynamoDbService::new(client);
-                if let Ok(tables) = service.list_tables().await {
-                    tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::DYNAMODB_REFRESH, handle);
-        }
+        let dynamodb_client = clients.dynamodb.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::dynamodb::DynamoDbService::new(dynamodb_client)
+                    .list_tables()
+                    .await
+            },
+            AwsEvent::DynamoDbTablesLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::DYNAMODB_REFRESH, handle);
 
-        // Lambda
-        {
-            let client = clients.lambda.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::lambda::LambdaService::new(client);
-                if let Ok(functions) = service.list_functions().await {
-                    tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::LAMBDA_REFRESH, handle);
-        }
+        let lambda_client = clients.lambda.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::lambda::LambdaService::new(lambda_client)
+                    .list_functions()
+                    .await
+            },
+            AwsEvent::LambdaFunctionsLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::LAMBDA_REFRESH, handle);
 
-        // VPC
-        {
-            let client = clients.ec2.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::vpc::VpcService::new(client);
-                if let Ok(vpcs) = service.list_vpcs().await {
-                    tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).await.ok();
-                }
-            });
-            self.tasks.spawn(task_keys::VPC_REFRESH, handle);
-        }
+        let secretsmanager_client = clients.secretsmanager.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::secretsmanager::SecretsManagerService::new(secretsmanager_client)
+                    .list_secrets()
+                    .await
+            },
+            AwsEvent::SecretsManagerSecretsLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
 
-        // IAM
-        {
-            let client = clients.iam.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::iam::IamService::new(client);
-                if let Ok(users) = service.list_users().await {
-                    tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::IAM_REFRESH, handle);
-        }
+        let ecs_client = clients.ecs.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::ecs::EcsClient::new(ecs_client)
+                    .list_clusters()
+                    .await
+            },
+            AwsEvent::EcsClustersLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::ECS_REFRESH, handle);
 
-        // Backup
-        {
-            let client = clients.backup.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::backup::BackupService::new(client);
-                if let Ok(vaults) = service.list_backup_vaults().await {
-                    tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::BACKUP_REFRESH, handle);
-        }
+        let ecr_client = clients.ecr.clone();
+        let handle = spawn_list_task(
+            event_tx.clone(),
+            move || async move {
+                crate::aws::ecr::EcrService::new(ecr_client)
+                    .list_repositories()
+                    .await
+            },
+            AwsEvent::EcrRepositoriesLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::ECR_REFRESH, handle);
 
-        // CloudTrail
-        {
-            let client = clients.cloudtrail.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::cloudtrail::CloudTrailService::new(client);
-                if let Ok(trails) = service.list_trails().await {
-                    tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
-        }
+        // Multi-resource services
+        let vpc_client = clients.ec2.clone();
+        let iam_client = clients.iam.clone();
+        let backup_client = clients.backup.clone();
+        let cloudtrail_client = clients.cloudtrail.clone();
 
-        // Secrets Manager
-        {
-            let client = clients.secretsmanager.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::secretsmanager::SecretsManagerService::new(client);
-                if let Ok(secrets) = service.list_secrets().await {
-                    tx.send(Event::Aws(AwsEvent::SecretsManagerSecretsLoaded(secrets)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
-        }
+        self.refresh_vpc(vpc_client, event_tx.clone());
+        self.refresh_iam(iam_client, event_tx.clone());
+        self.refresh_backup(backup_client, event_tx.clone());
 
-        // ECS
-        {
-            let client = clients.ecs.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::ecs::EcsClient::new(client);
-                if let Ok(clusters) = service.list_clusters().await {
-                    tx.send(Event::Aws(AwsEvent::EcsClustersLoaded(clusters)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::ECS_REFRESH, handle);
-        }
-
-        // ECR
-        {
-            let client = clients.ecr.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::ecr::EcrService::new(client);
-                if let Ok(repos) = service.list_repositories().await {
-                    tx.send(Event::Aws(AwsEvent::EcrRepositoriesLoaded(repos)))
-                        .await
-                        .ok();
-                }
-            });
-            self.tasks.spawn(task_keys::ECR_REFRESH, handle);
-        }
+        // CloudTrail (just trails for search)
+        let handle = spawn_list_task(
+            event_tx,
+            move || async move {
+                crate::aws::cloudtrail::CloudTrailService::new(cloudtrail_client)
+                    .list_trails()
+                    .await
+            },
+            AwsEvent::CloudTrailTrailsLoaded,
+            false,
+        );
+        self.tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
     }
 
     /// Select a resource by its ID within the appropriate service state
