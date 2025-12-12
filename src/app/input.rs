@@ -339,42 +339,41 @@ impl App {
                 }
                 KeyCode::Tab | KeyCode::Down => {
                     // Cycle through fields: 0=task_def, 1=cpu, 2=memory, 3=force_deploy
-                    self.services.ecs.service_editor_active_field = 
-                        (self.services.ecs.service_editor_active_field + 1) % 4;
+                    self.services.ecs.service_editor.active_field = 
+                        (self.services.ecs.service_editor.active_field + 1) % 4;
                 }
                 KeyCode::BackTab | KeyCode::Up => {
                     // Cycle backwards
-                    self.services.ecs.service_editor_active_field = 
-                        (self.services.ecs.service_editor_active_field + 3) % 4;
+                    self.services.ecs.service_editor.active_field = 
+                        (self.services.ecs.service_editor.active_field + 3) % 4;
                 }
                 KeyCode::Char(' ') => {
                     // Toggle force deploy if on that field
-                    if self.services.ecs.service_editor_active_field == 3 {
-                        self.services.ecs.service_editor_force_deploy = 
-                            !self.services.ecs.service_editor_force_deploy;
+                    if self.services.ecs.service_editor.active_field == 3 {
+                        self.services.ecs.service_editor.toggle_force_deploy();
                     }
                 }
                 KeyCode::Backspace => {
-                    match self.services.ecs.service_editor_active_field {
-                        0 => { self.services.ecs.service_editor_task_def.pop(); }
-                        1 => { self.services.ecs.service_editor_cpu.pop(); }
-                        2 => { self.services.ecs.service_editor_memory.pop(); }
+                    match self.services.ecs.service_editor.active_field {
+                        0 => { self.services.ecs.service_editor.task_def.pop(); }
+                        1 => { self.services.ecs.service_editor.cpu.pop(); }
+                        2 => { self.services.ecs.service_editor.memory.pop(); }
                         _ => {}
                     }
                 }
                 KeyCode::Char(c) => {
-                    match self.services.ecs.service_editor_active_field {
-                        0 => self.services.ecs.service_editor_task_def.push(c),
+                    match self.services.ecs.service_editor.active_field {
+                        0 => self.services.ecs.service_editor.task_def.push(c),
                         1 => {
                             // Only allow digits for CPU
                             if c.is_ascii_digit() {
-                                self.services.ecs.service_editor_cpu.push(c);
+                                self.services.ecs.service_editor.cpu.push(c);
                             }
                         }
                         2 => {
                             // Only allow digits for memory
                             if c.is_ascii_digit() {
-                                self.services.ecs.service_editor_memory.push(c);
+                                self.services.ecs.service_editor.memory.push(c);
                             }
                         }
                         _ => {}
@@ -384,24 +383,24 @@ impl App {
                     // Submit the update
                     if let (Some(cluster_arn), Some(service_name)) = (
                         self.services.ecs.selected_cluster_arn.clone(),
-                        self.services.ecs.service_editor_service_name.clone(),
+                        self.services.ecs.service_editor.service_name.clone(),
                     ) {
-                        let task_def = if self.services.ecs.service_editor_task_def.is_empty() {
+                        let task_def = if self.services.ecs.service_editor.task_def.is_empty() {
                             None
                         } else {
-                            Some(self.services.ecs.service_editor_task_def.clone())
+                            Some(self.services.ecs.service_editor.task_def.clone())
                         };
-                        let cpu = if self.services.ecs.service_editor_cpu.is_empty() {
+                        let cpu = if self.services.ecs.service_editor.cpu.is_empty() {
                             None
                         } else {
-                            Some(self.services.ecs.service_editor_cpu.clone())
+                            Some(self.services.ecs.service_editor.cpu.clone())
                         };
-                        let memory = if self.services.ecs.service_editor_memory.is_empty() {
+                        let memory = if self.services.ecs.service_editor.memory.is_empty() {
                             None
                         } else {
-                            Some(self.services.ecs.service_editor_memory.clone())
+                            Some(self.services.ecs.service_editor.memory.clone())
                         };
-                        let force_deploy = self.services.ecs.service_editor_force_deploy;
+                        let force_deploy = self.services.ecs.service_editor.force_deploy;
 
                         // Only submit if at least one field has a value
                         if task_def.is_some() || cpu.is_some() || memory.is_some() {
@@ -433,33 +432,28 @@ impl App {
                     self.services.ecs.reset_task_def_selector();
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    self.services.ecs.task_def_selector_down();
+                    self.services.ecs.task_def_selector.nav_down();
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    self.services.ecs.task_def_selector_up();
+                    self.services.ecs.task_def_selector.nav_up();
                 }
                 KeyCode::Char('f') | KeyCode::Char('F') => {
                     // Toggle force new deployment
-                    self.services.ecs.task_def_selector_force_deploy = 
-                        !self.services.ecs.task_def_selector_force_deploy;
+                    self.services.ecs.task_def_selector.toggle_force_deploy();
                 }
                 KeyCode::PageDown => {
-                    self.services.ecs.task_def_selector_detail_scroll = 
-                        self.services.ecs.task_def_selector_detail_scroll.saturating_add(5);
+                    self.services.ecs.task_def_selector.scroll_down(5);
                 }
                 KeyCode::PageUp => {
-                    self.services.ecs.task_def_selector_detail_scroll = 
-                        self.services.ecs.task_def_selector_detail_scroll.saturating_sub(5);
+                    self.services.ecs.task_def_selector.scroll_up(5);
                 }
                 KeyCode::Char('l') | KeyCode::Right => {
                     // Scroll detail pane down
-                    self.services.ecs.task_def_selector_detail_scroll = 
-                        self.services.ecs.task_def_selector_detail_scroll.saturating_add(1);
+                    self.services.ecs.task_def_selector.scroll_down(1);
                 }
                 KeyCode::Char('h') | KeyCode::Left => {
                     // Scroll detail pane up
-                    self.services.ecs.task_def_selector_detail_scroll = 
-                        self.services.ecs.task_def_selector_detail_scroll.saturating_sub(1);
+                    self.services.ecs.task_def_selector.scroll_up(1);
                 }
                 KeyCode::Enter => {
                     // Submit the selection - request confirmation
@@ -469,10 +463,10 @@ impl App {
                         Some(task_def),
                     ) = (
                         self.services.ecs.selected_cluster_arn.clone(),
-                        self.services.ecs.task_def_selector_service_name.clone(),
-                        self.services.ecs.selected_task_def_in_selector().map(|td| td.task_definition_arn.clone()),
+                        self.services.ecs.task_def_selector.service_name.clone(),
+                        self.services.ecs.task_def_selector.selected().map(|td| td.task_definition_arn.clone()),
                     ) {
-                        let force_deploy = self.services.ecs.task_def_selector_force_deploy;
+                        let force_deploy = self.services.ecs.task_def_selector.force_deploy;
                         self.input_mode = InputMode::Normal;
                         self.services.ecs.reset_task_def_selector();
                         

@@ -9,11 +9,15 @@
 //! - `events`: AWS event handling
 //! - `task_manager`: Async task tracking and cancellation
 //! - `filtered_list`: Generic filtered list with caching
+//! - `navigation`: Reusable list navigation helpers
+//! - `ecs_modals`: ECS-specific modal state structs
 
+pub mod ecs_modals;
 mod events;
 pub mod filtered_list;
 mod input;
 mod messages;
+pub mod navigation;
 mod service_state;
 mod state;
 pub mod task_manager;
@@ -39,6 +43,8 @@ pub use task_manager::TaskManager;
 // Re-export FilteredList (for external use)
 #[allow(unused_imports)]
 pub use filtered_list::FilteredList;
+// Re-export navigation helpers
+pub use navigation::TableStateExt;
 
 use crossterm::event::KeyEvent;
 

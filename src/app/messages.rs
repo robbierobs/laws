@@ -842,10 +842,24 @@ impl Message {
         Message::Service(ServiceAction::Iam(IamAction::DeletePolicy(arn)))
     }
 
+    // CloudTrail message constructors
     pub fn cloudtrail_delete_trail(name: String) -> Self {
         Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(
             name,
         )))
+    }
+
+    // SecretsManager message constructors
+    pub fn secretsmanager_get_value(arn: String) -> Self {
+        Message::Service(ServiceAction::SecretsManager(
+            SecretsManagerAction::GetSecretValue(arn),
+        ))
+    }
+
+    pub fn secretsmanager_close_value() -> Self {
+        Message::Service(ServiceAction::SecretsManager(
+            SecretsManagerAction::CloseSecretValue,
+        ))
     }
 
     pub fn secretsmanager_delete_secret(arn: String) -> Self {
