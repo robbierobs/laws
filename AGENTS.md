@@ -9,10 +9,10 @@ This document defines the personas, workflows, and standards for AI agents worki
 **LazyAWS** is a terminal user interface (TUI) for managing AWS resources, built with **Rust** and **Ratatui**. It aims to be a keyboard-driven, fast, and responsive alternative to the AWS Console, inspired by `lazygit`.
 
 ### 1.1 Project Statistics
-- **~11,000 lines** of Rust code
-- **10 AWS services** supported
-- **65 source files** across 5 major modules
-- **30+ unit tests**
+- **~12,000 lines** of Rust code
+- **11 AWS services** supported
+- **70+ source files** across 5 major modules
+- **88 unit tests**
 
 ### 1.2 Technology Stack
 | Component | Crate | Purpose |
@@ -146,6 +146,8 @@ struct ServiceStates {
     iam: IamState,
     backup: BackupState,
     cloudtrail: CloudTrailState,
+    secretsmanager: SecretsManagerState,
+    ecs: EcsState,
 }
 ```
 
@@ -160,16 +162,18 @@ src/
 ├── event.rs                # Event, AwsEvent, EventHandler
 ├── error.rs                # Error types (thiserror)
 │
-├── app/                    # Application state machine (9 files, ~139KB)
+├── app/                    # Application state machine (12 files, ~170KB)
 │   ├── mod.rs              # Re-exports: App, Message, Service, Focus, InputMode
 │   ├── messages.rs         # Message, GlobalMessage, ServiceAction, ViewMode enums
 │   ├── state.rs            # App struct, new(), render()
-│   ├── update.rs           # Message handler (reducer) - largest file (~42KB)
-│   ├── input.rs            # Keyboard handling, handle_key() (~36KB)
+│   ├── update/             # Message handlers split by service (14 files)
+│   ├── input.rs            # Keyboard handling, handle_key() (~40KB)
 │   ├── events.rs           # AWS event handling
-│   ├── service_state.rs    # Per-service state structs (~15KB)
-│   ├── task_manager.rs     # Async task tracking
-│   ├── filtered_list.rs    # Filter logic for resource lists
+│   ├── service_state.rs    # Per-service state structs (~50KB)
+│   ├── task_manager.rs     # Async task tracking with TaskManager
+│   ├── filtered_list.rs    # Generic filter logic for resource lists
+│   ├── navigation.rs       # List navigation helpers (TableStateExt trait)
+│   ├── ecs_modals.rs       # ECS modal state components
 │   └── view_mode.rs        # Generic ViewMode trait for multi-tab services
 │
 ├── aws/                    # AWS SDK wrappers (12 files)
@@ -183,9 +187,11 @@ src/
 │   ├── vpc.rs              # VpcService: list VPCs, subnets, security groups
 │   ├── iam.rs              # IamService: list users/roles/policies, get policy doc
 │   ├── backup.rs           # BackupService: list vaults/plans/jobs
-│   └── cloudtrail.rs       # CloudTrailService: list trails, lookup events
+│   ├── cloudtrail.rs       # CloudTrailService: list trails, lookup events
+│   ├── secretsmanager.rs   # SecretsManagerService: list secrets, get values
+│   └── ecs.rs              # EcsClient: clusters, services, tasks, task definitions
 │
-├── models/                 # Data structures (11 files)
+├── models/                 # Data structures (13 files)
 │   ├── ec2.rs              # Ec2Instance, InstanceState + state_color()
 │   ├── s3.rs               # S3Bucket, S3Object, S3BucketDetails
 │   ├── rds.rs              # RdsInstance + status_color()
@@ -195,6 +201,8 @@ src/
 │   ├── iam.rs              # IamUser, IamRole, IamPolicy
 │   ├── backup.rs           # BackupVault, BackupPlan, BackupJob + status_color()
 │   ├── cloudtrail.rs       # Trail, CloudTrailEvent
+│   ├── secretsmanager.rs   # Secret
+│   ├── ecs.rs              # EcsCluster, EcsService, EcsTask, EcsTaskDefinition
 │   └── ids.rs              # Type-safe ID wrappers (Ec2InstanceId, etc.)
 │
 ├── ui/                     # Rendering logic (25 files)
@@ -444,6 +452,42 @@ When working on this project, adopt the following persona:
 - Defines magic numbers: tick rate, API limits, UI layout percentages
 - Initialized in `App::new()` and accessed via `self.config`
 
+### 7.10 Navigation Helpers (`TableStateExt`)
+- Extension trait for `ratatui::widgets::TableState` in `src/app/navigation.rs`
+- Methods: `nav_up(len)`, `nav_down(len)`, `nav_first()`, `nav_last()`, `clamp_selection(len)`
+- All service states use these for consistent list navigation with wrap-around
+- Standalone functions also available: `nav_up()`, `nav_down()` for custom index management
+
+### 7.11 Modal State Components
+- Complex modals extracted into dedicated state structs in `src/app/ecs_modals.rs`
+- Pattern: Encapsulate modal fields + behavior methods (init, reset, navigation)
+- Example: `ServiceEditorState`, `TaskDefSelectorState` for ECS
+- Benefits: Reduced parent struct size, improved testability, reusable patterns
+
+### 7.12 Standardized Async Task Pattern
+All action handlers should follow this pattern:
+```rust
+// CORRECT: Sync function that spawns a tracked task
+pub(super) fn handle_some_action(&mut self, ..., event_tx: EventSender) {
+    let Some(clients) = &self.aws_clients else { return; };
+    self.loading = true;
+    
+    let client = clients.service.clone();
+    let handle = tokio::spawn(async move {
+        // ... async operation ...
+        tx.send(Event::Aws(AwsEvent::...)).await.ok();
+    });
+    
+    self.tasks.spawn(task_keys::SERVICE_ACTION, handle);  // TRACKED!
+}
+```
+
+Key requirements:
+1. Function is sync (not async)
+2. Task is spawned with `tokio::spawn`
+3. Task handle is tracked via `self.tasks.spawn(key, handle)`
+4. Use predefined keys from `task_keys::*` module
+
 ---
 
 ## 8. Testing
@@ -457,8 +501,11 @@ Current test coverage:
 - `app::filtered_list` - Filter and selection logic
 - `app::service_state` - State struct initialization and helpers
 - `app::task_manager` - Task spawn/cancel behavior
+- `app::navigation` - List navigation helper functions
+- `app::ecs_modals` - Modal state initialization, navigation, reset
 - `utils::aws_profiles` - Config parsing, SSO detection, endpoint_url
 - `models::ids` - Type-safe ID wrappers
+- `event` - Channel backpressure handling
 - `error` - Error type construction
 
 ---
@@ -497,5 +544,5 @@ if !self.services.s3.is_viewing_objects() {
 
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2025-12-12*
 *Target: Rust 1.75+, Ratatui 0.29, AWS SDK for Rust 1.x*
