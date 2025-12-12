@@ -12,6 +12,7 @@ use crate::ui::theme::THEME;
 pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     let mut actions = vec![
         ("q", "Quit"),
+        ("?", "Search"),
         ("Tab", "Focus"),
         ("d", "Details"),
         ("1-9", "Service"),

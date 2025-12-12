@@ -599,6 +599,12 @@ pub enum GlobalMessage {
     },
     /// Copy text to system clipboard
     CopyToClipboard(String),
+    /// Open global search modal
+    OpenGlobalSearch,
+    /// Close global search modal
+    CloseGlobalSearch,
+    /// Navigate to a search result (service + resource ID)
+    GotoSearchResult { service: Service, resource_id: String },
 }
 
 /// Service-specific messages
@@ -704,6 +710,19 @@ impl Message {
 
     pub fn copy_to_clipboard(text: String) -> Self {
         Message::Global(GlobalMessage::CopyToClipboard(text))
+    }
+
+    pub fn open_global_search() -> Self {
+        Message::Global(GlobalMessage::OpenGlobalSearch)
+    }
+
+    #[allow(dead_code)]
+    pub fn close_global_search() -> Self {
+        Message::Global(GlobalMessage::CloseGlobalSearch)
+    }
+
+    pub fn goto_search_result(service: Service, resource_id: String) -> Self {
+        Message::Global(GlobalMessage::GotoSearchResult { service, resource_id })
     }
 
     // EC2 message constructors
@@ -1038,6 +1057,8 @@ pub enum InputMode {
     EcsServiceEditor,
     /// ECS Task Definition selector modal
     EcsTaskDefSelector,
+    /// Global search modal
+    GlobalSearch,
 }
 
 #[cfg(test)]

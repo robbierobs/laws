@@ -73,6 +73,9 @@ pub struct App {
     
     // Render cache for optimized string formatting
     pub render_cache: RenderCache,
+    
+    // Global search state
+    pub global_search: super::global_search::GlobalSearchState,
 }
 
 /// Cache for render-time string formatting to avoid repeated allocations
@@ -162,6 +165,7 @@ impl App {
             region_filter_active: false,
             config: crate::config::AppConfig::default(),
             render_cache: RenderCache::default(),
+            global_search: super::global_search::GlobalSearchState::new(),
         }
     }
     

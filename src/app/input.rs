@@ -468,6 +468,41 @@ impl App {
             return None;
         }
 
+        // Handle global search modal
+        if self.input_mode == InputMode::GlobalSearch {
+            match key.code {
+                KeyCode::Esc => {
+                    self.input_mode = InputMode::Normal;
+                    self.global_search.clear();
+                }
+                KeyCode::Down | KeyCode::Char('j') if key.modifiers.is_empty() || self.global_search.query.is_empty() => {
+                    self.global_search.nav_down();
+                }
+                KeyCode::Up | KeyCode::Char('k') if key.modifiers.is_empty() || self.global_search.query.is_empty() => {
+                    self.global_search.nav_up();
+                }
+                KeyCode::Enter => {
+                    if let Some(result) = self.global_search.selected() {
+                        let service = result.service;
+                        let resource_id = result.primary_id.clone();
+                        self.input_mode = InputMode::Normal;
+                        self.global_search.clear();
+                        return Some(Message::goto_search_result(service, resource_id));
+                    }
+                }
+                KeyCode::Backspace => {
+                    self.global_search.query.pop();
+                    self.refresh_global_search();
+                }
+                KeyCode::Char(c) => {
+                    self.global_search.query.push(c);
+                    self.refresh_global_search();
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         if key.code == KeyCode::Tab {
             self.toggle_focus();
             return None;
@@ -587,6 +622,7 @@ impl App {
             KeyCode::Char('r') => Some(Message::refresh()),
             KeyCode::Char('y') => self.handle_copy(),
             KeyCode::Char('q') => Some(Message::quit()),
+            KeyCode::Char('?') => Some(Message::open_global_search()), // Shift+/ for global search
             KeyCode::Char('P') => Some(Message::open_profile_switcher()),
             KeyCode::Char('1') => Some(Message::navigate(Service::EC2)),
             KeyCode::Char('2') => Some(Message::navigate(Service::S3)),
@@ -772,4 +808,143 @@ impl App {
     // ====================================
     // Service-specific input handlers
     // ====================================
+
+    // ====================================
+    // Global Search helpers
+    // ====================================
+
+    /// Refresh global search results based on current query
+    pub fn refresh_global_search(&mut self) {
+        let all_results = self.collect_all_search_results();
+        self.global_search.filter(&all_results);
+    }
+
+    /// Collect all searchable resources from all services
+    fn collect_all_search_results(&self) -> Vec<super::global_search::SearchResult> {
+        use super::global_search::SearchResult;
+        use super::Service;
+
+        let mut results = Vec::new();
+
+        // EC2 Instances
+        for instance in &self.services.ec2.instances {
+            let name = instance.name.clone().unwrap_or_default();
+            let mut result = SearchResult::new(Service::EC2, "EC2 Instance", &instance.instance_id);
+            if !name.is_empty() {
+                result = result.with_secondary(name);
+            }
+            if !instance.tags.is_empty() {
+                result = result.with_tags(instance.tags.clone());
+            }
+            results.push(result);
+        }
+
+        // S3 Buckets
+        for bucket in &self.services.s3.buckets {
+            results.push(SearchResult::new(Service::S3, "S3 Bucket", &bucket.name));
+        }
+
+        // RDS Instances
+        for instance in &self.services.rds.instances {
+            let mut result = SearchResult::new(Service::RDS, "RDS Instance", &instance.db_instance_identifier);
+            result = result.with_secondary(instance.engine.clone());
+            results.push(result);
+        }
+
+        // DynamoDB Tables
+        for table in &self.services.dynamodb.tables {
+            results.push(SearchResult::new(Service::DynamoDB, "DynamoDB Table", &table.table_name));
+        }
+
+        // Lambda Functions
+        for func in &self.services.lambda.functions {
+            let mut result = SearchResult::new(Service::Lambda, "Lambda Function", &func.function_name);
+            if let Some(ref desc) = func.description {
+                if !desc.is_empty() {
+                    result = result.with_secondary(desc.clone());
+                }
+            }
+            results.push(result);
+        }
+
+        // VPCs
+        for vpc in &self.services.vpc.vpcs {
+            let name = vpc.name.clone().unwrap_or_default();
+            let mut result = SearchResult::new(Service::VPC, "VPC", &vpc.vpc_id);
+            if !name.is_empty() {
+                result = result.with_secondary(name);
+            }
+            results.push(result);
+        }
+
+        // Subnets
+        for subnet in &self.services.vpc.subnets {
+            let name = subnet.name.clone().unwrap_or_default();
+            let mut result = SearchResult::new(Service::VPC, "Subnet", &subnet.subnet_id);
+            if !name.is_empty() {
+                result = result.with_secondary(name);
+            }
+            results.push(result);
+        }
+
+        // Security Groups
+        for sg in &self.services.vpc.security_groups {
+            let mut result = SearchResult::new(Service::VPC, "Security Group", &sg.group_id);
+            result = result.with_secondary(sg.group_name.clone());
+            results.push(result);
+        }
+
+        // IAM Users
+        for user in &self.services.iam.users {
+            results.push(SearchResult::new(Service::IAM, "IAM User", &user.user_name));
+        }
+
+        // IAM Roles
+        for role in &self.services.iam.roles {
+            results.push(SearchResult::new(Service::IAM, "IAM Role", &role.role_name));
+        }
+
+        // IAM Policies
+        for policy in &self.services.iam.policies {
+            results.push(SearchResult::new(Service::IAM, "IAM Policy", &policy.policy_name));
+        }
+
+        // Backup Vaults
+        for vault in &self.services.backup.vaults {
+            results.push(SearchResult::new(Service::Backup, "Backup Vault", &vault.backup_vault_name));
+        }
+
+        // CloudTrail Trails
+        for trail in &self.services.cloudtrail.trails {
+            results.push(SearchResult::new(Service::CloudTrail, "CloudTrail Trail", &trail.name));
+        }
+
+        // Secrets Manager Secrets
+        for secret in &self.services.secretsmanager.secrets {
+            let mut result = SearchResult::new(Service::SecretsManager, "Secret", &secret.name);
+            if let Some(ref desc) = secret.description {
+                if !desc.is_empty() {
+                    result = result.with_secondary(desc.clone());
+                }
+            }
+            results.push(result);
+        }
+
+        // ECS Clusters
+        for cluster in &self.services.ecs.clusters {
+            results.push(SearchResult::new(Service::ECS, "ECS Cluster", &cluster.cluster_name));
+        }
+
+        // ECS Services  
+        for service in &self.services.ecs.services {
+            results.push(SearchResult::new(Service::ECS, "ECS Service", &service.service_name));
+        }
+
+        // ECR Repositories
+        for repo in &self.services.ecr.repositories {
+            results.push(SearchResult::new(Service::ECR, "ECR Repository", &repo.repository_name));
+        }
+
+        results
+    }
 }

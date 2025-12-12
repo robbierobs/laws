@@ -277,4 +277,16 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
             app.services.ecs.task_def_selector.loading,
         );
     }
+    
+    // Render global search modal
+    if app.input_mode == InputMode::GlobalSearch {
+        crate::ui::components::modal::render_global_search_modal(
+            frame,
+            frame.area(),
+            &app.global_search.query,
+            &app.global_search.results,
+            app.global_search.selected_index,
+            app.global_search.tag_search_mode,
+        );
+    }
 }
