@@ -150,6 +150,22 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 }
             }
         }
+        Service::ECR => {
+            use crate::app::EcrViewMode;
+            actions.extend_from_slice(&[("j/k", "Navigate")]);
+            match app.services.ecr.view_mode {
+                EcrViewMode::Repositories => {
+                    actions.extend_from_slice(&[
+                        ("Enter", "View Images"),
+                    ]);
+                }
+                EcrViewMode::Images => {
+                    actions.extend_from_slice(&[
+                        ("Esc", "Back"),
+                    ]);
+                }
+            }
+        }
     }
 
     let spans: Vec<Span> = actions

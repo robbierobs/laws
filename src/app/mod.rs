@@ -26,7 +26,7 @@ mod view_mode;
 
 // Re-export everything needed by other modules
 pub use messages::{
-    BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, EcsViewMode, Focus, GlobalMessage,
+    BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, EcsViewMode, EcrViewMode, Focus, GlobalMessage,
     IamViewMode, InputMode, Message, Service, ServiceAction, VpcViewMode,
 };
 pub use state::App;

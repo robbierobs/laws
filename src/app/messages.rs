@@ -21,6 +21,7 @@ pub enum Service {
     CloudTrail,
     SecretsManager,
     ECS,
+    ECR,
 }
 
 impl Service {
@@ -37,6 +38,7 @@ impl Service {
             Service::CloudTrail => "CloudTrail",
             Service::SecretsManager => "SecretsManager",
             Service::ECS => "ECS",
+            Service::ECR => "ECR",
         }
     }
 
@@ -53,6 +55,7 @@ impl Service {
             Self::CloudTrail,
             Self::SecretsManager,
             Self::ECS,
+            Self::ECR,
         ]
         .iter()
         .copied()
@@ -373,6 +376,39 @@ impl ViewMode for DynamoDbViewMode {
 
 // to_index() removed, use ViewMode::index() trait method instead
 
+/// View mode for ECR service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum EcrViewMode {
+    #[default]
+    Repositories = 0,
+    Images = 1,
+}
+
+impl ViewMode for EcrViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Repositories, Self::Images]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Repositories,
+            1 => Self::Images,
+            _ => Self::Repositories,
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Repositories => "Repositories",
+            Self::Images => "Images",
+        }
+    }
+}
+
 // ============================================================================
 // Per-Service Action Enums
 // ============================================================================
@@ -544,6 +580,13 @@ pub enum EcsAction {
     LoadTaskDefinitionsForSelector(String), // family name
 }
 
+/// ECR-specific actions
+#[derive(Debug, Clone)]
+pub enum EcrAction {
+    LoadImages(String),
+    BackToRepositories,
+}
+
 // ============================================================================
 // Message Hierarchy
 // ============================================================================
@@ -606,6 +649,7 @@ pub enum ServiceAction {
     CloudTrail(CloudTrailAction),
     SecretsManager(SecretsManagerAction),
     Ecs(EcsAction),
+    Ecr(EcrAction),
 }
 
 /// Main application message type (Elm Architecture style)
@@ -992,6 +1036,15 @@ impl Message {
             EcsAction::LoadTaskDefinitionsForSelector(family),
         ))
     }
+
+
+    pub fn ecr_load_images(repository_name: String) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::LoadImages(repository_name)))
+    }
+
+    pub fn ecr_back_to_repos() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::BackToRepositories))
+    }
 }
 
 // ============================================================================
@@ -1036,7 +1089,7 @@ mod tests {
     #[test]
     fn test_service_iterator() {
         let services: Vec<Service> = Service::iterator().collect();
-        assert_eq!(services.len(), 11); // All 11 services
+        assert_eq!(services.len(), 12); // All 12 services
         assert!(services.contains(&Service::EC2));
         assert!(services.contains(&Service::SecretsManager));
     }

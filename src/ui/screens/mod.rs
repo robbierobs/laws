@@ -13,6 +13,7 @@ pub mod rds;
 pub mod s3;
 pub mod secretsmanager;
 pub mod vpc;
+pub mod ecr;
 
 use crate::app::{App, Service};
 use crate::ui::Screen;
@@ -30,6 +31,7 @@ pub struct BackupScreen;
 pub struct CloudTrailScreen;
 pub struct SecretsManagerScreen;
 pub struct EcsScreen;
+pub struct EcrScreen;
 
 // Implement Screen trait for each service screen
 impl Screen for Ec2Screen {
@@ -182,6 +184,18 @@ impl Screen for EcsScreen {
     }
 }
 
+impl Screen for EcrScreen {
+    fn render(
+        &self,
+        frame: &mut Frame,
+        list_area: Option<Rect>,
+        detail_area: Option<Rect>,
+        app: &mut App,
+    ) {
+        ecr::render(frame, list_area, detail_area, app);
+    }
+}
+
 /// Get the screen implementation for the given service
 pub fn get_screen(service: Service) -> Box<dyn Screen> {
     match service {
@@ -196,5 +210,6 @@ pub fn get_screen(service: Service) -> Box<dyn Screen> {
         Service::CloudTrail => Box::new(CloudTrailScreen),
         Service::SecretsManager => Box::new(SecretsManagerScreen),
         Service::ECS => Box::new(EcsScreen),
+        Service::ECR => Box::new(EcrScreen),
     }
 }

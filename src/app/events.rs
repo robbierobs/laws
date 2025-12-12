@@ -223,6 +223,17 @@ impl App {
                     self.services.s3.objects.clear();
                 }
             }
+            AwsEvent::EcrRepositoriesLoaded(repos) => {
+                self.services.ecr.repositories = repos;
+                self.loading = false;
+            }
+            AwsEvent::EcrImagesLoaded(images) => {
+                self.services.ecr.images = images;
+                if !self.services.ecr.images.is_empty() {
+                    self.services.ecr.list_state.select(Some(0));
+                }
+                self.loading = false;
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ impl App {
             Service::CloudTrail => self.services.cloudtrail.list_state.select(Some(0)),
             Service::SecretsManager => self.services.secretsmanager.list_state.select(Some(0)),
             Service::ECS => self.services.ecs.list_state.select(Some(0)),
+            Service::ECR => self.services.ecr.list_state.select(Some(0)),
         }
     }
 
@@ -571,6 +572,7 @@ impl App {
                     Service::CloudTrail => self.services.cloudtrail.handle_input(key),
                     Service::SecretsManager => self.services.secretsmanager.handle_input(key),
                     Service::ECS => self.services.ecs.handle_input(key),
+                    Service::ECR => self.services.ecr.handle_input(key),
                 };
 
                 match result {
@@ -628,6 +630,8 @@ impl App {
             KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
             KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
             KeyCode::Char('0') => Some(Message::navigate(Service::SecretsManager)),
+            KeyCode::Char('e') => Some(Message::navigate(Service::ECS)), // Using 'e' for ECS
+            KeyCode::Char('c') => Some(Message::navigate(Service::ECR)), // Using 'c' for ECR (Container Registry)
             KeyCode::Char('A') => Some(Message::toggle_action_log()),
             KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
             KeyCode::Char('D') => Some(Message::Global(GlobalMessage::ToggleDetailFullscreen)),
@@ -771,6 +775,21 @@ impl App {
                         .map(|td| td.task_definition_arn.clone()),
                 }
             }
+            Service::ECR => {
+                use crate::app::EcrViewMode;
+                match self.services.ecr.view_mode {
+                    EcrViewMode::Repositories => self
+                        .services
+                        .ecr
+                        .selected_repository()
+                        .map(|r| r.repository_name.clone()),
+                    EcrViewMode::Images => self
+                        .services
+                        .ecr
+                        .selected_image()
+                        .map(|i| i.image_digest.clone()),
+                }
+            }
         };
 
         text.map(Message::copy_to_clipboard)
@@ -852,6 +871,7 @@ impl App {
                     self.services.ecs.list_state.select(Some(0));
                 }
             }
+            Service::ECR => self.auto_select_ecr(),
         }
     }
 
@@ -912,6 +932,19 @@ impl App {
             };
             if has_items {
                 self.services.cloudtrail.list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn auto_select_ecr(&mut self) {
+        if self.services.ecr.list_state.selected().is_none() {
+            use crate::app::EcrViewMode;
+            let has_items = match self.services.ecr.view_mode {
+                EcrViewMode::Repositories => !self.services.ecr.repositories.is_empty(),
+                EcrViewMode::Images => !self.services.ecr.images.is_empty(),
+            };
+            if has_items {
+                self.services.ecr.list_state.select(Some(0));
             }
         }
     }

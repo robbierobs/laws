@@ -24,6 +24,7 @@ use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
+use crate::models::ecr::{EcrImage, EcrRepository};
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -98,6 +99,8 @@ pub enum AwsEvent {
         family: String,
         path: String,
     },
+    EcrRepositoriesLoaded(Vec<EcrRepository>),
+    EcrImagesLoaded(Vec<EcrImage>),
     ActionCompleted(String), // Message to display
     Error(String),
 }

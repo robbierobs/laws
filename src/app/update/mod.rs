@@ -20,6 +20,7 @@ mod view_mode;
 mod vpc;
 mod ecs;
 mod backup;
+mod ecr;
 
 use super::messages::{
     DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
@@ -197,6 +198,9 @@ impl App {
             }
             ServiceAction::Ecs(action) => {
                 self.handle_ecs_action(action, event_tx).await;
+            }
+            ServiceAction::Ecr(action) => {
+                self.handle_ecr_action(action, event_tx).await;
             }
         }
     }

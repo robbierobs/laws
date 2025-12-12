@@ -501,6 +501,27 @@ impl App {
                 });
                 self.tasks.spawn(task_keys::ECS_REFRESH, handle);
             }
+            Service::ECR => {
+                let client = clients.ecr.clone();
+                let tx = event_tx.clone();
+                let handle = tokio::spawn(async move {
+                    // Create wrapper service
+                    let ecr_service = crate::aws::ecr::EcrService::new(client);
+                    match ecr_service.list_repositories().await {
+                        Ok(repos) => {
+                            tx.send(Event::Aws(AwsEvent::EcrRepositoriesLoaded(repos)))
+                                .await
+                                .ok();
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
+                        }
+                    }
+                });
+                self.tasks.spawn(task_keys::ECR_REFRESH, handle);
+            }
         }
     }
 }
