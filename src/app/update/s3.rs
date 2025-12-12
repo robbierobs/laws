@@ -107,6 +107,152 @@ impl App {
         self.tasks.spawn(task_keys::S3_ACTION, handle);
     }
 
+    /// Phase 1: Download S3 object for editing (async)
+    /// This downloads the file and sends an event when ready for editing
+    pub(super) fn handle_edit_s3_object(
+        &mut self,
+        bucket: String,
+        key: String,
+        event_tx: crate::app::EventSender,
+    ) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let client = clients.s3.clone();
+        let tx = event_tx.clone();
+
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::s3::S3Service::new(client);
+            
+            // Download the object
+            let bytes = match service.get_object(&bucket, &key).await {
+                Ok(b) => b,
+                Err(e) => {
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
+                    return;
+                }
+            };
+
+            // Write to temp file
+            let filename = key.split('/').last().unwrap_or(&key).to_string();
+            let temp_dir = std::env::temp_dir().join("lazy_aws");
+            if let Err(e) = std::fs::create_dir_all(&temp_dir) {
+                tx.send(Event::Aws(AwsEvent::Error(format!(
+                    "Failed to create temp directory: {}",
+                    e
+                ))))
+                .await
+                .ok();
+                return;
+            }
+
+            let file_path = temp_dir.join(&filename);
+            if let Err(e) = std::fs::write(&file_path, &bytes) {
+                tx.send(Event::Aws(AwsEvent::Error(format!(
+                    "Failed to write temp file: {}",
+                    e
+                ))))
+                .await
+                .ok();
+                return;
+            }
+
+            // Signal that file is ready for editing
+            tx.send(Event::Aws(AwsEvent::S3ObjectReadyForEdit {
+                bucket,
+                key,
+                path: file_path.to_string_lossy().to_string(),
+            }))
+            .await
+            .ok();
+        });
+
+        self.tasks.spawn(task_keys::S3_ACTION, handle);
+    }
+
+    /// Phase 2: Open editor synchronously and upload changes (runs on main thread)
+    /// This is called after S3ObjectReadyForEdit event is received
+    pub fn handle_edit_s3_object_sync(
+        &mut self,
+        bucket: String,
+        key: String,
+        path: String,
+        event_tx: crate::app::EventSender,
+    ) {
+        use std::sync::atomic::Ordering;
+        
+        // Pause input handling before opening editor
+        self.input_paused.store(true, Ordering::SeqCst);
+        
+        // Open in editor (this blocks until editor closes)
+        let editor_result = crate::utils::editor::open_in_editor(&path);
+        
+        // Resume input handling after editor closes
+        self.input_paused.store(false, Ordering::SeqCst);
+        
+        // Force terminal redraw after editor
+        self.needs_redraw = true;
+        
+        match editor_result {
+            Ok(_) => {
+                // Read the edited content and upload
+                match std::fs::read(&path) {
+                    Ok(edited_bytes) => {
+                        // Spawn async task for upload
+                        let Some(clients) = &self.aws_clients else {
+                            return;
+                        };
+                        
+                        self.loading = true;
+                        let client = clients.s3.clone();
+                        let tx = event_tx;
+                        let bucket_clone = bucket.clone();
+                        let key_clone = key.clone();
+                        let path_clone = path.clone();
+                        
+                        let handle = tokio::spawn(async move {
+                            let service = crate::aws::s3::S3Service::new(client);
+                            match service.put_object(&bucket_clone, &key_clone, edited_bytes).await {
+                                Ok(_) => {
+                                    tx.send(Event::Aws(AwsEvent::S3ObjectEdited {
+                                        bucket: bucket_clone,
+                                        key: key_clone,
+                                    }))
+                                    .await
+                                    .ok();
+                                }
+                                Err(e) => {
+                                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                                        "Failed to upload edited object: {}",
+                                        e
+                                    ))))
+                                    .await
+                                    .ok();
+                                }
+                            }
+                            // Clean up temp file
+                            std::fs::remove_file(&path_clone).ok();
+                        });
+                        
+                        self.tasks.spawn(task_keys::S3_ACTION, handle);
+                    }
+                    Err(e) => {
+                        self.error_message = Some(format!("Failed to read edited file: {}", e));
+                        self.action_log.push(format!("[ERROR] Failed to read edited file: {}", e));
+                    }
+                }
+            }
+            Err(e) => {
+                self.error_message = Some(format!("Failed to open editor: {}", e));
+                self.action_log.push(format!("[ERROR] Failed to open editor: {}", e));
+            }
+        }
+    }
+
     async fn write_s3_object(
         tx: crate::app::EventSender,
         key: String,

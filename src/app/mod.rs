@@ -48,6 +48,7 @@ pub enum InputResult {
     None,
     Message(Message),
     Action(Message), // Action that needs confirmation
+    OpenInputMode(InputMode), // Open a specific input mode (modal)
 }
 
 /// Trait for service state that handles its own input

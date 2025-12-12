@@ -6,6 +6,7 @@ use crate::ui::components::sidebar::Sidebar;
 use super::service_state::ServiceStates;
 use super::task_manager::TaskManager;
 use super::{Focus, InputMode, Message, Service};
+use std::sync::{Arc, atomic::AtomicBool};
 
 /// Main application state
 /// 
@@ -22,6 +23,9 @@ pub struct App {
     pub profile: Option<String>,
     pub region: String,
     
+    // Shared state for input handling
+    pub input_paused: Arc<AtomicBool>,
+    
     // Loading states
     pub loading: bool,
     pub should_refresh: bool,
@@ -31,6 +35,10 @@ pub struct App {
     pub detail_scroll_offset: u16,
     pub detail_loading: bool,
     
+    // Terminal state
+    /// Set to true when terminal needs a full redraw (e.g., after external editor)
+    pub needs_redraw: bool,
+    
     // Config and State
     pub read_only: bool,
     pub pending_action: Option<Message>,
@@ -39,6 +47,8 @@ pub struct App {
     // Action Log
     pub action_log: Vec<String>,
     pub action_log_expanded: bool,
+    pub action_log_selected_index: usize,
+    pub action_log_detail_scroll: u16,
     
     // Service-specific states consolidated into one struct
     pub services: ServiceStates,
@@ -94,7 +104,7 @@ impl RenderCache {
 }
 
 impl App {
-    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool) -> Self {
+    pub fn new(aws_clients: Option<AwsClients>, profile: Option<String>, region: String, read_only: bool, input_paused: Arc<AtomicBool>) -> Self {
         // Load available profiles from AWS config
         let available_profiles = crate::utils::aws_profiles::list_profiles();
         let available_regions: Vec<String> = crate::utils::aws_profiles::ALL_REGIONS
@@ -122,6 +132,7 @@ impl App {
             aws_clients,
             profile,
             region,
+            input_paused,
             loading: false,
             should_refresh: false,
             error_message: None,
@@ -129,11 +140,14 @@ impl App {
             detail_panel_fullscreen: false,
             detail_scroll_offset: 0,
             detail_loading: false,
+            needs_redraw: false,
             read_only,
             pending_action: None,
             show_confirmation: false,
             action_log: Vec::new(),
             action_log_expanded: false,
+            action_log_selected_index: 0,
+            action_log_detail_scroll: 0,
             services: ServiceStates::new(),
             tasks: TaskManager::new(),
             available_profiles,
@@ -203,7 +217,7 @@ impl App {
         
         if self.show_confirmation {
             if let Some(action) = &self.pending_action {
-                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction, LambdaAction, VpcAction, IamAction, CloudTrailAction, SecretsManagerAction};
+                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction, LambdaAction, VpcAction, IamAction, CloudTrailAction, SecretsManagerAction, EcsAction};
                 let description = match action {
                     Message::Service(ServiceAction::Ec2(Ec2Action::Start(id))) => format!("Start EC2 Instance {}", id),
                     Message::Service(ServiceAction::Ec2(Ec2Action::Stop(id))) => format!("Stop EC2 Instance {}", id),
@@ -216,6 +230,7 @@ impl App {
                     Message::Service(ServiceAction::Rds(RdsAction::Delete(id))) => format!("Delete RDS Instance {}", id),
 
                     Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key })) => format!("Delete S3 Object s3://{}/{}", bucket, key),
+                    Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key })) => format!("Edit S3 Object s3://{}/{}", bucket, key),
 
                     Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, .. })) => format!("Delete item from DynamoDB table {}", table_name),
 
@@ -231,6 +246,33 @@ impl App {
                     Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(name))) => format!("Delete CloudTrail Trail {}", name),
 
                     Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn))) => format!("Delete Secret {}", arn),
+
+                    Message::Service(ServiceAction::Ecs(EcsAction::StopTask { task_arn, .. })) => {
+                        let short_arn = task_arn.split('/').last().unwrap_or(&task_arn);
+                        format!("Stop ECS Task {}", short_arn)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(arn))) => {
+                        let short_arn = arn.split('/').last().unwrap_or(&arn);
+                        format!("Deregister Task Definition {}", short_arn)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(arn))) => {
+                        let short_arn = arn.split('/').last().unwrap_or(&arn);
+                        format!("Edit Task Definition {}", short_arn)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::UpdateDesiredCount { service_name, desired_count, .. })) => {
+                        format!("Update {} desired count to {}", service_name, desired_count)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::ForceNewDeployment { service_name, .. })) => {
+                        format!("Force new deployment for {}", service_name)
+                    },
+                    Message::Service(ServiceAction::Ecs(EcsAction::UpdateService { service_name, task_definition, .. })) => {
+                        if let Some(td) = task_definition {
+                            let short_td = td.split('/').last().unwrap_or(&td);
+                            format!("Update {} to use {}", service_name, short_td)
+                        } else {
+                            format!("Update service {}", service_name)
+                        }
+                    },
 
                     _ => "Unknown Action".to_string(),
                 };
@@ -265,6 +307,40 @@ impl App {
                 self.pending_profile.as_deref(),
                 &self.region_filter,
                 self.region_filter_active,
+            );
+        }
+        
+        // Render ECS service editor modal
+        if self.input_mode == InputMode::EcsServiceEditor {
+            let service_name = self.services.ecs.service_editor_service_name
+                .as_deref()
+                .unwrap_or("Unknown");
+            crate::ui::components::modal::render_ecs_service_editor_modal(
+                frame,
+                frame.area(),
+                service_name,
+                &self.services.ecs.service_editor_task_def,
+                &self.services.ecs.service_editor_cpu,
+                &self.services.ecs.service_editor_memory,
+                self.services.ecs.service_editor_force_deploy,
+                self.services.ecs.service_editor_active_field,
+            );
+        }
+        
+        // Render ECS task definition selector modal
+        if self.input_mode == InputMode::EcsTaskDefSelector {
+            let service_name = self.services.ecs.task_def_selector_service_name
+                .as_deref()
+                .unwrap_or("Unknown");
+            crate::ui::components::modal::render_task_def_selector_modal(
+                frame,
+                frame.area(),
+                service_name,
+                &self.services.ecs.task_def_selector_list,
+                self.services.ecs.task_def_selector_index,
+                self.services.ecs.task_def_selector_force_deploy,
+                self.services.ecs.task_def_selector_detail_scroll,
+                self.services.ecs.task_def_selector_loading,
             );
         }
     }

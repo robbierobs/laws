@@ -34,6 +34,13 @@ pub enum AppError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Editor operation failed
+    #[error("Editor '{editor}' failed with status code: {status_code:?}")]
+    EditorFailed {
+        editor: String,
+        status_code: Option<i32>,
+    },
+
     /// Configuration error
     #[error("Configuration error: {0}")]
     Config(String),
@@ -112,6 +119,9 @@ impl AppError {
             }
             Self::Validation(msg) => msg.clone(),
             Self::Io(e) => format!("IO error: {}", e),
+            Self::EditorFailed { editor, status_code } => {
+                format!("Editor '{}' failed with status: {:?}", editor, status_code)
+            }
             Self::Config(msg) => format!("Config: {}", msg),
             Self::Cancelled(task) => format!("Cancelled: {}", task),
             Self::Internal(msg) => format!("Error: {}", msg),

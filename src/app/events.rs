@@ -163,6 +163,47 @@ impl App {
                 self.services.s3.viewer_scroll_offset = 0;
                 self.action_log.push(format!("[SUCCESS] Opened '{}'", key));
             }
+            AwsEvent::S3ObjectEdited { bucket, key } => {
+                self.loading = false;
+                let msg = format!("Edited and uploaded s3://{}/{}", bucket, key);
+                self.action_log.push(format!("[SUCCESS] {}", msg));
+                self.should_refresh = true;
+            }
+            AwsEvent::S3ObjectReadyForEdit { bucket, key, path } => {
+                self.loading = false;
+                // Store the pending edit info - will be processed synchronously
+                self.services.s3.pending_edit = Some((bucket, key, path));
+            }
+            AwsEvent::EcsTaskDefinitionEdited { family: _, new_arn } => {
+                self.loading = false;
+                let short_arn = new_arn.split('/').last().unwrap_or(&new_arn);
+                let msg = format!("Registered new task definition: {}", short_arn);
+                self.action_log.push(format!("[SUCCESS] {}", msg));
+                self.should_refresh = true;
+                // Show the task definition selector for the family
+                self.services.ecs.show_task_definition_selector = true;
+            }
+            AwsEvent::EcsTaskDefinitionsListed(task_defs) => {
+                self.loading = false;
+                self.services.ecs.task_definitions_list = task_defs;
+                self.services.ecs.show_task_definition_selector = true;
+                if !self.services.ecs.task_definitions_list.is_empty() {
+                    self.services.ecs.task_definitions_list_state.select(Some(0));
+                }
+            }
+            AwsEvent::EcsTaskDefinitionsForSelectorLoaded(task_defs) => {
+                self.loading = false;
+                self.services.ecs.task_def_selector_loading = false;
+                self.services.ecs.task_def_selector_list = task_defs;
+                if !self.services.ecs.task_def_selector_list.is_empty() {
+                    self.services.ecs.task_def_selector_index = 0;
+                }
+            }
+            AwsEvent::EcsTaskDefinitionReadyForEdit { family, path } => {
+                self.loading = false;
+                // Store the pending edit info - will be processed synchronously
+                self.services.ecs.pending_edit = Some((family, path));
+            }
             AwsEvent::ActionCompleted(msg) => {
                 self.loading = false;
                 self.action_log.push(format!("[SUCCESS] {}", msg));

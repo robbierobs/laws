@@ -15,6 +15,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use std::io;
+use std::sync::{Arc, atomic::AtomicBool};
 
 use crate::aws::client::AwsClients;
 use crate::config::Args;
@@ -53,12 +54,14 @@ async fn main() -> anyhow::Result<()> {
         .or_else(|| std::env::var("AWS_DEFAULT_REGION").ok())
         .unwrap_or_else(|| "us-east-1".to_string());
 
+    // Create shared input pause flag
+    let input_paused = Arc::new(AtomicBool::new(false));
+
     // Create app state
-    let mut app = App::new(aws_clients, profile.clone(), region, args.read_only);
+    let mut app = App::new(aws_clients, profile.clone(), region, args.read_only, input_paused.clone());
 
     // Create event handler
-    // Create event handler
-    let mut events = EventHandler::new(app.config.tick_rate_ms);
+    let mut events = EventHandler::new(app.config.tick_rate_ms, input_paused);
     let event_tx = events.sender();
 
     // If no profile was specified, open the profile switcher immediately
@@ -71,6 +74,12 @@ async fn main() -> anyhow::Result<()> {
 
     // Main loop
     while !app.should_quit {
+        // Check if we need to force a terminal redraw (e.g., after external editor)
+        if app.needs_redraw {
+            app.needs_redraw = false;
+            terminal.clear()?;
+        }
+        
         // Render
         terminal.draw(|frame| app.render(frame))?;
 
@@ -97,6 +106,16 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Event::Aws(aws_event) => {
                     app.handle_aws_event(aws_event);
+                    
+                    // Check for pending S3 edits that need synchronous processing
+                    if let Some((bucket, key, path)) = app.services.s3.pending_edit.take() {
+                        app.handle_edit_s3_object_sync(bucket, key, path, event_tx.clone());
+                    }
+                    
+                    // Check for pending ECS task definition edits that need synchronous processing
+                    if let Some((family, path)) = app.services.ecs.pending_edit.take() {
+                        app.handle_edit_task_definition_sync(family, path, event_tx.clone());
+                    }
                 }
                 Event::Message(msg) => {
                     app.update(msg, event_tx.clone()).await;

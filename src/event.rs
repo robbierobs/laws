@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -73,6 +73,30 @@ pub enum AwsEvent {
         path: String,
         content: Option<String>,
     },
+    /// S3 object was edited and uploaded successfully
+    S3ObjectEdited {
+        bucket: String,
+        key: String,
+    },
+    EcsTaskDefinitionEdited {
+        family: String,
+        new_arn: String,
+    },
+    /// S3 object downloaded for editing
+    S3ObjectReadyForEdit {
+        bucket: String,
+        key: String,
+        path: String,
+    },
+    /// List of task definitions for a family
+    EcsTaskDefinitionsListed(Vec<String>),
+    /// Full task definitions loaded for selector modal
+    EcsTaskDefinitionsForSelectorLoaded(Vec<EcsTaskDefinition>),
+    /// ECS task definition downloaded for editing
+    EcsTaskDefinitionReadyForEdit {
+        family: String,
+        path: String,
+    },
     ActionCompleted(String), // Message to display
     Error(String),
 }
@@ -117,13 +141,14 @@ pub struct EventHandler {
     tx: EventSender,
     metrics: Arc<EventMetrics>,
     queue_depth: Arc<AtomicUsize>,
+    paused: Arc<AtomicBool>,
     _task_handle: tokio::task::JoinHandle<()>,
 }
 
 impl EventHandler {
     /// Create a new EventHandler with default bounded channel (1000 capacity)
-    pub fn new(tick_rate: u64) -> Self {
-        Self::with_capacity(tick_rate, 1000)
+    pub fn new(tick_rate: u64, paused: Arc<AtomicBool>) -> Self {
+        Self::with_capacity(tick_rate, 1000, paused)
     }
 
     /// Create a new EventHandler with custom bounded channel capacity
@@ -131,20 +156,28 @@ impl EventHandler {
     /// # Arguments
     /// * `tick_rate` - UI update rate in milliseconds
     /// * `capacity` - Maximum number of events to buffer in the channel
+    /// * `paused` - Shared flag to pause input polling
     ///
     /// If the channel fills up, backpressure will cause senders to wait
     /// until space becomes available.
-    pub fn with_capacity(tick_rate: u64, capacity: usize) -> Self {
+    pub fn with_capacity(tick_rate: u64, capacity: usize, paused: Arc<AtomicBool>) -> Self {
         let (tx, rx) = mpsc::channel(capacity);
         let event_tx = tx.clone();
         let queue_depth = Arc::new(AtomicUsize::new(0));
         let queue_depth_clone = queue_depth.clone();
         let metrics = Arc::new(EventMetrics::default());
+        let paused_clone = paused.clone();
 
         // Spawn input handling task
         let task_handle = tokio::spawn(async move {
             let tick_rate = Duration::from_millis(tick_rate);
             loop {
+                // Check pause flag
+                if paused_clone.load(Ordering::Relaxed) {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    continue;
+                }
+
                 let event_available = event::poll(tick_rate).unwrap_or(false);
                 if event_available {
                     if let Ok(CrosstermEvent::Key(key)) = event::read() {
@@ -168,6 +201,7 @@ impl EventHandler {
             tx,
             metrics,
             queue_depth,
+            paused,
             _task_handle: task_handle,
         }
     }
@@ -220,22 +254,26 @@ impl Drop for EventHandler {
 mod tests {
     use super::*;
 
+    fn test_paused() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
+    }
+
     #[tokio::test]
     async fn test_event_handler_new() {
-        let handler = EventHandler::new(100);
+        let handler = EventHandler::new(100, test_paused());
         assert_eq!(handler.capacity(), 1000);
         assert_eq!(handler.queue_depth(), 0);
     }
 
     #[tokio::test]
     async fn test_event_handler_with_capacity() {
-        let handler = EventHandler::with_capacity(100, 500);
+        let handler = EventHandler::with_capacity(100, 500, test_paused());
         assert_eq!(handler.capacity(), 500);
     }
 
     #[tokio::test]
     async fn test_send_and_receive_tick() {
-        let handler = EventHandler::with_capacity(10000, 100);
+        let handler = EventHandler::with_capacity(10000, 100, test_paused());
         let tx = handler.sender();
 
         // Verify sender works (doesn't error)
@@ -245,7 +283,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_depth_starts_at_zero() {
-        let handler = EventHandler::with_capacity(10000, 50);
+        let handler = EventHandler::with_capacity(10000, 50, test_paused());
 
         // Queue depth starts at zero before background task sends ticks
         // Note: queue_depth only tracks background task sends, not external sends
@@ -255,7 +293,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_near_capacity() {
-        let handler = EventHandler::with_capacity(100, 100);
+        let handler = EventHandler::with_capacity(100, 100, test_paused());
         let tx = handler.sender();
 
         // Send 85 events to exceed 80% threshold
@@ -269,7 +307,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_backpressure_on_full_channel() {
-        let handler = EventHandler::with_capacity(100, 5);
+        let handler = EventHandler::with_capacity(100, 5, test_paused());
         let tx = handler.sender();
 
         // Fill the channel
@@ -290,7 +328,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_initialized() {
-        let handler = EventHandler::new(100);
+        let handler = EventHandler::new(100, test_paused());
         let metrics = handler.metrics();
         assert_eq!(metrics.total_sent(), 0);
         assert_eq!(metrics.total_received(), 0);

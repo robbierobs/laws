@@ -176,6 +176,24 @@ impl S3Service {
 
         Ok(bytes)
     }
+
+    /// Upload (put) an object to S3
+    pub async fn put_object(
+        &self,
+        bucket_name: &str,
+        key: &str,
+        data: Vec<u8>,
+    ) -> AppResult<()> {
+        self.client
+            .put_object()
+            .bucket(bucket_name)
+            .key(key)
+            .body(data.into())
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("S3", "put_object", key, e))?;
+        Ok(())
+    }
 }
 
 impl crate::aws::traits::AwsService<S3Bucket> for S3Service {

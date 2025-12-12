@@ -113,11 +113,42 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             ]);
         }
         Service::ECS => {
-            actions.extend_from_slice(&[
-                ("j/k", "Navigate"),
-                ("Enter", "Services"),
-                ("Esc", "Back"),
-            ]);
+            use crate::app::EcsViewMode;
+            actions.extend_from_slice(&[("j/k", "Navigate")]);
+            
+            match app.services.ecs.view_mode {
+                EcsViewMode::Clusters => {
+                    actions.extend_from_slice(&[
+                        ("Enter", "Services"),
+                    ]);
+                }
+                EcsViewMode::Services => {
+                    actions.extend_from_slice(&[
+                        ("Enter", "Tasks"),
+                        ("t", "View Def"),
+                        ("T", "Change Def"),
+                        ("e", "Edit"),
+                        ("d", "Deploy"),
+                        ("+/-", "Scale"),
+                        ("Esc", "Back"),
+                    ]);
+                }
+                EcsViewMode::Tasks => {
+                    actions.extend_from_slice(&[
+                        ("t", "Task Def"),
+                        ("S", "Stop"),
+                        ("Esc", "Back"),
+                    ]);
+                }
+                EcsViewMode::TaskDefinition => {
+                    actions.extend_from_slice(&[
+                        ("j/k", "Scroll"),
+                        ("E", "Edit"),
+                        ("X", "Deregister"),
+                        ("Esc", "Back"),
+                    ]);
+                }
+            }
         }
     }
 

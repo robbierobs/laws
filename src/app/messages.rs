@@ -402,6 +402,11 @@ pub enum S3Action {
         bucket: String,
         key: String,
     },
+    /// Edit object in $EDITOR and upload changes
+    EditObject {
+        bucket: String,
+        key: String,
+    },
     LeaveBucket,
 }
 
@@ -499,6 +504,26 @@ pub enum EcsAction {
         cluster_arn: String,
         service_name: String,
     },
+    #[allow(dead_code)] // Planned: update service to use different task definition
+    UpdateServiceTaskDefinition {
+        cluster_arn: String,
+        service_name: String,
+        task_definition_arn: String,
+    },
+    /// Modify ECS Service - supports task definition, CPU, and Memory changes
+    /// Note: CPU and Memory require creating a new task definition revision
+    UpdateService {
+        cluster_arn: String,
+        service_name: String,
+        /// New task definition ARN (full ARN or family:revision)
+        task_definition: Option<String>,
+        /// CPU value (in Fargate units: "256", "512", "1024", etc.)
+        cpu: Option<String>,
+        /// Memory value (in MiB: "512", "1024", "2048", etc.)
+        memory: Option<String>,
+        /// Force a new deployment even if no other changes
+        force_new_deployment: bool,
+    },
 
     // Task actions
     StopTask {
@@ -508,6 +533,11 @@ pub enum EcsAction {
 
     // Task definition actions
     DeregisterTaskDefinition(String), // task_definition_arn
+    EditTaskDefinition(String),       // task_definition_arn
+    #[allow(dead_code)] // Planned: list all revisions of a task definition family
+    ListTaskDefinitions(String),      // family name
+    /// Load full task definitions for the selector modal
+    LoadTaskDefinitionsForSelector(String), // family name
 }
 
 // ============================================================================
@@ -699,6 +729,10 @@ impl Message {
         Message::Service(ServiceAction::S3(S3Action::OpenObject { bucket, key }))
     }
 
+    pub fn s3_edit_object(bucket: String, key: String) -> Self {
+        Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key }))
+    }
+
     pub fn s3_leave_bucket() -> Self {
         Message::Service(ServiceAction::S3(S3Action::LeaveBucket))
     }
@@ -878,6 +912,58 @@ impl Message {
             task_definition_arn,
         )))
     }
+
+    pub fn ecs_edit_task_definition(task_definition_arn: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(
+            task_definition_arn,
+        )))
+    }
+
+    #[allow(dead_code)] // Planned: list all revisions of a task definition family
+    pub fn ecs_list_task_definitions(family: String) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::ListTaskDefinitions(family)))
+    }
+
+    #[allow(dead_code)] // Planned: update service to use different task definition
+    pub fn ecs_update_service_task_definition(
+        cluster_arn: String,
+        service_name: String,
+        task_definition_arn: String,
+    ) -> Self {
+        Message::Service(ServiceAction::Ecs(
+            EcsAction::UpdateServiceTaskDefinition {
+                cluster_arn,
+                service_name,
+                task_definition_arn,
+            },
+        ))
+    }
+
+    /// Create a message to update an ECS service with optional task definition, CPU, and memory changes
+    pub fn ecs_update_service(
+        cluster_arn: String,
+        service_name: String,
+        task_definition: Option<String>,
+        cpu: Option<String>,
+        memory: Option<String>,
+        force_new_deployment: bool,
+    ) -> Self {
+        Message::Service(ServiceAction::Ecs(EcsAction::UpdateService {
+            cluster_arn,
+            service_name,
+            task_definition,
+            cpu,
+            memory,
+            force_new_deployment,
+        }))
+    }
+
+    /// Load task definitions with full details for the selector modal
+    pub fn ecs_load_task_definitions_for_selector(family: String) -> Self {
+        Message::Service(ServiceAction::Ecs(
+            EcsAction::LoadTaskDefinitionsForSelector(family),
+        ))
+    }
 }
 
 // ============================================================================
@@ -900,6 +986,10 @@ pub enum InputMode {
     ProfileSwitcherProfile,
     /// Profile switcher modal - selecting region
     ProfileSwitcherRegion,
+    /// ECS Service editor modal
+    EcsServiceEditor,
+    /// ECS Task Definition selector modal
+    EcsTaskDefSelector,
 }
 
 #[cfg(test)]

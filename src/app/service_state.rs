@@ -148,6 +148,8 @@ pub struct S3State {
     pub show_object_viewer: bool,
     /// Scroll offset for the object viewer
     pub viewer_scroll_offset: u16,
+    /// Pending edit operation (bucket, key, path) - for synchronous editor handling
+    pub pending_edit: Option<(String, String, String)>,
 }
 
 impl S3State {
@@ -219,6 +221,19 @@ impl ServiceInputHandler for S3State {
                         if let Some(obj) = self.objects.get(i) {
                             if let Some(bucket) = &self.current_bucket {
                                 return InputResult::Message(Message::s3_open_object(
+                                    bucket.clone(),
+                                    obj.key.clone(),
+                                ));
+                            }
+                        }
+                    }
+                }
+                KeyCode::Char('E') => {
+                    // Edit object - download, open in $EDITOR, upload changes
+                    if let Some(i) = self.object_list_state.selected() {
+                        if let Some(obj) = self.objects.get(i) {
+                            if let Some(bucket) = &self.current_bucket {
+                                return InputResult::Action(Message::s3_edit_object(
                                     bucket.clone(),
                                     obj.key.clone(),
                                 ));
@@ -1251,6 +1266,30 @@ pub struct EcsState {
 
     // Detail panel scroll
     pub detail_scroll_offset: usize,
+
+    // Task definition selector modal
+    pub show_task_definition_selector: bool,
+    pub task_definitions_list: Vec<String>,
+    pub task_definitions_list_state: TableState,
+
+    // Pending edit operation (family, path) - for synchronous editor handling
+    pub pending_edit: Option<(String, String)>,
+
+    // Service editor modal state
+    pub service_editor_active_field: usize, // 0=task_def, 1=cpu, 2=memory
+    pub service_editor_task_def: String,
+    pub service_editor_cpu: String,
+    pub service_editor_memory: String,
+    pub service_editor_force_deploy: bool,
+    pub service_editor_service_name: Option<String>,
+
+    // Task definition selector modal state
+    pub task_def_selector_service_name: Option<String>,
+    pub task_def_selector_list: Vec<EcsTaskDefinition>,
+    pub task_def_selector_index: usize,
+    pub task_def_selector_force_deploy: bool,
+    pub task_def_selector_detail_scroll: usize,
+    pub task_def_selector_loading: bool,
 }
 
 impl EcsState {
@@ -1330,6 +1369,100 @@ impl EcsState {
     pub fn clear_tasks(&mut self) {
         self.tasks.clear();
         self.current_task_definition = None;
+    }
+
+    /// Prepare the service editor modal with current service values
+    pub fn prepare_service_editor(&mut self) {
+        // Extract values from selected service first to avoid borrow conflict
+        let (service_name, task_def) = {
+            if let Some(service) = self.selected_service() {
+                (
+                    Some(service.service_name.clone()),
+                    service.task_definition.clone().unwrap_or_default(),
+                )
+            } else {
+                return;
+            }
+        };
+        
+        self.service_editor_service_name = service_name;
+        self.service_editor_task_def = task_def;
+        // Get current CPU/Memory from the service's task definition if available
+        // For now, start with empty values - user can fill in
+        self.service_editor_cpu = String::new();
+        self.service_editor_memory = String::new();
+        self.service_editor_force_deploy = true;
+        self.service_editor_active_field = 0;
+    }
+
+    /// Reset the service editor state
+    pub fn reset_service_editor(&mut self) {
+        self.service_editor_service_name = None;
+        self.service_editor_task_def.clear();
+        self.service_editor_cpu.clear();
+        self.service_editor_memory.clear();
+        self.service_editor_force_deploy = true;
+        self.service_editor_active_field = 0;
+    }
+
+    /// Prepare the task definition selector modal
+    pub fn prepare_task_def_selector(&mut self) {
+        // Extract service name to avoid borrow conflict
+        let service_name = {
+            if let Some(service) = self.selected_service() {
+                Some(service.service_name.clone())
+            } else {
+                return;
+            }
+        };
+        
+        self.task_def_selector_service_name = service_name;
+        self.task_def_selector_list.clear();
+        self.task_def_selector_index = 0;
+        self.task_def_selector_force_deploy = true;
+        self.task_def_selector_detail_scroll = 0;
+        self.task_def_selector_loading = true;
+    }
+
+    /// Reset the task definition selector state
+    pub fn reset_task_def_selector(&mut self) {
+        self.task_def_selector_service_name = None;
+        self.task_def_selector_list.clear();
+        self.task_def_selector_index = 0;
+        self.task_def_selector_force_deploy = true;
+        self.task_def_selector_detail_scroll = 0;
+        self.task_def_selector_loading = false;
+    }
+
+    /// Get the currently selected task definition in the selector
+    pub fn selected_task_def_in_selector(&self) -> Option<&EcsTaskDefinition> {
+        self.task_def_selector_list.get(self.task_def_selector_index)
+    }
+
+    /// Navigate up in task definition selector
+    pub fn task_def_selector_up(&mut self) {
+        if !self.task_def_selector_list.is_empty() {
+            let len = self.task_def_selector_list.len();
+            self.task_def_selector_index = if self.task_def_selector_index == 0 {
+                len - 1
+            } else {
+                self.task_def_selector_index - 1
+            };
+            self.task_def_selector_detail_scroll = 0; // Reset scroll when changing selection
+        }
+    }
+
+    /// Navigate down in task definition selector
+    pub fn task_def_selector_down(&mut self) {
+        if !self.task_def_selector_list.is_empty() {
+            let len = self.task_def_selector_list.len();
+            self.task_def_selector_index = if self.task_def_selector_index >= len - 1 {
+                0
+            } else {
+                self.task_def_selector_index + 1
+            };
+            self.task_def_selector_detail_scroll = 0; // Reset scroll when changing selection
+        }
     }
 }
 
@@ -1421,6 +1554,20 @@ impl EcsState {
                     ));
                 }
             }
+            // 'e' - Edit service (modify task definition, CPU, memory)
+            KeyCode::Char('e') => {
+                if self.selected_service().is_some() {
+                    self.prepare_service_editor();
+                    return InputResult::OpenInputMode(crate::app::InputMode::EcsServiceEditor);
+                }
+            }
+            // 'T' - Select task definition (browse task definitions with details)
+            KeyCode::Char('T') => {
+                if self.selected_service().is_some() {
+                    self.prepare_task_def_selector();
+                    return InputResult::OpenInputMode(crate::app::InputMode::EcsTaskDefSelector);
+                }
+            }
             _ => {}
         }
         InputResult::None
@@ -1477,6 +1624,14 @@ impl EcsState {
             }
             KeyCode::Home | KeyCode::Char('g') => {
                 self.detail_scroll_offset = 0;
+            }
+            // 'E' - Edit task definition
+            KeyCode::Char('E') => {
+                if let Some(td) = &self.current_task_definition {
+                    return InputResult::Action(Message::ecs_edit_task_definition(
+                        td.task_definition_arn.clone(),
+                    ));
+                }
             }
             // 'X' - Deregister task definition
             KeyCode::Char('X') | KeyCode::Delete => {

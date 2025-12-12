@@ -325,13 +325,21 @@ fn build_service_detail_lines(service: &EcsService) -> Vec<Line<'_>> {
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
         Span::styled("[Enter] ", Style::default().fg(THEME.warning)),
-        Span::raw("view tasks  "),
+        Span::raw("tasks  "),
         Span::styled("[t] ", Style::default().fg(THEME.warning)),
-        Span::raw("task def  "),
+        Span::raw("view def  "),
+        Span::styled("[T] ", Style::default().fg(THEME.warning)),
+        Span::raw("change def  "),
+        Span::styled("[e] ", Style::default().fg(THEME.warning)),
+        Span::raw("edit"),
+    ]));
+    lines.push(Line::from(vec![
         Span::styled("[d] ", Style::default().fg(THEME.warning)),
         Span::raw("deploy  "),
         Span::styled("[+/-] ", Style::default().fg(THEME.warning)),
-        Span::raw("scale"),
+        Span::raw("scale  "),
+        Span::styled("[Esc] ", Style::default().fg(THEME.warning)),
+        Span::raw("back"),
     ]));
 
     lines
@@ -720,6 +728,8 @@ fn build_task_definition_lines(td: &EcsTaskDefinition) -> Vec<Line<'static>> {
     lines.push(Line::from(vec![
         Span::styled("[j/k] ", Style::default().fg(THEME.warning)),
         Span::raw("scroll  "),
+        Span::styled("[E] ", Style::default().fg(THEME.warning)),
+        Span::raw("edit  "),
         Span::styled("[X] ", Style::default().fg(THEME.warning)),
         Span::raw("deregister  "),
         Span::styled("[Esc] ", Style::default().fg(THEME.warning)),
