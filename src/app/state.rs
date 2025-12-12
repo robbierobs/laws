@@ -47,6 +47,8 @@ pub struct App {
     // Action Log
     pub action_log: Vec<String>,
     pub action_log_expanded: bool,
+    pub action_log_selected_index: usize,
+    pub action_log_detail_scroll: u16,
     
     // Service-specific states consolidated into one struct
     pub services: ServiceStates,
@@ -144,6 +146,8 @@ impl App {
             show_confirmation: false,
             action_log: Vec::new(),
             action_log_expanded: false,
+            action_log_selected_index: 0,
+            action_log_detail_scroll: 0,
             services: ServiceStates::new(),
             tasks: TaskManager::new(),
             available_profiles,

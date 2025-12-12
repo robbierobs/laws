@@ -90,6 +90,51 @@ impl App {
             return None;
         }
 
+        // Handle action log popup navigation
+        if self.action_log_expanded {
+            match key.code {
+                KeyCode::Char('A') | KeyCode::Esc => {
+                    self.action_log_expanded = false;
+                    self.action_log_selected_index = 0;
+                    self.action_log_detail_scroll = 0;
+                    return None;
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    let max_idx = self.action_log.len().saturating_sub(1);
+                    if self.action_log_selected_index < max_idx {
+                        self.action_log_selected_index += 1;
+                        self.action_log_detail_scroll = 0; // Reset scroll on selection change
+                    }
+                    return None;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if self.action_log_selected_index > 0 {
+                        self.action_log_selected_index -= 1;
+                        self.action_log_detail_scroll = 0; // Reset scroll on selection change
+                    }
+                    return None;
+                }
+                KeyCode::PageDown => {
+                    self.action_log_detail_scroll = self.action_log_detail_scroll.saturating_add(10);
+                    return None;
+                }
+                KeyCode::PageUp => {
+                    self.action_log_detail_scroll = self.action_log_detail_scroll.saturating_sub(10);
+                    return None;
+                }
+                KeyCode::Home | KeyCode::Char('g') => {
+                    self.action_log_detail_scroll = 0;
+                    return None;
+                }
+                KeyCode::Char('G') | KeyCode::End => {
+                    // Large value to scroll to end
+                    self.action_log_detail_scroll = u16::MAX;
+                    return None;
+                }
+                _ => return None,
+            }
+        }
+
         // Handle confirmation modal
         if self.show_confirmation {
             return match key.code {
@@ -324,10 +369,7 @@ impl App {
                     }
                 }
 
-                // Action log toggle
-                if key.code == KeyCode::Char('A') {
-                    return Some(Message::toggle_action_log());
-                }
+
 
                 // Arrow navigation for view modes
                 match key.code {
@@ -399,6 +441,7 @@ impl App {
             KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
             KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
             KeyCode::Char('0') => Some(Message::navigate(Service::SecretsManager)),
+            KeyCode::Char('A') => Some(Message::toggle_action_log()),
             KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
             KeyCode::Char('D') => Some(Message::Global(GlobalMessage::ToggleDetailFullscreen)),
             KeyCode::PageUp => Some(Message::Global(GlobalMessage::DetailScrollUp)),
