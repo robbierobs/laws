@@ -16,9 +16,11 @@ pub mod ecs_modals;
 mod events;
 pub mod filtered_list;
 mod input;
-mod messages;
+pub mod messages;
 pub mod navigation;
-mod service_state;
+pub mod states;
+#[allow(deprecated)]
+pub mod service_state;
 mod state;
 pub mod task_manager;
 pub mod update;
