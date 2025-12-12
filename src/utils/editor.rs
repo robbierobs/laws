@@ -3,12 +3,23 @@
 //! Provides functions to open files in the user's preferred $EDITOR
 
 use crate::error::AppResult;
+use crossterm::{
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use std::env;
+use std::io;
 use std::path::Path;
 use std::process::Command;
 
 /// Open a file in the user's preferred editor (from $EDITOR environment variable)
 /// Falls back to 'vi' if $EDITOR is not set
+///
+/// This function properly manages the terminal state by:
+/// 1. Leaving alternate screen and disabling raw mode before opening the editor
+/// 2. Re-entering alternate screen and enabling raw mode after the editor closes
+///
+/// This prevents the TUI from interfering with the editor and vice versa.
 ///
 /// # Arguments
 /// * `file_path` - Path to the file to edit
@@ -22,19 +33,34 @@ pub fn open_in_editor<P: AsRef<Path>>(file_path: P) -> AppResult<()> {
     // Get editor from environment variable, default to vi
     let editor = env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
     
+    // Leave alternate screen and disable raw mode before opening editor
+    // This prevents the TUI from interfering with the editor
+    disable_raw_mode()?;
+    execute!(io::stdout(), LeaveAlternateScreen)?;
+    
     // Try to run the editor
-    let status = Command::new(&editor)
+    let result = Command::new(&editor)
         .arg(file_path)
-        .status()?;
+        .status();
     
-    if !status.success() {
-        return Err(crate::error::AppError::EditorFailed {
-            editor,
-            status_code: status.code(),
-        });
+    // Re-enable raw mode and re-enter alternate screen after editor closes
+    // This restores the TUI to its normal state
+    execute!(io::stdout(), EnterAlternateScreen)?;
+    enable_raw_mode()?;
+    
+    // Check editor result
+    match result {
+        Ok(status) => {
+            if !status.success() {
+                return Err(crate::error::AppError::EditorFailed {
+                    editor,
+                    status_code: status.code(),
+                });
+            }
+            Ok(())
+        }
+        Err(e) => Err(e.into()),
     }
-    
-    Ok(())
 }
 
 #[cfg(test)]
