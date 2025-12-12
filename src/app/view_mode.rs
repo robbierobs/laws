@@ -36,12 +36,14 @@ pub trait ViewMode: Clone + Copy + PartialEq + Sized + 'static {
 
     /// Returns true if we're in a drilled-down view.
     /// This is the inverse of `is_main_tab()`.
+    #[allow(dead_code)] // Provided for API completeness
     fn is_drill_down(&self) -> bool {
         !self.is_main_tab()
     }
 
     /// Returns true if tab cycling should be enabled in the current view.
     /// Default: cycling is allowed only in main tabs.
+    #[allow(dead_code)] // Used internally by next()/prev()
     fn supports_cycling(&self) -> bool {
         self.is_main_tab()
     }

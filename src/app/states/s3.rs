@@ -33,6 +33,7 @@ impl S3State {
     }
 
     /// Check if we're currently viewing objects inside a bucket
+    #[allow(dead_code)] // Helper for conditional rendering
     pub fn is_viewing_objects(&self) -> bool {
         self.current_bucket.is_some()
     }

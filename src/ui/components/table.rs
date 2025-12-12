@@ -17,6 +17,7 @@ use crate::ui::theme::THEME;
 /// * `title` - The title of the table (will be shown in the border)
 /// * `is_focused` - Whether this table currently has focus (affects border color)
 /// * `state` - The mutable TableState from the app for scrolling
+#[allow(clippy::too_many_arguments)] // Central rendering utility, arguments are all required
 pub fn render_table<'a, I>(
     frame: &mut Frame,
     area: Rect,

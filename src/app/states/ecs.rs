@@ -135,16 +135,19 @@ impl EcsState {
     }
 
     /// Get the currently selected task definition in the selector
+    #[allow(dead_code)] // For potential future use
     pub fn selected_task_def_in_selector(&self) -> Option<&EcsTaskDefinition> {
         self.task_def_selector.selected()
     }
 
     /// Navigate up in task definition selector
+    #[allow(dead_code)] // May be used for keyboard navigation
     pub fn task_def_selector_up(&mut self) {
         self.task_def_selector.nav_up();
     }
 
     /// Navigate down in task definition selector
+    #[allow(dead_code)] // May be used for keyboard navigation
     pub fn task_def_selector_down(&mut self) {
         self.task_def_selector.nav_down();
     }

@@ -30,6 +30,7 @@ impl DynamoDbState {
     }
 
     /// Get the currently selected item, if any
+    #[allow(dead_code)] // May be used for detail panel
     pub fn selected_item(&self) -> Option<&DynamoDbItem> {
         self.item_list_state
             .selected()

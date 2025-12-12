@@ -3,7 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use super::{
-    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ServiceInputHandler,
+    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service,
     ViewMode, VpcViewMode,
 };
 use crate::ui::components::Component;

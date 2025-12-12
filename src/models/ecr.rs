@@ -61,6 +61,7 @@ impl EcrImage {
         }
     }
     
+    #[allow(dead_code)] // Helper for display, may be used in future
     pub fn main_tag(&self) -> String {
         self.image_tags.first().cloned().unwrap_or_else(|| "<untagged>".to_string())
     }

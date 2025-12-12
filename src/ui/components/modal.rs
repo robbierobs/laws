@@ -1,3 +1,12 @@
+//! Modal rendering components
+//! 
+//! These rendering functions have many arguments which is acceptable
+//! for UI rendering utilities that need various pieces of state.
+
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::if_same_then_else)]  // Scroll offset calculations intentionally follow same pattern
+#![allow(clippy::vec_init_then_push)] // Readable line-by-line building
+
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
