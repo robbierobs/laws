@@ -420,7 +420,14 @@ impl App {
                 match result {
                     InputResult::Message(msg) => return Some(msg),
                     InputResult::Action(action) => return self.request_action(action),
-                    InputResult::None => {}
+                    InputResult::None => {
+                        // ESC: If service handler didn't consume it, switch focus to sidebar
+                        if key.code == KeyCode::Esc {
+                            self.focus = Focus::Sidebar;
+                            self.sidebar.is_focused = true;
+                            return None;
+                        }
+                    }
                 }
             }
         }
