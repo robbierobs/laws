@@ -312,35 +312,35 @@ impl App {
         
         // Render ECS service editor modal
         if self.input_mode == InputMode::EcsServiceEditor {
-            let service_name = self.services.ecs.service_editor_service_name
+            let service_name = self.services.ecs.service_editor.service_name
                 .as_deref()
                 .unwrap_or("Unknown");
             crate::ui::components::modal::render_ecs_service_editor_modal(
                 frame,
                 frame.area(),
                 service_name,
-                &self.services.ecs.service_editor_task_def,
-                &self.services.ecs.service_editor_cpu,
-                &self.services.ecs.service_editor_memory,
-                self.services.ecs.service_editor_force_deploy,
-                self.services.ecs.service_editor_active_field,
+                &self.services.ecs.service_editor.task_def,
+                &self.services.ecs.service_editor.cpu,
+                &self.services.ecs.service_editor.memory,
+                self.services.ecs.service_editor.force_deploy,
+                self.services.ecs.service_editor.active_field,
             );
         }
         
         // Render ECS task definition selector modal
         if self.input_mode == InputMode::EcsTaskDefSelector {
-            let service_name = self.services.ecs.task_def_selector_service_name
+            let service_name = self.services.ecs.task_def_selector.service_name
                 .as_deref()
                 .unwrap_or("Unknown");
             crate::ui::components::modal::render_task_def_selector_modal(
                 frame,
                 frame.area(),
                 service_name,
-                &self.services.ecs.task_def_selector_list,
-                self.services.ecs.task_def_selector_index,
-                self.services.ecs.task_def_selector_force_deploy,
-                self.services.ecs.task_def_selector_detail_scroll,
-                self.services.ecs.task_def_selector_loading,
+                &self.services.ecs.task_def_selector.list,
+                self.services.ecs.task_def_selector.index,
+                self.services.ecs.task_def_selector.force_deploy,
+                self.services.ecs.task_def_selector.detail_scroll,
+                self.services.ecs.task_def_selector.loading,
             );
         }
     }

@@ -10,7 +10,9 @@
 //! - `task_manager`: Async task tracking and cancellation
 //! - `filtered_list`: Generic filtered list with caching
 //! - `navigation`: Reusable list navigation helpers
+//! - `ecs_modals`: ECS-specific modal state structs
 
+pub mod ecs_modals;
 mod events;
 pub mod filtered_list;
 mod input;
