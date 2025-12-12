@@ -11,10 +11,12 @@
 //! - `filtered_list`: Generic filtered list with caching
 //! - `navigation`: Reusable list navigation helpers
 //! - `ecs_modals`: ECS-specific modal state structs
+//! - `global_search`: Global search across all resources
 
 pub mod ecs_modals;
 mod events;
 pub mod filtered_list;
+pub mod global_search;
 mod input;
 pub mod messages;
 pub mod navigation;

@@ -95,6 +95,39 @@ impl App {
                     }
                 }
             }
+            GlobalMessage::OpenGlobalSearch => {
+                self.input_mode = InputMode::GlobalSearch;
+                self.global_search.clear();
+                self.global_search.loading = true;
+                // Trigger data load for all services
+                self.refresh_all_services_for_search(event_tx.clone()).await;
+                // Pre-populate with all currently loaded results
+                self.refresh_global_search();
+            }
+            GlobalMessage::CloseGlobalSearch => {
+                self.input_mode = InputMode::Normal;
+                self.global_search.clear();
+            }
+            GlobalMessage::GotoSearchResult {
+                service,
+                resource_id,
+            } => {
+                // Navigate to the service
+                self.current_service = service;
+                self.sidebar.select_service(service);
+
+                // Try to select the resource in the appropriate service state
+                self.select_resource_by_id(service, &resource_id);
+
+                self.action_log.push(format!(
+                    "Navigated to {} - {}",
+                    service.as_str(),
+                    resource_id
+                ));
+
+                // Refresh data for the service
+                self.update(Message::refresh(), event_tx).await;
+            }
         }
     }
 
@@ -523,5 +556,398 @@ impl App {
                 self.tasks.spawn(task_keys::ECR_REFRESH, handle);
             }
         }
+    }
+
+    /// Refresh all services in parallel for global search
+    /// This ensures we have data from all services for comprehensive search results
+    async fn refresh_all_services_for_search(&mut self, event_tx: crate::app::EventSender) {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.action_log
+            .push("Loading all services for global search...".to_string());
+
+        // EC2
+        {
+            let client = clients.ec2.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::ec2::Ec2Service::new(client);
+                if let Ok(instances) = service.list().await {
+                    tx.send(Event::Aws(AwsEvent::Ec2InstancesLoaded(instances)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::EC2_REFRESH, handle);
+        }
+
+        // S3
+        {
+            let client = clients.s3.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::s3::S3Service::new(client);
+                if let Ok(buckets) = service.list_buckets().await {
+                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::S3_REFRESH, handle);
+        }
+
+        // RDS
+        {
+            let client = clients.rds.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::rds::RdsService::new(client);
+                if let Ok(instances) = service.list_instances().await {
+                    tx.send(Event::Aws(AwsEvent::RdsInstancesLoaded(instances)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::RDS_REFRESH, handle);
+        }
+
+        // DynamoDB
+        {
+            let client = clients.dynamodb.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::dynamodb::DynamoDbService::new(client);
+                if let Ok(tables) = service.list_tables().await {
+                    tx.send(Event::Aws(AwsEvent::DynamoDbTablesLoaded(tables)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::DYNAMODB_REFRESH, handle);
+        }
+
+        // Lambda
+        {
+            let client = clients.lambda.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::lambda::LambdaService::new(client);
+                if let Ok(functions) = service.list_functions().await {
+                    tx.send(Event::Aws(AwsEvent::LambdaFunctionsLoaded(functions)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::LAMBDA_REFRESH, handle);
+        }
+
+        // VPC
+        {
+            let client = clients.ec2.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::vpc::VpcService::new(client);
+                if let Ok(vpcs) = service.list_vpcs().await {
+                    tx.send(Event::Aws(AwsEvent::VpcsLoaded(vpcs))).await.ok();
+                }
+            });
+            self.tasks.spawn(task_keys::VPC_REFRESH, handle);
+        }
+
+        // IAM
+        {
+            let client = clients.iam.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::iam::IamService::new(client);
+                if let Ok(users) = service.list_users().await {
+                    tx.send(Event::Aws(AwsEvent::IamUsersLoaded(users)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::IAM_REFRESH, handle);
+        }
+
+        // Backup
+        {
+            let client = clients.backup.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::backup::BackupService::new(client);
+                if let Ok(vaults) = service.list_backup_vaults().await {
+                    tx.send(Event::Aws(AwsEvent::BackupVaultsLoaded(vaults)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::BACKUP_REFRESH, handle);
+        }
+
+        // CloudTrail
+        {
+            let client = clients.cloudtrail.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::cloudtrail::CloudTrailService::new(client);
+                if let Ok(trails) = service.list_trails().await {
+                    tx.send(Event::Aws(AwsEvent::CloudTrailTrailsLoaded(trails)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
+        }
+
+        // Secrets Manager
+        {
+            let client = clients.secretsmanager.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::secretsmanager::SecretsManagerService::new(client);
+                if let Ok(secrets) = service.list_secrets().await {
+                    tx.send(Event::Aws(AwsEvent::SecretsManagerSecretsLoaded(secrets)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
+        }
+
+        // ECS
+        {
+            let client = clients.ecs.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::ecs::EcsClient::new(client);
+                if let Ok(clusters) = service.list_clusters().await {
+                    tx.send(Event::Aws(AwsEvent::EcsClustersLoaded(clusters)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::ECS_REFRESH, handle);
+        }
+
+        // ECR
+        {
+            let client = clients.ecr.clone();
+            let tx = event_tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::ecr::EcrService::new(client);
+                if let Ok(repos) = service.list_repositories().await {
+                    tx.send(Event::Aws(AwsEvent::EcrRepositoriesLoaded(repos)))
+                        .await
+                        .ok();
+                }
+            });
+            self.tasks.spawn(task_keys::ECR_REFRESH, handle);
+        }
+    }
+
+    /// Select a resource by its ID within the appropriate service state
+    fn select_resource_by_id(&mut self, service: Service, resource_id: &str) {
+        match service {
+            Service::EC2 => {
+                if let Some(idx) = self
+                    .services
+                    .ec2
+                    .instances
+                    .iter()
+                    .position(|i| i.instance_id == resource_id)
+                {
+                    self.services.ec2.list_state.select(Some(idx));
+                }
+            }
+            Service::S3 => {
+                // For S3, navigate to bucket list and select the bucket
+                self.services.s3.current_bucket = None; // Ensure we're at bucket level
+                if let Some(idx) = self
+                    .services
+                    .s3
+                    .buckets
+                    .iter()
+                    .position(|b| b.name == resource_id)
+                {
+                    self.services.s3.list_state.select(Some(idx));
+                }
+            }
+            Service::RDS => {
+                if let Some(idx) = self
+                    .services
+                    .rds
+                    .instances
+                    .iter()
+                    .position(|i| i.db_instance_identifier == resource_id)
+                {
+                    self.services.rds.list_state.select(Some(idx));
+                }
+            }
+            Service::DynamoDB => {
+                if let Some(idx) = self
+                    .services
+                    .dynamodb
+                    .tables
+                    .iter()
+                    .position(|t| t.table_name == resource_id)
+                {
+                    self.services.dynamodb.list_state.select(Some(idx));
+                }
+            }
+            Service::Lambda => {
+                if let Some(idx) = self
+                    .services
+                    .lambda
+                    .functions
+                    .iter()
+                    .position(|f| f.function_name == resource_id)
+                {
+                    self.services.lambda.list_state.select(Some(idx));
+                }
+            }
+            Service::VPC => {
+                // Need to detect resource type from ID prefix
+                if resource_id.starts_with("vpc-") {
+                    self.services.vpc.view_mode = super::super::VpcViewMode::Vpcs;
+                    if let Some(idx) = self
+                        .services
+                        .vpc
+                        .vpcs
+                        .iter()
+                        .position(|v| v.vpc_id == resource_id)
+                    {
+                        self.services.vpc.list_state.select(Some(idx));
+                    }
+                } else if resource_id.starts_with("subnet-") {
+                    self.services.vpc.view_mode = super::super::VpcViewMode::Subnets;
+                    if let Some(idx) = self
+                        .services
+                        .vpc
+                        .subnets
+                        .iter()
+                        .position(|s| s.subnet_id == resource_id)
+                    {
+                        self.services.vpc.list_state.select(Some(idx));
+                    }
+                } else if resource_id.starts_with("sg-") {
+                    self.services.vpc.view_mode = super::super::VpcViewMode::SecurityGroups;
+                    if let Some(idx) = self
+                        .services
+                        .vpc
+                        .security_groups
+                        .iter()
+                        .position(|s| s.group_id == resource_id)
+                    {
+                        self.services.vpc.list_state.select(Some(idx));
+                    }
+                }
+            }
+            Service::IAM => {
+                // Check users first, then roles, then policies
+                if let Some(idx) = self
+                    .services
+                    .iam
+                    .users
+                    .iter()
+                    .position(|u| u.user_name == resource_id)
+                {
+                    self.services.iam.view_mode = super::super::IamViewMode::Users;
+                    self.services.iam.list_state.select(Some(idx));
+                } else if let Some(idx) = self
+                    .services
+                    .iam
+                    .roles
+                    .iter()
+                    .position(|r| r.role_name == resource_id)
+                {
+                    self.services.iam.view_mode = super::super::IamViewMode::Roles;
+                    self.services.iam.list_state.select(Some(idx));
+                } else if let Some(idx) = self
+                    .services
+                    .iam
+                    .policies
+                    .iter()
+                    .position(|p| p.policy_name == resource_id)
+                {
+                    self.services.iam.view_mode = super::super::IamViewMode::Policies;
+                    self.services.iam.list_state.select(Some(idx));
+                }
+            }
+            Service::Backup => {
+                self.services.backup.view_mode = super::super::BackupViewMode::Vaults;
+                if let Some(idx) = self
+                    .services
+                    .backup
+                    .vaults
+                    .iter()
+                    .position(|v| v.backup_vault_name == resource_id)
+                {
+                    self.services.backup.list_state.select(Some(idx));
+                }
+            }
+            Service::CloudTrail => {
+                self.services.cloudtrail.view_mode = super::super::CloudTrailViewMode::Trails;
+                if let Some(idx) = self
+                    .services
+                    .cloudtrail
+                    .trails
+                    .iter()
+                    .position(|t| t.name == resource_id)
+                {
+                    self.services.cloudtrail.list_state.select(Some(idx));
+                }
+            }
+            Service::SecretsManager => {
+                if let Some(idx) = self
+                    .services
+                    .secretsmanager
+                    .secrets
+                    .iter()
+                    .position(|s| s.name == resource_id)
+                {
+                    self.services.secretsmanager.list_state.select(Some(idx));
+                }
+            }
+            Service::ECS => {
+                // Check clusters first, then services
+                if let Some(idx) = self
+                    .services
+                    .ecs
+                    .clusters
+                    .iter()
+                    .position(|c| c.cluster_name == resource_id)
+                {
+                    self.services.ecs.view_mode = super::super::EcsViewMode::Clusters;
+                    self.services.ecs.list_state.select(Some(idx));
+                } else if let Some(idx) = self
+                    .services
+                    .ecs
+                    .services
+                    .iter()
+                    .position(|s| s.service_name == resource_id)
+                {
+                    self.services.ecs.view_mode = super::super::EcsViewMode::Services;
+                    self.services.ecs.list_state.select(Some(idx));
+                }
+            }
+            Service::ECR => {
+                self.services.ecr.view_mode = super::super::EcrViewMode::Repositories;
+                if let Some(idx) = self
+                    .services
+                    .ecr
+                    .repositories
+                    .iter()
+                    .position(|r| r.repository_name == resource_id)
+                {
+                    self.services.ecr.list_state.select(Some(idx));
+                }
+            }
+        }
+
+        // Set focus to main pane so user can immediately interact with the selection
+        self.focus = super::super::Focus::Main;
+        self.sidebar.is_focused = false;
     }
 }
