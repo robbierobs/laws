@@ -349,6 +349,39 @@ impl App {
     pub fn shutdown(&mut self) {
         self.tasks.cancel_all();
     }
+
+    /// Spawn a standardized AWS async task
+    ///
+    /// This helper reduces boilerplate for spawning async AWS operations.
+    /// It handles:
+    /// 1. Checking if AWS clients are available
+    /// 2. Setting the global loading state to true
+    /// 3. Cloning clients and the event sender
+    /// 4. Spawning the tokio task
+    /// 5. Registering the task with the TaskManager
+    pub fn spawn_aws_task<F, Fut>(
+        &mut self,
+        event_tx: super::EventSender,
+        key: impl Into<String>,
+        action: F,
+    ) where
+        F: FnOnce(AwsClients, super::EventSender) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let Some(clients) = &self.aws_clients else {
+            return;
+        };
+
+        self.loading = true;
+        let clients = clients.clone();
+        let tx = event_tx;
+
+        let handle = tokio::spawn(async move {
+            action(clients, tx).await;
+        });
+
+        self.tasks.spawn(key, handle);
+    }
 }
 
 #[cfg(test)]

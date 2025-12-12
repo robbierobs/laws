@@ -14,36 +14,34 @@ impl App {
     /// Spawns a tracked async task that invokes the function and sends
     /// the result back via the event channel.
     pub(super) fn handle_invoke_lambda(&mut self, function_name: String, event_tx: EventSender) {
-        let Some(clients) = &self.aws_clients else {
-            return;
-        };
-
         self.action_log.push(format!("Invoking Lambda function: {}", function_name));
-        self.loading = true;
         
-        let client = clients.lambda.clone();
-        
-        let handle = tokio::spawn(async move {
-            let service = crate::aws::lambda::LambdaService::new(client);
-            match service.invoke_function(&function_name).await {
-                Ok(payload) => {
-                    // Truncate payload if too long for event message
-                    let display_payload = if payload.len() > 100 {
-                        format!("{}...", &payload[0..100])
-                    } else {
-                        payload
-                    };
-                    event_tx.send(Event::Aws(AwsEvent::ActionCompleted(
-                        format!("Function invoked. Payload: {}", display_payload)
-                    ))).await.ok();
-                }
-                Err(e) => {
-                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+        // Clone for async block
+        let func_name = function_name.clone();
+
+        self.spawn_aws_task(
+            event_tx, 
+            task_keys::LAMBDA_ACTION, 
+            move |clients, tx| async move {
+                let service = crate::aws::lambda::LambdaService::new(clients.lambda.clone());
+                match service.invoke_function(&func_name).await {
+                    Ok(payload) => {
+                        // Truncate payload if too long for event message
+                        let display_payload = if payload.len() > 100 {
+                            format!("{}...", &payload[0..100])
+                        } else {
+                            payload
+                        };
+                        tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                            format!("Function invoked. Payload: {}", display_payload)
+                        ))).await.ok();
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    }
                 }
             }
-        });
-        
-        self.tasks.spawn(task_keys::LAMBDA_ACTION, handle);
+        );
     }
 
     /// Delete a Lambda function
@@ -51,32 +49,29 @@ impl App {
     /// Spawns a tracked async task that deletes the function and triggers
     /// a refresh on success.
     pub(super) fn handle_delete_lambda(&mut self, function_name: String, event_tx: EventSender) {
-        let Some(clients) = &self.aws_clients else {
-            return;
-        };
-
         self.action_log.push(format!("Deleting Lambda function: {}", function_name));
-        self.loading = true;
         
-        let client = clients.lambda.clone();
-        
-        let handle = tokio::spawn(async move {
-            let service = crate::aws::lambda::LambdaService::new(client);
-            match service.delete_function(&function_name).await {
-                Ok(_) => {
-                    event_tx.send(Event::Aws(AwsEvent::ActionCompleted(
-                        format!("Function {} deleted", function_name)
-                    ))).await.ok();
-                    // Trigger refresh
-                    event_tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
-                }
-                Err(e) => {
-                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+        let func_name = function_name.clone();
+
+        self.spawn_aws_task(
+            event_tx, 
+            task_keys::LAMBDA_ACTION, 
+            move |clients, tx| async move {
+                let service = crate::aws::lambda::LambdaService::new(clients.lambda.clone());
+                match service.delete_function(&func_name).await {
+                    Ok(_) => {
+                        tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                            format!("Function {} deleted", func_name)
+                        ))).await.ok();
+                        // Trigger refresh
+                        tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
+                    }
+                    Err(e) => {
+                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    }
                 }
             }
-        });
-        
-        self.tasks.spawn(task_keys::LAMBDA_ACTION, handle);
+        );
     }
 
     /// Load detailed information for a Lambda function
