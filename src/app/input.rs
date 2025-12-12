@@ -558,7 +558,7 @@ impl App {
                                     // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
                                     let family = td_arn
                                         .split('/')
-                                        .last()
+                                        .next_back()
                                         .and_then(|f| f.split(':').next())
                                         .map(|f| f.to_string());
                                     

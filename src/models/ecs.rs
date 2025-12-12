@@ -227,7 +227,7 @@ impl EcsService {
     pub fn task_definition_short(&self) -> String {
         self.task_definition
             .as_ref()
-            .and_then(|td| td.split('/').last())
+            .and_then(|td| td.split('/').next_back())
             .unwrap_or("N/A")
             .to_string()
     }
@@ -425,7 +425,7 @@ impl EcsTask {
     pub fn task_id(&self) -> String {
         self.task_arn
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&self.task_arn)
             .to_string()
     }
@@ -434,7 +434,7 @@ impl EcsTask {
     pub fn task_definition_short(&self) -> String {
         self.task_definition_arn
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&self.task_definition_arn)
             .to_string()
     }

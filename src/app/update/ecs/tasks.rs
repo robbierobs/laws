@@ -12,7 +12,7 @@ impl App {
         let cluster = cluster_arn.clone();
         let task = task_arn.clone();
         let service_name = self.services.ecs.selected_service_name.clone();
-        let task_id = task_arn.split('/').last().unwrap_or(&task_arn).to_string();
+        let task_id = task_arn.split('/').next_back().unwrap_or(&task_arn).to_string();
 
         self.spawn_aws_task(
             event_tx,

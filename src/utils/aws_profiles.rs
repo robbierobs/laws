@@ -164,14 +164,13 @@ fn check_profile_has_sso(content: &str, profile_name: &str) -> bool {
         }
         
         // Check for SSO-related keys in the target section
-        if in_target_section {
-            if line.starts_with("sso_start_url") ||
+        if in_target_section
+            && (line.starts_with("sso_start_url") ||
                line.starts_with("sso_account_id") ||
                line.starts_with("sso_role_name") ||
-               line.starts_with("sso_session") {
+               line.starts_with("sso_session")) {
                 return true;
             }
-        }
     }
     
     false

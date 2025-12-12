@@ -285,11 +285,7 @@ impl Component for Sidebar {
                 None
             }
             KeyCode::Enter => {
-                if let Some(service) = self.selected_service() {
-                    Some(Message::navigate(service))
-                } else {
-                    None
-                }
+                self.selected_service().map(Message::navigate)
             }
             KeyCode::Esc => {
                 // Clear filter if it exists

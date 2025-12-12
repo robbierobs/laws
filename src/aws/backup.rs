@@ -23,7 +23,7 @@ impl BackupService {
         let plans = response
             .backup_plans_list()
             .iter()
-            .map(|p| BackupPlan::from_aws(p))
+            .map(BackupPlan::from_aws)
             .collect();
 
         Ok(plans)
@@ -40,7 +40,7 @@ impl BackupService {
         let vaults = response
             .backup_vault_list()
             .iter()
-            .map(|v| BackupVault::from_aws(v))
+            .map(BackupVault::from_aws)
             .collect();
 
         Ok(vaults)
@@ -58,7 +58,7 @@ impl BackupService {
         let jobs = response
             .backup_jobs()
             .iter()
-            .map(|j| BackupJob::from_aws(j))
+            .map(BackupJob::from_aws)
             .collect();
 
         Ok(jobs)
@@ -77,7 +77,7 @@ impl BackupService {
         let points = response
             .recovery_points()
             .iter()
-            .map(|rp| crate::models::backup::RecoveryPoint::from_aws(rp))
+            .map(crate::models::backup::RecoveryPoint::from_aws)
             .collect();
 
         Ok(points)

@@ -3,7 +3,7 @@
 use crate::aws::client::AwsClients;
 use crate::ui::components::sidebar::Sidebar;
 
-use super::service_state::ServiceStates;
+use super::states::ServiceStates;
 use super::task_manager::TaskManager;
 use super::{Focus, InputMode, Message, Service};
 use std::sync::{Arc, atomic::AtomicBool};

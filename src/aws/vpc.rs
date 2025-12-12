@@ -20,7 +20,7 @@ impl VpcService {
             .await
             .map_err(|e| format_sdk_error("VPC", "describe_vpcs", "all", e))?;
 
-        let vpcs = response.vpcs().iter().map(|v| Vpc::from_aws(v)).collect();
+        let vpcs = response.vpcs().iter().map(Vpc::from_aws).collect();
 
         Ok(vpcs)
     }
@@ -45,7 +45,7 @@ impl VpcService {
         let subnets = response
             .subnets()
             .iter()
-            .map(|s| Subnet::from_aws(s))
+            .map(Subnet::from_aws)
             .collect();
 
         Ok(subnets)
@@ -78,7 +78,7 @@ impl VpcService {
         let sgs = response
             .security_groups()
             .iter()
-            .map(|sg| SecurityGroup::from_aws(sg))
+            .map(SecurityGroup::from_aws)
             .collect();
 
         Ok(sgs)

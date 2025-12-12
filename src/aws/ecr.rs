@@ -23,7 +23,7 @@ impl EcrService {
         let repos = response
             .repositories()
             .iter()
-            .map(|r| EcrRepository::from_aws(r))
+            .map(EcrRepository::from_aws)
             .collect();
 
         Ok(repos)
@@ -41,7 +41,7 @@ impl EcrService {
         let images = response
             .image_details()
             .iter()
-            .map(|i| EcrImage::from_aws(i))
+            .map(EcrImage::from_aws)
             .collect();
 
         Ok(images)

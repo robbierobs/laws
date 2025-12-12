@@ -183,7 +183,7 @@ impl App {
             }
             AwsEvent::EcsTaskDefinitionEdited { family: _, new_arn } => {
                 self.loading = false;
-                let short_arn = new_arn.split('/').last().unwrap_or(&new_arn);
+                let short_arn = new_arn.split('/').next_back().unwrap_or(&new_arn);
                 let msg = format!("Registered new task definition: {}", short_arn);
                 self.action_log.push(format!("[SUCCESS] {}", msg));
                 self.should_refresh = true;

@@ -158,7 +158,7 @@ impl App {
                     .await
                 {
                     Ok(new_task_def_arn) => {
-                        let short_arn = new_task_def_arn.split('/').last().unwrap_or(&new_task_def_arn);
+                        let short_arn = new_task_def_arn.split('/').next_back().unwrap_or(&new_task_def_arn);
                         tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
                             "Updated {} - {} (using {})",
                             service,

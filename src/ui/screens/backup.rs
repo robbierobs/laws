@@ -367,7 +367,7 @@ fn render_recovery_point_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(rp.status.clone().unwrap_or_default()).style(Style::default().fg(status_color)),
                 Cell::from(size),
                 Cell::from(created),
-                Cell::from(rp.recovery_point_arn.split('/').last().unwrap_or("?").to_string()),
+                Cell::from(rp.recovery_point_arn.split('/').next_back().unwrap_or("?").to_string()),
             ];
             
             Row::new(cells).height(1)
@@ -435,7 +435,7 @@ fn build_recovery_point_detail_lines(rp: &RecoveryPoint) -> Vec<Line<'_>> {
     vec![
         Line::from(vec![
             Span::styled("Recovery Point ID: ", Style::default().fg(THEME.primary)),
-            Span::styled(rp.recovery_point_arn.split('/').last().unwrap_or("?"), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
+            Span::styled(rp.recovery_point_arn.split('/').next_back().unwrap_or("?"), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
             Span::styled("Status: ", Style::default().fg(THEME.primary)),

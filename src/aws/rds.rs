@@ -22,7 +22,7 @@ impl RdsService {
         let instances = response
             .db_instances()
             .iter()
-            .map(|i| RdsInstance::from_aws(i))
+            .map(RdsInstance::from_aws)
             .collect();
 
         Ok(instances)

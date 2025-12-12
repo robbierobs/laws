@@ -3,7 +3,7 @@
 //! This module is split into several submodules for maintainability:
 //! - `messages`: Enums for services, messages, focus, and input modes
 //! - `state`: App struct definition and constructors
-//! - `service_state`: Per-service state structs consolidating service-specific fields
+//! - `states`: Per-service state structs consolidating service-specific fields
 //! - `update`: Message handling (reducer/update function)
 //! - `input`: Keyboard input handling
 //! - `events`: AWS event handling
@@ -19,8 +19,6 @@ mod input;
 pub mod messages;
 pub mod navigation;
 pub mod states;
-#[allow(deprecated)]
-pub mod service_state;
 mod state;
 pub mod task_manager;
 pub mod update;
@@ -33,9 +31,9 @@ pub use messages::{
 };
 pub use state::App;
 pub use view_mode::ViewMode;
-// Re-export from service_state (for external use - suppressed unused warning)
+// Re-export from states (for external use - suppressed unused warning)
 #[allow(unused_imports)]
-pub use service_state::ServiceStates;
+pub use states::ServiceStates;
 
 /// Type alias for bounded event sender (used throughout update handlers)
 pub type EventSender = crate::event::EventSender;

@@ -182,15 +182,15 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
                 Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn))) => format!("Delete Secret {}", arn),
 
                 Message::Service(ServiceAction::Ecs(EcsAction::StopTask { task_arn, .. })) => {
-                    let short_arn = task_arn.split('/').last().unwrap_or(&task_arn);
+                    let short_arn = task_arn.split('/').next_back().unwrap_or(task_arn);
                     format!("Stop ECS Task {}", short_arn)
                 },
                 Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(arn))) => {
-                    let short_arn = arn.split('/').last().unwrap_or(&arn);
+                    let short_arn = arn.split('/').next_back().unwrap_or(arn);
                     format!("Deregister Task Definition {}", short_arn)
                 },
                 Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(arn))) => {
-                    let short_arn = arn.split('/').last().unwrap_or(&arn);
+                    let short_arn = arn.split('/').next_back().unwrap_or(arn);
                     format!("Edit Task Definition {}", short_arn)
                 },
                 Message::Service(ServiceAction::Ecs(EcsAction::UpdateDesiredCount { service_name, desired_count, .. })) => {
@@ -201,7 +201,7 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
                 },
                 Message::Service(ServiceAction::Ecs(EcsAction::UpdateService { service_name, task_definition, .. })) => {
                     if let Some(td) = task_definition {
-                        let short_td = td.split('/').last().unwrap_or(&td);
+                        let short_td = td.split('/').next_back().unwrap_or(td);
                         format!("Update {} to use {}", service_name, short_td)
                     } else {
                         format!("Update service {}", service_name)

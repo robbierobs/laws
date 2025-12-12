@@ -251,7 +251,7 @@ pub fn render_profile_switcher_modal(
     let mut lines: Vec<Line> = Vec::new();
     for (i, profile) in profiles.iter().enumerate().skip(scroll_offset).take(list_height) {
         let is_selected = i == selected_index;
-        let is_current = current_profile.map_or(false, |cp| cp == profile);
+        let is_current = current_profile.is_some_and(|cp| cp == profile);
         
         let prefix = if is_selected { "▶ " } else { "  " };
         let suffix = if is_current { " (current)" } else { "" };
@@ -829,14 +829,14 @@ pub fn render_task_def_selector_modal(
                 Style::default().fg(THEME.border),
             )));
             if let Some(role) = &td.task_role_arn {
-                let short_role = role.split('/').last().unwrap_or(role);
+                let short_role = role.split('/').next_back().unwrap_or(role);
                 detail_lines.push(Line::from(vec![
                     Span::styled("  Task Role: ", Style::default().fg(THEME.muted)),
                     Span::styled(short_role, Style::default().fg(THEME.fg)),
                 ]));
             }
             if let Some(role) = &td.execution_role_arn {
-                let short_role = role.split('/').last().unwrap_or(role);
+                let short_role = role.split('/').next_back().unwrap_or(role);
                 detail_lines.push(Line::from(vec![
                     Span::styled("  Exec Role: ", Style::default().fg(THEME.muted)),
                     Span::styled(short_role, Style::default().fg(THEME.fg)),

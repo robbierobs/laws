@@ -161,7 +161,7 @@ fn build_bucket_detail_lines(bucket: &crate::models::s3::S3Bucket, app: &App) ->
 
             // Total size
             let total_size_text = details.total_size
-                .map(|s| format_size(s))
+                .map(format_size)
                 .unwrap_or_else(|| "-".to_string());
             lines.push(Line::from(vec![
                 Span::styled("Total Size: ", Style::default().fg(THEME.primary)),

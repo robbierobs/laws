@@ -184,7 +184,7 @@ impl App {
                 }
 
                 // Clear all service data to force refresh
-                self.services = super::super::service_state::ServiceStates::new();
+                self.services = super::super::states::ServiceStates::new();
 
                 let ro_status = if read_only { " [READ-ONLY]" } else { "" };
                 self.action_log.push(format!(

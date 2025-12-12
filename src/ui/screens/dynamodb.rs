@@ -362,14 +362,12 @@ fn render_item_details(frame: &mut Frame, area: Rect, app: &App, _column_names: 
         } else {
             vec![Line::from("No item selected")]
         }
+    } else if app.loading {
+        vec![Line::from("⏳ Loading items...")]
+    } else if app.services.dynamodb.items.is_empty() {
+        vec![Line::from("No items in table (or table is empty)")]
     } else {
-        if app.loading {
-            vec![Line::from("⏳ Loading items...")]
-        } else if app.services.dynamodb.items.is_empty() {
-            vec![Line::from("No items in table (or table is empty)")]
-        } else {
-            vec![Line::from("Select an item to view details (j/k to navigate)")]
-        }
+        vec![Line::from("Select an item to view details (j/k to navigate)")]
     };
 
     render_detail_panel(

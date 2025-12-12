@@ -270,7 +270,7 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
 
     if let Some(role) = &func.role {
         // Extract role name from ARN
-        let role_name = role.split('/').last().unwrap_or(role);
+        let role_name = role.split('/').next_back().unwrap_or(role);
         lines.push(Line::from(vec![
             Span::styled("IAM Role: ", Style::default().fg(THEME.primary)),
             Span::raw(role_name.to_string()),

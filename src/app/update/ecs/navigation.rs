@@ -37,7 +37,7 @@ impl App {
         // Extract service name from ARN for display
         let service_name = service_arn
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&service_arn)
             .to_string();
 
