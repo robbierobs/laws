@@ -14,6 +14,7 @@ use aws_sdk_backup::Client as BackupClient;
 use aws_sdk_cloudtrail::Client as CloudTrailClient;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use aws_sdk_ecs::Client as EcsClient;
+use aws_sdk_ecr::Client as EcrClient;
 use std::time::Duration;
 
 /// Default maximum retry attempts for AWS API calls
@@ -34,6 +35,7 @@ pub struct AwsClients {
     pub cloudtrail: CloudTrailClient,
     pub secretsmanager: SecretsManagerClient,
     pub ecs: EcsClient,
+    pub ecr: EcrClient,
 }
 
 impl AwsClients {
@@ -100,7 +102,7 @@ impl AwsClients {
             aws_sdk_s3::config::Builder::from(&config)
                 .force_path_style(true)
                 .build()
-        } else {
+            } else {
             aws_sdk_s3::config::Builder::from(&config).build()
         };
 
@@ -115,6 +117,7 @@ impl AwsClients {
             cloudtrail: CloudTrailClient::new(&config),
             secretsmanager: SecretsManagerClient::new(&config),
             ecs: EcsClient::new(&config),
+            ecr: EcrClient::new(&config),
         })
     }
 }

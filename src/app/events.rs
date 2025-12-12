@@ -109,6 +109,13 @@ impl App {
                 self.services.backup.jobs = jobs;
                 self.loading = false;
             }
+            AwsEvent::BackupRecoveryPointsLoaded(points) => {
+                self.services.backup.recovery_points = points;
+                if !self.services.backup.recovery_points.is_empty() {
+                    self.services.backup.list_state.select(Some(0));
+                }
+                self.loading = false;
+            }
             AwsEvent::CloudTrailTrailsLoaded(trails) => {
                 self.services.cloudtrail.trails = trails;
                 self.loading = false;
@@ -176,7 +183,7 @@ impl App {
             }
             AwsEvent::EcsTaskDefinitionEdited { family: _, new_arn } => {
                 self.loading = false;
-                let short_arn = new_arn.split('/').last().unwrap_or(&new_arn);
+                let short_arn = new_arn.split('/').next_back().unwrap_or(&new_arn);
                 let msg = format!("Registered new task definition: {}", short_arn);
                 self.action_log.push(format!("[SUCCESS] {}", msg));
                 self.should_refresh = true;
@@ -215,6 +222,17 @@ impl App {
                     self.services.s3.current_bucket = None;
                     self.services.s3.objects.clear();
                 }
+            }
+            AwsEvent::EcrRepositoriesLoaded(repos) => {
+                self.services.ecr.repositories = repos;
+                self.loading = false;
+            }
+            AwsEvent::EcrImagesLoaded(images) => {
+                self.services.ecr.images = images;
+                if !self.services.ecr.images.is_empty() {
+                    self.services.ecr.list_state.select(Some(0));
+                }
+                self.loading = false;
             }
         }
     }

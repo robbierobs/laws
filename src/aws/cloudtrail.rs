@@ -23,7 +23,7 @@ impl CloudTrailService {
         let trails = response
             .trail_list()
             .iter()
-            .map(|t| Trail::from_aws(t))
+            .map(Trail::from_aws)
             .collect();
 
         Ok(trails)
@@ -41,7 +41,7 @@ impl CloudTrailService {
         let events = response
             .events()
             .iter()
-            .map(|e| CloudTrailEvent::from_aws(e))
+            .map(CloudTrailEvent::from_aws)
             .collect();
 
         Ok(events)

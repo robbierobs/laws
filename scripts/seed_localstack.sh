@@ -457,4 +457,22 @@ else
         --tags Key=Environment,Value=Prod
 fi
 
+# --- ECR Seeding ---
+REPO_NAME="test-repo"
+echo "Checking ECR Repository..."
+if awslocal ecr describe-repositories --repository-names "$REPO_NAME" 2>/dev/null; then
+    echo "ECR repository $REPO_NAME already exists."
+else
+    echo "Creating ECR repository $REPO_NAME..."
+    awslocal ecr create-repository --repository-name "$REPO_NAME"
+fi
+
+REPO_NAME_2="backend-api"
+if awslocal ecr describe-repositories --repository-names "$REPO_NAME_2" 2>/dev/null; then
+    echo "ECR repository $REPO_NAME_2 already exists."
+else
+    echo "Creating ECR repository $REPO_NAME_2..."
+    awslocal ecr create-repository --repository-name "$REPO_NAME_2"
+fi
+
 echo "Seeding complete!"

@@ -34,17 +34,20 @@ pub fn nav_down(current: Option<usize>, len: usize) -> Option<usize> {
 
 /// Navigate to first item in a list
 #[inline]
+#[allow(dead_code)] // Part of navigation API for completeness
 pub fn nav_first(len: usize) -> Option<usize> {
     if len == 0 { None } else { Some(0) }
 }
 
 /// Navigate to last item in a list
 #[inline]
+#[allow(dead_code)] // Part of navigation API for completeness
 pub fn nav_last(len: usize) -> Option<usize> {
     if len == 0 { None } else { Some(len - 1) }
 }
 
 /// Extension trait for TableState to add navigation helpers
+#[allow(dead_code)] // Some methods are for API completeness
 pub trait TableStateExt {
     /// Navigate up with wrap-around
     fn nav_up(&mut self, len: usize);

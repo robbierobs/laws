@@ -115,16 +115,8 @@ impl App {
         key: String,
         event_tx: crate::app::EventSender,
     ) {
-        let Some(clients) = &self.aws_clients else {
-            return;
-        };
-
-        self.loading = true;
-        let client = clients.s3.clone();
-        let tx = event_tx;
-
-        let handle = tokio::spawn(async move {
-            let service = crate::aws::s3::S3Service::new(client);
+        self.spawn_aws_task(event_tx, task_keys::S3_ACTION, move |clients, tx| async move {
+            let service = crate::aws::s3::S3Service::new(clients.s3.clone());
             match service.delete_object(&bucket, &key).await {
                 Ok(_) => {
                     let msg = format!("Deleted object {}/{}", bucket, key);
@@ -139,8 +131,6 @@ impl App {
                 }
             }
         });
-
-        self.tasks.spawn(task_keys::S3_ACTION, handle);
     }
 
     pub(super) fn handle_download_s3_object(
@@ -150,16 +140,8 @@ impl App {
         open_mode: bool,
         event_tx: crate::app::EventSender,
     ) {
-        let Some(clients) = &self.aws_clients else {
-            return;
-        };
-
-        self.loading = true;
-        let client = clients.s3.clone();
-        let tx = event_tx;
-
-        let handle = tokio::spawn(async move {
-            let service = crate::aws::s3::S3Service::new(client);
+        self.spawn_aws_task(event_tx, task_keys::S3_ACTION, move |clients, tx| async move {
+            let service = crate::aws::s3::S3Service::new(clients.s3.clone());
             match service.get_object(&bucket, &key).await {
                 Ok(bytes) => {
                     Self::write_s3_object(tx, key, bytes, open_mode).await;
@@ -171,8 +153,6 @@ impl App {
                 }
             }
         });
-
-        self.tasks.spawn(task_keys::S3_ACTION, handle);
     }
 
     /// Phase 1: Download S3 object for editing (async)
@@ -206,7 +186,7 @@ impl App {
             };
 
             // Write to temp file
-            let filename = key.split('/').last().unwrap_or(&key).to_string();
+            let filename = key.split('/').next_back().unwrap_or(&key).to_string();
             let temp_dir = std::env::temp_dir().join("lazy_aws");
             if let Err(e) = std::fs::create_dir_all(&temp_dir) {
                 tx.send(Event::Aws(AwsEvent::Error(format!(
@@ -327,7 +307,7 @@ impl App {
         bytes: Vec<u8>,
         open_mode: bool,
     ) {
-        let filename = key.split('/').last().unwrap_or(&key).to_string();
+        let filename = key.split('/').next_back().unwrap_or(&key).to_string();
 
         let target_dir = if open_mode {
             std::env::temp_dir().join("lazy_aws")

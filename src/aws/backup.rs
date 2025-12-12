@@ -23,7 +23,7 @@ impl BackupService {
         let plans = response
             .backup_plans_list()
             .iter()
-            .map(|p| BackupPlan::from_aws(p))
+            .map(BackupPlan::from_aws)
             .collect();
 
         Ok(plans)
@@ -40,7 +40,7 @@ impl BackupService {
         let vaults = response
             .backup_vault_list()
             .iter()
-            .map(|v| BackupVault::from_aws(v))
+            .map(BackupVault::from_aws)
             .collect();
 
         Ok(vaults)
@@ -58,10 +58,29 @@ impl BackupService {
         let jobs = response
             .backup_jobs()
             .iter()
-            .map(|j| BackupJob::from_aws(j))
+            .map(BackupJob::from_aws)
             .collect();
 
         Ok(jobs)
+    }
+
+    pub async fn list_recovery_points(&self, vault_name: &str) -> AppResult<Vec<crate::models::backup::RecoveryPoint>> {
+        let response = self
+            .client
+            .list_recovery_points_by_backup_vault()
+            .backup_vault_name(vault_name)
+            .max_results(50)
+            .send()
+            .await
+            .map_err(|e| format_sdk_error("Backup", "list_recovery_points", vault_name, e))?;
+
+        let points = response
+            .recovery_points()
+            .iter()
+            .map(crate::models::backup::RecoveryPoint::from_aws)
+            .collect();
+
+        Ok(points)
     }
 }
 

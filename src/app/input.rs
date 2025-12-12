@@ -3,8 +3,8 @@
 //! Handles all keyboard events and translates them to messages.
 
 use super::{
-    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ServiceInputHandler,
-    VpcViewMode,
+    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service,
+    ViewMode, VpcViewMode,
 };
 use crate::ui::components::Component;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -12,25 +12,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 impl App {
     /// Reset list selection to first item for current service
     pub fn reset_selection(&mut self) {
-        match self.current_service {
-            Service::EC2 => self.services.ec2.list_state.select(Some(0)),
-            Service::S3 => {
-                if self.services.s3.current_bucket.is_some() {
-                    self.services.s3.object_list_state.select(Some(0));
-                } else {
-                    self.services.s3.list_state.select(Some(0));
-                }
-            }
-            Service::RDS => self.services.rds.list_state.select(Some(0)),
-            Service::DynamoDB => self.services.dynamodb.list_state.select(Some(0)),
-            Service::Lambda => self.services.lambda.list_state.select(Some(0)),
-            Service::VPC => self.services.vpc.list_state.select(Some(0)),
-            Service::IAM => self.services.iam.list_state.select(Some(0)),
-            Service::Backup => self.services.backup.list_state.select(Some(0)),
-            Service::CloudTrail => self.services.cloudtrail.list_state.select(Some(0)),
-            Service::SecretsManager => self.services.secretsmanager.list_state.select(Some(0)),
-            Service::ECS => self.services.ecs.list_state.select(Some(0)),
-        }
+        self.get_active_service_handler_mut().reset_selection();
     }
 
     /// Request an action (with confirmation check)
@@ -559,19 +541,7 @@ impl App {
                 }
 
                 // Service-specific input handling
-                let result = match self.current_service {
-                    Service::EC2 => self.services.ec2.handle_input(key),
-                    Service::S3 => self.services.s3.handle_input(key),
-                    Service::RDS => self.services.rds.handle_input(key),
-                    Service::DynamoDB => self.services.dynamodb.handle_input(key),
-                    Service::Lambda => self.services.lambda.handle_input(key),
-                    Service::VPC => self.services.vpc.handle_input(key),
-                    Service::IAM => self.services.iam.handle_input(key),
-                    Service::Backup => self.services.backup.handle_input(key),
-                    Service::CloudTrail => self.services.cloudtrail.handle_input(key),
-                    Service::SecretsManager => self.services.secretsmanager.handle_input(key),
-                    Service::ECS => self.services.ecs.handle_input(key),
-                };
+                let result = self.get_active_service_handler_mut().handle_input(key);
 
                 match result {
                     InputResult::Message(msg) => return Some(msg),
@@ -588,7 +558,7 @@ impl App {
                                     // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
                                     let family = td_arn
                                         .split('/')
-                                        .last()
+                                        .next_back()
                                         .and_then(|f| f.split(':').next())
                                         .map(|f| f.to_string());
                                     
@@ -628,6 +598,8 @@ impl App {
             KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
             KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
             KeyCode::Char('0') => Some(Message::navigate(Service::SecretsManager)),
+            KeyCode::Char('e') => Some(Message::navigate(Service::ECS)), // Using 'e' for ECS
+            KeyCode::Char('c') => Some(Message::navigate(Service::ECR)), // Using 'c' for ECR (Container Registry)
             KeyCode::Char('A') => Some(Message::toggle_action_log()),
             KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
             KeyCode::Char('D') => Some(Message::Global(GlobalMessage::ToggleDetailFullscreen)),
@@ -638,137 +610,9 @@ impl App {
     }
 
     fn handle_copy(&self) -> Option<Message> {
-        let text = match self.current_service {
-            Service::EC2 => self.services.ec2.selected_instance_id(),
-            Service::S3 => {
-                if self.services.s3.current_bucket.is_some() {
-                    self.services.s3.selected_object().map(|o| o.key.clone())
-                } else {
-                    self.services.s3.selected_bucket().map(|b| b.name.clone())
-                }
-            }
-            Service::RDS => self.services.rds.selected_instance_id(),
-            Service::DynamoDB => {
-                // For tables, return table name
-                // For items, we could format as JSON, but for now let's stick to IDs/names if possible
-                // Detailed item copy is better handled in a specific view
-                self.services
-                    .dynamodb
-                    .selected_table()
-                    .map(|t| t.table_name.clone())
-            }
-            Service::Lambda => self
-                .services
-                .lambda
-                .selected_function()
-                .map(|f| f.function_name.clone()),
-            Service::VPC => {
-                use crate::app::VpcViewMode;
-                match self.services.vpc.view_mode {
-                    VpcViewMode::Vpcs => self.services.vpc.selected_vpc().map(|v| v.vpc_id.clone()),
-                    VpcViewMode::Subnets => self
-                        .services
-                        .vpc
-                        .selected_subnet()
-                        .map(|s| s.subnet_id.clone()),
-                    VpcViewMode::SecurityGroups => self
-                        .services
-                        .vpc
-                        .selected_security_group()
-                        .map(|sg| sg.group_id.clone()),
-                    VpcViewMode::SecurityGroupRules => None, // Hard to pick a single ID
-                }
-            }
-            Service::IAM => {
-                use crate::app::IamViewMode;
-                match self.services.iam.view_mode {
-                    IamViewMode::Users => self
-                        .services
-                        .iam
-                        .selected_user()
-                        .map(|u| u.user_name.clone()),
-                    IamViewMode::Roles => self
-                        .services
-                        .iam
-                        .selected_role()
-                        .map(|r| r.role_name.clone()),
-                    IamViewMode::Policies => self
-                        .services
-                        .iam
-                        .selected_policy()
-                        .map(|p| p.policy_name.clone()),
-                    _ => None,
-                }
-            }
-            Service::Backup => {
-                use crate::app::BackupViewMode;
-                match self.services.backup.view_mode {
-                    BackupViewMode::Vaults => self
-                        .services
-                        .backup
-                        .selected_vault()
-                        .map(|v| v.backup_vault_name.clone()),
-                    BackupViewMode::Plans => self
-                        .services
-                        .backup
-                        .selected_plan()
-                        .map(|p| p.backup_plan_id.clone()),
-                    BackupViewMode::Jobs => self
-                        .services
-                        .backup
-                        .selected_job()
-                        .map(|j| j.backup_job_id.clone()),
-                }
-            }
-            Service::CloudTrail => {
-                use crate::app::CloudTrailViewMode;
-                match self.services.cloudtrail.view_mode {
-                    CloudTrailViewMode::Trails => self
-                        .services
-                        .cloudtrail
-                        .selected_trail()
-                        .map(|t| t.name.clone()),
-                    CloudTrailViewMode::Events => self
-                        .services
-                        .cloudtrail
-                        .selected_event()
-                        .and_then(|e| e.event_id.clone()),
-                }
-            }
-            Service::SecretsManager => self
-                .services
-                .secretsmanager
-                .selected_secret()
-                .map(|s| s.name.clone()),
-            Service::ECS => {
-                use crate::app::EcsViewMode;
-                match self.services.ecs.view_mode {
-                    EcsViewMode::Clusters => self
-                        .services
-                        .ecs
-                        .selected_cluster()
-                        .map(|c| c.cluster_arn.clone()),
-                    EcsViewMode::Services => self
-                        .services
-                        .ecs
-                        .selected_service()
-                        .map(|s| s.service_arn.clone()),
-                    EcsViewMode::Tasks => self
-                        .services
-                        .ecs
-                        .selected_task()
-                        .map(|t| t.task_arn.clone()),
-                    EcsViewMode::TaskDefinition => self
-                        .services
-                        .ecs
-                        .current_task_definition
-                        .as_ref()
-                        .map(|td| td.task_definition_arn.clone()),
-                }
-            }
-        };
-
-        text.map(Message::copy_to_clipboard)
+        self.get_active_service_handler()
+            .get_copiable_text()
+            .map(Message::copy_to_clipboard)
     }
 
     /// Toggle focus between sidebar and main pane
@@ -847,6 +691,7 @@ impl App {
                     self.services.ecs.list_state.select(Some(0));
                 }
             }
+            Service::ECR => self.auto_select_ecr(),
         }
     }
 
@@ -890,6 +735,7 @@ impl App {
                 BackupViewMode::Vaults => !self.services.backup.vaults.is_empty(),
                 BackupViewMode::Plans => !self.services.backup.plans.is_empty(),
                 BackupViewMode::Jobs => !self.services.backup.jobs.is_empty(),
+                BackupViewMode::RecoveryPoints => !self.services.backup.recovery_points.is_empty(),
             };
             if has_items {
                 self.services.backup.list_state.select(Some(0));
@@ -906,6 +752,19 @@ impl App {
             };
             if has_items {
                 self.services.cloudtrail.list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn auto_select_ecr(&mut self) {
+        if self.services.ecr.list_state.selected().is_none() {
+            use crate::app::EcrViewMode;
+            let has_items = match self.services.ecr.view_mode {
+                EcrViewMode::Repositories => !self.services.ecr.repositories.is_empty(),
+                EcrViewMode::Images => !self.services.ecr.images.is_empty(),
+            };
+            if has_items {
+                self.services.ecr.list_state.select(Some(0));
             }
         }
     }

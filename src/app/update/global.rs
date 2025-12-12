@@ -184,7 +184,7 @@ impl App {
                 }
 
                 // Clear all service data to force refresh
-                self.services = super::super::service_state::ServiceStates::new();
+                self.services = super::super::states::ServiceStates::new();
 
                 let ro_status = if read_only { " [READ-ONLY]" } else { "" };
                 self.action_log.push(format!(
@@ -500,6 +500,27 @@ impl App {
                     }
                 });
                 self.tasks.spawn(task_keys::ECS_REFRESH, handle);
+            }
+            Service::ECR => {
+                let client = clients.ecr.clone();
+                let tx = event_tx.clone();
+                let handle = tokio::spawn(async move {
+                    // Create wrapper service
+                    let ecr_service = crate::aws::ecr::EcrService::new(client);
+                    match ecr_service.list_repositories().await {
+                        Ok(repos) => {
+                            tx.send(Event::Aws(AwsEvent::EcrRepositoriesLoaded(repos)))
+                                .await
+                                .ok();
+                        }
+                        Err(e) => {
+                            tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                .await
+                                .ok();
+                        }
+                    }
+                });
+                self.tasks.spawn(task_keys::ECR_REFRESH, handle);
             }
         }
     }

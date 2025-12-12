@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
-use crate::app::{App, Service};
+use crate::app::{App, Service, ViewMode};
 
 use crate::ui::theme::THEME;
 
@@ -145,6 +145,22 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                         ("j/k", "Scroll"),
                         ("E", "Edit"),
                         ("X", "Deregister"),
+                        ("Esc", "Back"),
+                    ]);
+                }
+            }
+        }
+        Service::ECR => {
+            use crate::app::EcrViewMode;
+            actions.extend_from_slice(&[("j/k", "Navigate")]);
+            match app.services.ecr.view_mode {
+                EcrViewMode::Repositories => {
+                    actions.extend_from_slice(&[
+                        ("Enter", "View Images"),
+                    ]);
+                }
+                EcrViewMode::Images => {
+                    actions.extend_from_slice(&[
                         ("Esc", "Back"),
                     ]);
                 }

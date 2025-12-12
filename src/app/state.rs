@@ -3,7 +3,7 @@
 use crate::aws::client::AwsClients;
 use crate::ui::components::sidebar::Sidebar;
 
-use super::service_state::ServiceStates;
+use super::states::ServiceStates;
 use super::task_manager::TaskManager;
 use super::{Focus, InputMode, Message, Service};
 use std::sync::{Arc, atomic::AtomicBool};
@@ -197,157 +197,45 @@ impl App {
     
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
         crate::ui::render::render(frame, self);
-        
-        // Render S3 object viewer popup
-        if self.services.s3.show_object_viewer {
-            let object_key = self.services.s3.opened_object_key.as_deref().unwrap_or("Unknown");
-            let object_path = self.services.s3.opened_object_path.as_deref();
-            let content = self.services.s3.opened_object_content.as_deref();
-            let scroll = self.services.s3.viewer_scroll_offset;
-            
-            crate::ui::components::modal::render_object_viewer_modal(
-                frame,
-                frame.area(),
-                object_key,
-                object_path,
-                content,
-                scroll,
-            );
-        }
-        
-        if self.show_confirmation {
-            if let Some(action) = &self.pending_action {
-                use super::messages::{ServiceAction, Ec2Action, S3Action, RdsAction, DynamoDbAction, LambdaAction, VpcAction, IamAction, CloudTrailAction, SecretsManagerAction, EcsAction};
-                let description = match action {
-                    Message::Service(ServiceAction::Ec2(Ec2Action::Start(id))) => format!("Start EC2 Instance {}", id),
-                    Message::Service(ServiceAction::Ec2(Ec2Action::Stop(id))) => format!("Stop EC2 Instance {}", id),
-                    Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(id))) => format!("Reboot EC2 Instance {}", id),
-                    Message::Service(ServiceAction::Ec2(Ec2Action::Terminate(id))) => format!("Terminate EC2 Instance {}", id),
-
-                    Message::Service(ServiceAction::Rds(RdsAction::Start(id))) => format!("Start RDS Instance {}", id),
-                    Message::Service(ServiceAction::Rds(RdsAction::Stop(id))) => format!("Stop RDS Instance {}", id),
-                    Message::Service(ServiceAction::Rds(RdsAction::Reboot(id))) => format!("Reboot RDS Instance {}", id),
-                    Message::Service(ServiceAction::Rds(RdsAction::Delete(id))) => format!("Delete RDS Instance {}", id),
-
-                    Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key })) => format!("Delete S3 Object s3://{}/{}", bucket, key),
-                    Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key })) => format!("Edit S3 Object s3://{}/{}", bucket, key),
-
-                    Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem { table_name, .. })) => format!("Delete item from DynamoDB table {}", table_name),
-
-                    Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(name))) => format!("Invoke Lambda Function {}", name),
-                    Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(name))) => format!("Delete Lambda Function {}", name),
-
-                    Message::Service(ServiceAction::Vpc(VpcAction::DeleteSecurityGroup(id))) => format!("Delete Security Group {}", id),
-
-                    Message::Service(ServiceAction::Iam(IamAction::DeleteUser(name))) => format!("Delete IAM User {}", name),
-                    Message::Service(ServiceAction::Iam(IamAction::DeleteRole(name))) => format!("Delete IAM Role {}", name),
-                    Message::Service(ServiceAction::Iam(IamAction::DeletePolicy(arn))) => format!("Delete IAM Policy {}", arn),
-
-                    Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(name))) => format!("Delete CloudTrail Trail {}", name),
-
-                    Message::Service(ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn))) => format!("Delete Secret {}", arn),
-
-                    Message::Service(ServiceAction::Ecs(EcsAction::StopTask { task_arn, .. })) => {
-                        let short_arn = task_arn.split('/').last().unwrap_or(&task_arn);
-                        format!("Stop ECS Task {}", short_arn)
-                    },
-                    Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(arn))) => {
-                        let short_arn = arn.split('/').last().unwrap_or(&arn);
-                        format!("Deregister Task Definition {}", short_arn)
-                    },
-                    Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(arn))) => {
-                        let short_arn = arn.split('/').last().unwrap_or(&arn);
-                        format!("Edit Task Definition {}", short_arn)
-                    },
-                    Message::Service(ServiceAction::Ecs(EcsAction::UpdateDesiredCount { service_name, desired_count, .. })) => {
-                        format!("Update {} desired count to {}", service_name, desired_count)
-                    },
-                    Message::Service(ServiceAction::Ecs(EcsAction::ForceNewDeployment { service_name, .. })) => {
-                        format!("Force new deployment for {}", service_name)
-                    },
-                    Message::Service(ServiceAction::Ecs(EcsAction::UpdateService { service_name, task_definition, .. })) => {
-                        if let Some(td) = task_definition {
-                            let short_td = td.split('/').last().unwrap_or(&td);
-                            format!("Update {} to use {}", service_name, short_td)
-                        } else {
-                            format!("Update service {}", service_name)
-                        }
-                    },
-
-                    _ => "Unknown Action".to_string(),
-                };
-                crate::ui::components::modal::render_confirmation_modal(frame, frame.area(), &description);
-            }
-        }
-        
-        // Render profile switcher modal
-        if self.input_mode == InputMode::ProfileSwitcherProfile {
-            let filtered: Vec<String> = self.filtered_profiles().into_iter().cloned().collect();
-            crate::ui::components::modal::render_profile_switcher_modal(
-                frame,
-                frame.area(),
-                &filtered,
-                self.profile_switcher_index,
-                self.profile.as_deref(),
-                self.pending_read_only,
-                &self.profile_filter,
-                self.profile_filter_active,
-            );
-        }
-        
-        // Render region switcher modal
-        if self.input_mode == InputMode::ProfileSwitcherRegion {
-            let filtered: Vec<String> = self.filtered_regions().into_iter().cloned().collect();
-            crate::ui::components::modal::render_region_switcher_modal(
-                frame,
-                frame.area(),
-                &filtered,
-                self.region_switcher_index,
-                &self.region,
-                self.pending_profile.as_deref(),
-                &self.region_filter,
-                self.region_filter_active,
-            );
-        }
-        
-        // Render ECS service editor modal
-        if self.input_mode == InputMode::EcsServiceEditor {
-            let service_name = self.services.ecs.service_editor.service_name
-                .as_deref()
-                .unwrap_or("Unknown");
-            crate::ui::components::modal::render_ecs_service_editor_modal(
-                frame,
-                frame.area(),
-                service_name,
-                &self.services.ecs.service_editor.task_def,
-                &self.services.ecs.service_editor.cpu,
-                &self.services.ecs.service_editor.memory,
-                self.services.ecs.service_editor.force_deploy,
-                self.services.ecs.service_editor.active_field,
-            );
-        }
-        
-        // Render ECS task definition selector modal
-        if self.input_mode == InputMode::EcsTaskDefSelector {
-            let service_name = self.services.ecs.task_def_selector.service_name
-                .as_deref()
-                .unwrap_or("Unknown");
-            crate::ui::components::modal::render_task_def_selector_modal(
-                frame,
-                frame.area(),
-                service_name,
-                &self.services.ecs.task_def_selector.list,
-                self.services.ecs.task_def_selector.index,
-                self.services.ecs.task_def_selector.force_deploy,
-                self.services.ecs.task_def_selector.detail_scroll,
-                self.services.ecs.task_def_selector.loading,
-            );
-        }
     }
     
     /// Shutdown the app - cancel all async tasks
     pub fn shutdown(&mut self) {
         self.tasks.cancel_all();
+    }
+
+    pub fn get_active_service_handler_mut(&mut self) -> &mut dyn super::ServiceInputHandler {
+        match self.current_service {
+            Service::EC2 => &mut self.services.ec2,
+            Service::S3 => &mut self.services.s3,
+            Service::RDS => &mut self.services.rds,
+            Service::DynamoDB => &mut self.services.dynamodb,
+            Service::Lambda => &mut self.services.lambda,
+            Service::VPC => &mut self.services.vpc,
+            Service::IAM => &mut self.services.iam,
+            Service::Backup => &mut self.services.backup,
+            Service::CloudTrail => &mut self.services.cloudtrail,
+            Service::SecretsManager => &mut self.services.secretsmanager,
+            Service::ECS => &mut self.services.ecs,
+            Service::ECR => &mut self.services.ecr,
+        }
+    }
+    
+    pub fn get_active_service_handler(&self) -> &dyn super::ServiceInputHandler {
+        match self.current_service {
+            Service::EC2 => &self.services.ec2,
+            Service::S3 => &self.services.s3,
+            Service::RDS => &self.services.rds,
+            Service::DynamoDB => &self.services.dynamodb,
+            Service::Lambda => &self.services.lambda,
+            Service::VPC => &self.services.vpc,
+            Service::IAM => &self.services.iam,
+            Service::Backup => &self.services.backup,
+            Service::CloudTrail => &self.services.cloudtrail,
+            Service::SecretsManager => &self.services.secretsmanager,
+            Service::ECS => &self.services.ecs,
+            Service::ECR => &self.services.ecr,
+        }
     }
 
     /// Spawn a standardized AWS async task

@@ -465,28 +465,35 @@ When working on this project, adopt the following persona:
 - Benefits: Reduced parent struct size, improved testability, reusable patterns
 
 ### 7.12 Standardized Async Task Pattern
-All action handlers should follow this pattern:
+All action handlers should use the `spawn_aws_task` helper for consistency:
 ```rust
-// CORRECT: Sync function that spawns a tracked task
-pub(super) fn handle_some_action(&mut self, ..., event_tx: EventSender) {
-    let Some(clients) = &self.aws_clients else { return; };
-    self.loading = true;
-    
-    let client = clients.service.clone();
-    let handle = tokio::spawn(async move {
-        // ... async operation ...
-        tx.send(Event::Aws(AwsEvent::...)).await.ok();
+// PREFERRED: Use spawn_aws_task helper
+pub(super) fn handle_some_action(&mut self, arg: String, event_tx: EventSender) {
+    self.spawn_aws_task(event_tx, task_keys::SERVICE_ACTION, move |clients, tx| async move {
+        let service = SomeService::new(clients.some_client.clone());
+        match service.some_operation(&arg).await {
+            Ok(_) => {
+                tx.send(Event::Aws(AwsEvent::ActionCompleted(...))).await.ok();
+            }
+            Err(e) => {
+                tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+            }
+        }
     });
-    
-    self.tasks.spawn(task_keys::SERVICE_ACTION, handle);  // TRACKED!
 }
 ```
 
+The `spawn_aws_task` helper automatically handles:
+1. Checking if AWS clients are available
+2. Setting `self.loading = true`
+3. Cloning the clients and event sender
+4. Spawning the tokio task
+5. Registering with TaskManager for proper cancellation
+
 Key requirements:
 1. Function is sync (not async)
-2. Task is spawned with `tokio::spawn`
-3. Task handle is tracked via `self.tasks.spawn(key, handle)`
-4. Use predefined keys from `task_keys::*` module
+2. Use predefined keys from `task_keys::*` module
+3. Never use raw `tokio::spawn` - always use `spawn_aws_task` or manual tracking
 
 ---
 

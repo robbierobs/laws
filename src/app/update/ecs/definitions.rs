@@ -12,7 +12,7 @@ impl App {
         let arn = task_definition_arn.clone();
         let td_short = task_definition_arn
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&task_definition_arn)
             .to_string();
 
@@ -246,7 +246,7 @@ impl App {
                     .await
                 {
                     Ok(_) => {
-                        let short_td = td.split('/').last().unwrap_or(&td);
+                        let short_td = td.split('/').next_back().unwrap_or(&td);
                         tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
                             "Updated {} to use task definition {}",
                             service,

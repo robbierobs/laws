@@ -21,6 +21,7 @@ pub enum Service {
     CloudTrail,
     SecretsManager,
     ECS,
+    ECR,
 }
 
 impl Service {
@@ -37,6 +38,7 @@ impl Service {
             Service::CloudTrail => "CloudTrail",
             Service::SecretsManager => "SecretsManager",
             Service::ECS => "ECS",
+            Service::ECR => "ECR",
         }
     }
 
@@ -53,6 +55,7 @@ impl Service {
             Self::CloudTrail,
             Self::SecretsManager,
             Self::ECS,
+            Self::ECR,
         ]
         .iter()
         .copied()
@@ -75,6 +78,10 @@ pub enum VpcViewMode {
 
 impl ViewMode for VpcViewMode {
     fn all() -> &'static [Self] {
+        &[Self::Vpcs, Self::Subnets, Self::SecurityGroups, Self::SecurityGroupRules]
+    }
+
+    fn main_tabs() -> &'static [Self] {
         &[Self::Vpcs, Self::Subnets, Self::SecurityGroups]
     }
 
@@ -87,8 +94,13 @@ impl ViewMode for VpcViewMode {
             0 => Self::Vpcs,
             1 => Self::Subnets,
             2 => Self::SecurityGroups,
+            3 => Self::SecurityGroupRules,
             _ => Self::Vpcs,
         }
+    }
+
+    fn is_main_tab(&self) -> bool {
+        !matches!(self, Self::SecurityGroupRules)
     }
 
     fn label(&self) -> &'static str {
@@ -99,31 +111,7 @@ impl ViewMode for VpcViewMode {
             Self::SecurityGroupRules => "Rules",
         }
     }
-
-    // Override next/prev to prevent styling out of tabs if we are in drill-down
-    fn next(&self) -> Self {
-        if matches!(self, Self::SecurityGroupRules) {
-            *self
-        } else {
-            let i = self.index();
-            let all = Self::all();
-            let len = all.len();
-            let next_idx = (i + 1) % len;
-            Self::from_index(next_idx)
-        }
-    }
-
-    fn prev(&self) -> Self {
-        if matches!(self, Self::SecurityGroupRules) {
-            *self
-        } else {
-            let i = self.index();
-            let all = Self::all();
-            let len = all.len();
-            let prev_idx = if i == 0 { len - 1 } else { i - 1 };
-            Self::from_index(prev_idx)
-        }
-    }
+    // next() and prev() now use trait defaults which check is_main_tab()
 }
 
 // to_index() removed, use ViewMode::index() trait method instead
@@ -142,6 +130,10 @@ pub enum IamViewMode {
 
 impl ViewMode for IamViewMode {
     fn all() -> &'static [Self] {
+        &[Self::Users, Self::Roles, Self::Policies, Self::UserAttachedPolicies, Self::RoleAttachedPolicies, Self::PolicyDocument]
+    }
+
+    fn main_tabs() -> &'static [Self] {
         &[Self::Users, Self::Roles, Self::Policies]
     }
 
@@ -154,8 +146,15 @@ impl ViewMode for IamViewMode {
             0 => Self::Users,
             1 => Self::Roles,
             2 => Self::Policies,
+            3 => Self::UserAttachedPolicies,
+            4 => Self::RoleAttachedPolicies,
+            5 => Self::PolicyDocument,
             _ => Self::Users,
         }
+    }
+
+    fn is_main_tab(&self) -> bool {
+        matches!(self, Self::Users | Self::Roles | Self::Policies)
     }
 
     fn label(&self) -> &'static str {
@@ -163,39 +162,12 @@ impl ViewMode for IamViewMode {
             Self::Users => "Users",
             Self::Roles => "Roles",
             Self::Policies => "Policies",
-            _ => "Details",
+            Self::UserAttachedPolicies => "User Policies",
+            Self::RoleAttachedPolicies => "Role Policies",
+            Self::PolicyDocument => "Policy Document",
         }
     }
-
-    fn next(&self) -> Self {
-        if !self.is_main_tab() {
-            *self
-        } else {
-            let i = self.index();
-            let all = Self::all();
-            let len = all.len();
-            let next_idx = (i + 1) % len;
-            Self::from_index(next_idx)
-        }
-    }
-
-    fn prev(&self) -> Self {
-        if !self.is_main_tab() {
-            *self
-        } else {
-            let i = self.index();
-            let all = Self::all();
-            let len = all.len();
-            let prev_idx = if i == 0 { len - 1 } else { i - 1 };
-            Self::from_index(prev_idx)
-        }
-    }
-}
-
-impl IamViewMode {
-    pub fn is_main_tab(self) -> bool {
-        matches!(self, Self::Users | Self::Roles | Self::Policies)
-    }
+    // next() and prev() now use trait defaults which check is_main_tab()
 }
 
 /// View mode for Backup service
@@ -205,11 +177,12 @@ pub enum BackupViewMode {
     Vaults = 0,
     Plans = 1,
     Jobs = 2,
+    RecoveryPoints = 3,
 }
 
 impl ViewMode for BackupViewMode {
     fn all() -> &'static [Self] {
-        &[Self::Vaults, Self::Plans, Self::Jobs]
+        &[Self::Vaults, Self::Plans, Self::Jobs, Self::RecoveryPoints]
     }
 
     fn index(&self) -> usize {
@@ -221,6 +194,7 @@ impl ViewMode for BackupViewMode {
             0 => Self::Vaults,
             1 => Self::Plans,
             2 => Self::Jobs,
+            3 => Self::RecoveryPoints,
             _ => Self::Vaults,
         }
     }
@@ -230,6 +204,7 @@ impl ViewMode for BackupViewMode {
             Self::Vaults => "Vaults",
             Self::Plans => "Plans",
             Self::Jobs => "Jobs",
+            Self::RecoveryPoints => "Recovery Points",
         }
     }
 }
@@ -281,19 +256,6 @@ pub enum EcsViewMode {
     TaskDefinition = 3,
 }
 
-#[allow(dead_code)]
-impl EcsViewMode {
-    /// Returns true if this is a main tab that supports cycling
-    pub fn is_main_tab(&self) -> bool {
-        matches!(self, Self::Clusters)
-    }
-
-    /// Returns true if we're in a drilled-down view
-    pub fn is_drill_down(&self) -> bool {
-        !self.is_main_tab()
-    }
-}
-
 impl ViewMode for EcsViewMode {
     fn all() -> &'static [Self] {
         &[
@@ -302,6 +264,10 @@ impl ViewMode for EcsViewMode {
             Self::Tasks,
             Self::TaskDefinition,
         ]
+    }
+
+    fn main_tabs() -> &'static [Self] {
+        &[Self::Clusters] // Only Clusters is a top-level tab
     }
 
     fn index(&self) -> usize {
@@ -318,6 +284,10 @@ impl ViewMode for EcsViewMode {
         }
     }
 
+    fn is_main_tab(&self) -> bool {
+        matches!(self, Self::Clusters)
+    }
+
     fn label(&self) -> &'static str {
         match self {
             Self::Clusters => "Clusters",
@@ -326,6 +296,7 @@ impl ViewMode for EcsViewMode {
             Self::TaskDefinition => "Task Definition",
         }
     }
+    // next() and prev() now use trait defaults which check is_main_tab()
 }
 
 /// View mode for DynamoDB service
@@ -338,7 +309,11 @@ pub enum DynamoDbViewMode {
 
 impl ViewMode for DynamoDbViewMode {
     fn all() -> &'static [Self] {
-        &[Self::Tables]
+        &[Self::Tables, Self::Items]
+    }
+
+    fn main_tabs() -> &'static [Self] {
+        &[Self::Tables] // Only Tables is a main tab
     }
 
     fn index(&self) -> usize {
@@ -348,8 +323,13 @@ impl ViewMode for DynamoDbViewMode {
     fn from_index(i: usize) -> Self {
         match i {
             0 => Self::Tables,
+            1 => Self::Items,
             _ => Self::Tables,
         }
+    }
+
+    fn is_main_tab(&self) -> bool {
+        matches!(self, Self::Tables)
     }
 
     fn label(&self) -> &'static str {
@@ -358,17 +338,43 @@ impl ViewMode for DynamoDbViewMode {
             Self::Items => "Items",
         }
     }
-
-    fn next(&self) -> Self {
-        // Only one tab, so effectively no op unless we want to cycle same mode
-        *self
-    }
-    fn prev(&self) -> Self {
-        *self
-    }
+    // next() and prev() now use trait defaults which check is_main_tab()
 }
 
 // to_index() removed, use ViewMode::index() trait method instead
+
+/// View mode for ECR service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum EcrViewMode {
+    #[default]
+    Repositories = 0,
+    Images = 1,
+}
+
+impl ViewMode for EcrViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Repositories, Self::Images]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Repositories,
+            1 => Self::Images,
+            _ => Self::Repositories,
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Repositories => "Repositories",
+            Self::Images => "Images",
+        }
+    }
+}
 
 // ============================================================================
 // Per-Service Action Enums
@@ -464,7 +470,8 @@ pub enum IamAction {
 /// Backup-specific actions (placeholder for future)
 #[derive(Debug, Clone)]
 pub enum BackupAction {
-    // No actions currently supported
+    LoadRecoveryPoints(String),
+    LeaveVault,
 }
 
 /// CloudTrail-specific actions
@@ -540,6 +547,13 @@ pub enum EcsAction {
     LoadTaskDefinitionsForSelector(String), // family name
 }
 
+/// ECR-specific actions
+#[derive(Debug, Clone)]
+pub enum EcrAction {
+    LoadImages(String),
+    BackToRepositories,
+}
+
 // ============================================================================
 // Message Hierarchy
 // ============================================================================
@@ -602,6 +616,7 @@ pub enum ServiceAction {
     CloudTrail(CloudTrailAction),
     SecretsManager(SecretsManagerAction),
     Ecs(EcsAction),
+    Ecr(EcrAction),
 }
 
 /// Main application message type (Elm Architecture style)
@@ -796,6 +811,16 @@ impl Message {
         Message::Service(ServiceAction::Rds(RdsAction::Delete(instance_id)))
     }
 
+    pub fn backup_load_recovery_points(vault_name: String) -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::LoadRecoveryPoints(
+            vault_name,
+        )))
+    }
+
+    pub fn backup_leave_vault() -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::LeaveVault))
+    }
+
     // VPC message constructors
     pub fn vpc_drill_down_sg() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup))
@@ -978,6 +1003,15 @@ impl Message {
             EcsAction::LoadTaskDefinitionsForSelector(family),
         ))
     }
+
+
+    pub fn ecr_load_images(repository_name: String) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::LoadImages(repository_name)))
+    }
+
+    pub fn ecr_back_to_repos() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::BackToRepositories))
+    }
 }
 
 // ============================================================================
@@ -1022,7 +1056,7 @@ mod tests {
     #[test]
     fn test_service_iterator() {
         let services: Vec<Service> = Service::iterator().collect();
-        assert_eq!(services.len(), 11); // All 11 services
+        assert_eq!(services.len(), 12); // All 12 services
         assert!(services.contains(&Service::EC2));
         assert!(services.contains(&Service::SecretsManager));
     }

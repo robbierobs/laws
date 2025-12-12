@@ -197,7 +197,7 @@ fn render_services_view(
         });
 
         let title = if let Some(arn) = &app.services.ecs.selected_cluster_arn {
-            let name = arn.split('/').last().unwrap_or(arn);
+            let name = arn.split('/').next_back().unwrap_or(arn);
             format!("Services in {}", name)
         } else {
             "Services".to_string()

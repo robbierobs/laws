@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 use crate::app::{App, BackupViewMode};
-use crate::models::backup::{BackupVault, BackupPlan, BackupJob};
+use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
 use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
 use crate::ui::components::table::render_table;
 use crate::ui::theme::THEME;
@@ -33,6 +33,7 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             BackupViewMode::Vaults => render_vault_list(frame, chunks[1], app),
             BackupViewMode::Plans => render_plan_list(frame, chunks[1], app),
             BackupViewMode::Jobs => render_job_list(frame, chunks[1], app),
+            BackupViewMode::RecoveryPoints => render_recovery_point_list(frame, chunks[1], app),
         }
     }
     
@@ -41,6 +42,7 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             BackupViewMode::Vaults => render_vault_details(frame, area, app),
             BackupViewMode::Plans => render_plan_details(frame, area, app),
             BackupViewMode::Jobs => render_job_details(frame, area, app),
+            BackupViewMode::RecoveryPoints => render_recovery_point_details(frame, area, app),
         }
     }
 }
@@ -80,11 +82,22 @@ fn render_vault_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(10), // Locked
             Constraint::Min(15),    // Created
         ],
-        "Backup Vaults (v/h/l to switch view)",
+        "Backup Vaults (Enter to view Recovery Points)",
         matches!(app.focus, crate::app::Focus::Main),
         &mut app.services.backup.list_state,
     );
 }
+
+// ... (render_vault_details, render_plan_list, render_plan_details, render_job_list, render_job_details kept as is but I effectively overwrite them if I don't include them in replacement content)
+
+// WAIT. The tool replaces a block defined by StartLine/EndLine. 
+// I should target specific blocks or replace the whole file if easier. 
+// Replacing the import and render function fits in one block. 
+// Adding new functions at the end fits in another block. 
+
+// Let's do imports and render function first.
+
+
 
 fn render_vault_details(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.services.backup.list_state.selected();
@@ -325,6 +338,168 @@ fn render_job_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
+fn render_recovery_point_list(frame: &mut Frame, area: Rect, app: &mut App) {
+    let filter = app.filter_input.to_lowercase();
+    let rows = app.services.backup.recovery_points.iter()
+        .filter(|rp| {
+            if filter.is_empty() { return true; }
+            rp.matches_filter(&filter)
+        })
+        .map(|rp| {
+            let status_color = rp.status_color();
+            let created = rp.creation_date.clone()
+                .map(|d| d.split('T').next().unwrap_or(&d).to_string())
+                .unwrap_or_else(|| "-".to_string());
+            
+            // Format size in MB/GB
+            let size = if let Some(bytes) = rp.backup_size_in_bytes {
+                if bytes > 1024 * 1024 * 1024 {
+                    format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+                } else {
+                    format!("{:.2} MB", bytes as f64 / (1024.0 * 1024.0))
+                }
+            } else {
+                "-".to_string()
+            };
+
+            let cells = vec![
+                Cell::from(rp.resource_type.clone().unwrap_or_default()),
+                Cell::from(rp.status.clone().unwrap_or_default()).style(Style::default().fg(status_color)),
+                Cell::from(size),
+                Cell::from(created),
+                Cell::from(rp.recovery_point_arn.split('/').next_back().unwrap_or("?").to_string()),
+            ];
+            
+            Row::new(cells).height(1)
+        });
+
+    render_table(
+        frame,
+        area,
+        rows,
+        &["Resource Type", "Status", "Size", "Created", "ID"],
+        &[
+            Constraint::Length(15), // Resource Type
+            Constraint::Length(12), // Status
+            Constraint::Length(10), // Size
+            Constraint::Length(20), // Created
+            Constraint::Min(20),    // ID
+        ],
+        "Recovery Points (Esc to back)",
+        matches!(app.focus, crate::app::Focus::Main),
+        &mut app.services.backup.list_state,
+    );
+}
+
+fn render_recovery_point_details(frame: &mut Frame, area: Rect, app: &App) {
+    let selected = app.services.backup.list_state.selected();
+    
+    let content: Vec<Line> = if let Some(idx) = selected {
+        if let Some(rp) = app.services.backup.recovery_points.get(idx) {
+            build_recovery_point_detail_lines(rp)
+        } else {
+            vec![Line::from("No recovery point selected")]
+        }
+    } else {
+        vec![Line::from("Select a recovery point to view details (use j/k to navigate)")]
+    };
+
+    render_detail_panel(
+        frame,
+        area,
+        content,
+        DetailPanelConfig::new("Recovery Point Details")
+            .fullscreen(app.detail_panel_fullscreen)
+            .scroll(app.detail_scroll_offset),
+    );
+}
+
+fn build_recovery_point_detail_lines(rp: &RecoveryPoint) -> Vec<Line<'_>> {
+    let status_color = rp.status_color();
+    let created = rp.creation_date.clone().unwrap_or_else(|| "-".to_string());
+    let completed = rp.completion_date.clone().unwrap_or_else(|| "-".to_string());
+    let resource_arn = rp.resource_arn.clone().unwrap_or_else(|| "-".to_string());
+    let vault = rp.backup_vault_name.clone();
+    
+    // Format size
+    let size = if let Some(bytes) = rp.backup_size_in_bytes {
+        if bytes > 1024 * 1024 * 1024 {
+            format!("{:.2} GB ({} bytes)", bytes as f64 / (1024.0 * 1024.0 * 1024.0), bytes)
+        } else {
+            format!("{:.2} MB ({} bytes)", bytes as f64 / (1024.0 * 1024.0), bytes)
+        }
+    } else {
+        "-".to_string()
+    };
+
+    vec![
+        Line::from(vec![
+            Span::styled("Recovery Point ID: ", Style::default().fg(THEME.primary)),
+            Span::styled(rp.recovery_point_arn.split('/').next_back().unwrap_or("?"), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("Status: ", Style::default().fg(THEME.primary)),
+            Span::styled(rp.status.clone().unwrap_or_default(), Style::default().fg(status_color)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("─── Resource ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("Type: ", Style::default().fg(THEME.primary)),
+            Span::raw(rp.resource_type.clone().unwrap_or_default()),
+        ]),
+        Line::from(vec![
+            Span::styled("Resource ARN: ", Style::default().fg(THEME.primary)),
+            Span::raw(resource_arn),
+        ]),
+        Line::from(vec![
+            Span::styled("Vault: ", Style::default().fg(THEME.primary)),
+            Span::raw(vault),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("Size: ", Style::default().fg(THEME.primary)),
+            Span::raw(size),
+        ]),
+        Line::from(vec![
+            Span::styled("Encrypted: ", Style::default().fg(THEME.primary)),
+            if rp.is_encrypted {
+                Span::styled("Yes", Style::default().fg(THEME.success))
+            } else {
+                Span::styled("No", Style::default().fg(THEME.muted))
+            },
+        ]),
+        Line::from(vec![
+            Span::styled("Type: ", Style::default().fg(THEME.primary)),
+            Span::raw(rp.recovery_point_type.clone().unwrap_or_default()),
+        ]),
+        Line::from(vec![
+            Span::styled("Lifecycle: ", Style::default().fg(THEME.primary)),
+            Span::raw(rp.life_cycle.clone().unwrap_or_else(|| "-".to_string())),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
+            Span::raw(created),
+        ]),
+        Line::from(vec![
+            Span::styled("Completed: ", Style::default().fg(THEME.primary)),
+            Span::raw(completed),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
+        ]),
+        Line::from(vec![
+            Span::styled(rp.recovery_point_arn.clone(), Style::default().fg(THEME.selection_fg)),
+        ]),
+    ]
+}
+
 fn build_job_detail_lines(job: &BackupJob) -> Vec<Line<'_>> {
     let state_color = job.state_color();
     let created = job.creation_date.clone().unwrap_or_else(|| "-".to_string());
@@ -375,3 +550,5 @@ fn build_job_detail_lines(job: &BackupJob) -> Vec<Line<'_>> {
         ]),
     ]
 }
+
+
