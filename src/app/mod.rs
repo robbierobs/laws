@@ -18,6 +18,7 @@ mod events;
 pub mod filtered_list;
 pub mod global_search;
 mod input;
+mod input_handlers;
 pub mod messages;
 pub mod navigation;
 pub mod states;

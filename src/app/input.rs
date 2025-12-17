@@ -32,50 +32,7 @@ impl App {
 
         // Handle S3 object viewer popup
         if self.services.s3.show_object_viewer {
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    self.services.s3.show_object_viewer = false;
-                    self.services.s3.opened_object_content = None;
-                    self.services.s3.opened_object_path = None;
-                    self.services.s3.opened_object_key = None;
-                    self.services.s3.opened_object_bytes = None;
-                    self.services.s3.viewer_scroll_offset = 0;
-                    self.services.s3.viewer_mode = crate::app::states::s3::ViewerMode::Text;
-                }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_add(1);
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_sub(1);
-                }
-                KeyCode::Char('g') | KeyCode::Home => {
-                    self.services.s3.viewer_scroll_offset = 0;
-                }
-                KeyCode::Char('G') | KeyCode::End => {
-                    // Scroll to end - approximate based on content length
-                    if let Some(content) = &self.services.s3.opened_object_content {
-                        let line_count = content.lines().count() as u16;
-                        self.services.s3.viewer_scroll_offset = line_count.saturating_sub(10);
-                    }
-                }
-                KeyCode::PageDown => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_add(20);
-                }
-                KeyCode::PageUp => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_sub(20);
-                }
-                KeyCode::Tab => {
-                    // Toggle between Text and Hex view
-                    self.services.s3.toggle_viewer_mode();
-                    self.services.s3.viewer_scroll_offset = 0;
-                }
-                _ => {}
-            }
-            return None;
+            return super::input_handlers::handle_s3_viewer_input(&mut self.services.s3, key);
         }
 
         // Handle S3 bucket creation modal

@@ -4,6 +4,9 @@
 //! - `Message::Global` for app-wide operations (navigation, quit, UI toggles)
 //! - `Message::Service` for service-specific actions
 
+// AWS service names use capitalized acronyms (EC2, S3, RDS, VPC, IAM, ECS, ECR)
+#![allow(clippy::upper_case_acronyms)]
+
 use crate::app::ViewMode;
 use std::collections::HashMap;
 

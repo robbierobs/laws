@@ -254,11 +254,24 @@ Added `#![allow(clippy::too_many_arguments)]` to:
 - `src/app/update/ecs/services.rs` - ECS handlers that mirror action enum structure
 - `src/ui/components/detail_panel.rs` - UI rendering utility functions
 
+### 5. Upper Case Acronyms Suppressed
+Added `#![allow(clippy::upper_case_acronyms)]` to `src/app/messages.rs`.
+AWS service names (EC2, S3, RDS, VPC, IAM, ECS, ECR) conventionally use capital letters.
+
+### 6. Modal Input Handlers Extraction (Started)
+Created `src/app/input_handlers/` module to extract modal-specific input handling:
+- `s3_viewer.rs` - S3 object viewer keyboard handling (43 lines extracted)
+
+This reduces the size of `input.rs` and makes modal handlers testable in isolation.
+Additional extractable modals: S3 bucket creation, action log, ECS editor, global search.
+
 ---
 
-## Remaining Warnings (7)
+## Remaining Warnings (2)
 
 | Warning | Count | Action |
 |---------|-------|--------|
-| Capitalized acronyms (RDS, VPC, IAM, ECS, ECR) | 5 | Style choice - could suppress |
 | Large enum variants (Event, AwsEvent) | 2 | Needs Box refactoring (100+ sites) |
+
+**Summary**: Reduced clippy warnings from 12 to 2. Reduced `input.rs` from 1043 to 1000 lines.
+The remaining enum variant warnings require boxing `AwsEvent` (~100 call sites).
