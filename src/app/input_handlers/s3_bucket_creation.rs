@@ -1,7 +1,7 @@
 //! S3 Bucket Creation modal input handling
 
 use crate::app::states::s3::S3State;
-use crate::app::Message;
+
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Result of handling S3 bucket creation input
@@ -52,11 +52,5 @@ pub fn handle_s3_bucket_creation_input(s3_state: &mut S3State, key: KeyEvent) ->
     }
 }
 
-/// Convert the result to Option<Message> and handle input mode change
-pub fn process_bucket_creation_result(result: S3BucketCreationResult) -> (bool, Option<Message>) {
-    match result {
-        S3BucketCreationResult::Continue => (false, None), // Stay in modal
-        S3BucketCreationResult::Cancel => (true, None),    // Exit modal, no message
-        S3BucketCreationResult::Create(name) => (true, Some(Message::s3_create_bucket(name))),
-    }
-}
+
+

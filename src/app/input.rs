@@ -37,13 +37,18 @@ impl App {
 
         // Handle S3 bucket creation modal
         if self.input_mode == InputMode::S3BucketCreation {
-            use super::input_handlers::{handle_s3_bucket_creation_input, process_bucket_creation_result};
-            let result = handle_s3_bucket_creation_input(&mut self.services.s3, key);
-            let (exit_modal, message) = process_bucket_creation_result(result);
-            if exit_modal {
-                self.input_mode = InputMode::Normal;
+            use super::input_handlers::{handle_s3_bucket_creation_input, S3BucketCreationResult};
+            match handle_s3_bucket_creation_input(&mut self.services.s3, key) {
+                S3BucketCreationResult::Continue => {}
+                S3BucketCreationResult::Cancel => {
+                    self.input_mode = InputMode::Normal;
+                }
+                S3BucketCreationResult::Create(name) => {
+                    self.input_mode = InputMode::Normal;
+                    return Some(Message::s3_create_bucket(name));
+                }
             }
-            return message;
+            return None;
         }
 
         // Handle action log popup navigation
@@ -72,86 +77,21 @@ impl App {
 
         // Handle profile switcher - profile selection
         if self.input_mode == InputMode::ProfileSwitcherProfile {
-            // If filter is active, handle text input
-            if self.profile_filter_active {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.profile_filter_active = false;
-                        self.profile_filter.clear();
-                        self.profile_switcher_index = 0;
-                    }
-                    KeyCode::Enter => {
-                        self.profile_filter_active = false;
-                    }
-                    KeyCode::Backspace => {
-                        self.profile_filter.pop();
-                        self.profile_switcher_index = 0;
-                    }
-                    KeyCode::Char(c) => {
-                        self.profile_filter.push(c);
-                        self.profile_switcher_index = 0;
-                    }
-                    _ => {}
-                }
-                return None;
-            }
-
-            // Normal navigation mode
-            match key.code {
-                KeyCode::Esc => {
-                    self.profile_filter.clear();
+            use super::input_handlers::{handle_profile_selection_input, ProfileSwitcherResult};
+            match handle_profile_selection_input(&mut self.profile_switcher, key) {
+                ProfileSwitcherResult::Continue => {}
+                ProfileSwitcherResult::Cancel => {
                     return Some(Message::cancel_profile_switcher());
                 }
-                KeyCode::Char('/') => {
-                    self.profile_filter_active = true;
-                }
-                KeyCode::Char('R') => {
-                    // Toggle read-only mode
-                    self.pending_read_only = !self.pending_read_only;
-                }
-                KeyCode::Enter => {
-                    // Store selected profile and move to region selection
-                    let filtered = self.filtered_profiles();
-                    let selected = filtered
-                        .get(self.profile_switcher_index)
-                        .map(|s| {
-                            if *s == "default" {
-                                None
-                            } else {
-                                Some((*s).clone())
-                            }
-                        })
-                        .unwrap_or(None);
-                    self.pending_profile = selected;
-                    self.profile_filter.clear();
+                ProfileSwitcherResult::ProfileSelected => {
                     self.input_mode = InputMode::ProfileSwitcherRegion;
                     // Pre-select current region in region list
-                    if let Some(idx) = self
-                        .filtered_regions()
-                        .iter()
-                        .position(|r| *r == &self.region)
-                    {
-                        self.region_switcher_index = idx;
+                    let current_region = &self.region;
+                    let filtered = self.profile_switcher.filtered_regions();
+                    if let Some(idx) = filtered.iter().position(|r| *r == current_region) {
+                        self.profile_switcher.region_switcher_index = idx;
                     } else {
-                        self.region_switcher_index = 0;
-                    }
-                    return None;
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let filtered_len = self.filtered_profiles().len();
-                    if filtered_len > 0 {
-                        self.profile_switcher_index =
-                            (self.profile_switcher_index + 1) % filtered_len;
-                    }
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let filtered_len = self.filtered_profiles().len();
-                    if filtered_len > 0 {
-                        self.profile_switcher_index = if self.profile_switcher_index == 0 {
-                            filtered_len - 1
-                        } else {
-                            self.profile_switcher_index - 1
-                        };
+                        self.profile_switcher.region_switcher_index = 0;
                     }
                 }
                 _ => {}
@@ -161,71 +101,18 @@ impl App {
 
         // Handle profile switcher - region selection
         if self.input_mode == InputMode::ProfileSwitcherRegion {
-            // If filter is active, handle text input
-            if self.region_filter_active {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.region_filter_active = false;
-                        self.region_filter.clear();
-                        self.region_switcher_index = 0;
-                    }
-                    KeyCode::Enter => {
-                        self.region_filter_active = false;
-                    }
-                    KeyCode::Backspace => {
-                        self.region_filter.pop();
-                        self.region_switcher_index = 0;
-                    }
-                    KeyCode::Char(c) => {
-                        self.region_filter.push(c);
-                        self.region_switcher_index = 0;
-                    }
-                    _ => {}
-                }
-                return None;
-            }
-
-            // Normal navigation mode
-            match key.code {
-                KeyCode::Esc => {
-                    // Cancel and go back to normal mode
-                    self.pending_profile = None;
-                    self.region_filter.clear();
+            use super::input_handlers::{handle_region_selection_input, ProfileSwitcherResult};
+            match handle_region_selection_input(&mut self.profile_switcher, key) {
+                ProfileSwitcherResult::Continue => {}
+                ProfileSwitcherResult::Cancel => {
                     return Some(Message::cancel_profile_switcher());
                 }
-                KeyCode::Char('/') => {
-                    self.region_filter_active = true;
-                }
-                KeyCode::Enter => {
-                    // Confirm and switch profile/region
-                    let profile = self.pending_profile.clone();
-                    let filtered = self.filtered_regions();
-                    let region = filtered
-                        .get(self.region_switcher_index)
-                        .cloned()
-                        .cloned()
-                        .unwrap_or_else(|| "us-east-1".to_string());
-                    let read_only = self.pending_read_only;
-                    self.pending_profile = None;
-                    self.region_filter.clear();
+                ProfileSwitcherResult::Switch {
+                    profile,
+                    region,
+                    read_only,
+                } => {
                     return Some(Message::switch_profile_region(profile, region, read_only));
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let filtered_len = self.filtered_regions().len();
-                    if filtered_len > 0 {
-                        self.region_switcher_index =
-                            (self.region_switcher_index + 1) % filtered_len;
-                    }
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let filtered_len = self.filtered_regions().len();
-                    if filtered_len > 0 {
-                        self.region_switcher_index = if self.region_switcher_index == 0 {
-                            filtered_len - 1
-                        } else {
-                            self.region_switcher_index - 1
-                        };
-                    }
                 }
                 _ => {}
             }

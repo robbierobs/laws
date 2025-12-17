@@ -26,6 +26,7 @@ mod state;
 pub mod task_manager;
 pub mod update;
 mod view_mode;
+pub mod profile_switcher;
 
 // Re-export everything needed by other modules
 pub use messages::{

@@ -133,23 +133,25 @@ impl App {
 
     fn handle_open_profile_switcher(&mut self) {
         if let Some(current) = &self.profile {
-            if let Some(idx) = self.available_profiles.iter().position(|p| p == current) {
-                self.profile_switcher_index = idx;
+            if let Some(idx) = self
+                .profile_switcher
+                .available_profiles
+                .iter()
+                .position(|p| p == current)
+            {
+                self.profile_switcher.profile_switcher_index = idx;
             }
         } else {
-            self.profile_switcher_index = 0;
+            self.profile_switcher.profile_switcher_index = 0;
         }
-        self.pending_read_only = self.read_only;
+        self.profile_switcher.pending_read_only = self.read_only;
         self.input_mode = InputMode::ProfileSwitcherProfile;
     }
 
     fn handle_cancel_profile_switcher(&mut self) {
         self.input_mode = InputMode::Normal;
-        self.pending_profile = None;
-        self.profile_filter.clear();
-        self.region_filter.clear();
-        self.profile_filter_active = false;
-        self.region_filter_active = false;
+        self.profile_switcher.pending_profile = None;
+        self.profile_switcher.reset_filters();
     }
 
     /// Spawn a background task to switch profile/region

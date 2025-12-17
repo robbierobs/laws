@@ -57,16 +57,7 @@ pub struct App {
     pub tasks: TaskManager,
 
     // Profile/Region Switcher State
-    pub available_profiles: Vec<String>,
-    pub available_regions: Vec<String>,
-    pub profile_switcher_index: usize,
-    pub region_switcher_index: usize,
-    pub pending_profile: Option<String>,
-    pub pending_read_only: bool,
-    pub profile_filter: String,
-    pub region_filter: String,
-    pub profile_filter_active: bool,
-    pub region_filter_active: bool,
+    pub profile_switcher: super::profile_switcher::ProfileSwitcherState,
 
     // Configuration
     pub config: crate::config::AppConfig,
@@ -114,22 +105,11 @@ impl App {
         read_only: bool,
         input_paused: Arc<AtomicBool>,
     ) -> Self {
-        // Load available profiles from AWS config
-        let available_profiles = crate::utils::aws_profiles::list_profiles();
-        let available_regions: Vec<String> = crate::utils::aws_profiles::ALL_REGIONS
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-
-        // Find current profile/region index for pre-selection
-        let profile_switcher_index = profile
-            .as_ref()
-            .and_then(|p| available_profiles.iter().position(|x| x == p))
-            .unwrap_or(0);
-        let region_switcher_index = available_regions
-            .iter()
-            .position(|r| r == &region)
-            .unwrap_or(0);
+        let profile_switcher = super::profile_switcher::ProfileSwitcherState::new(
+            profile.as_deref(),
+            &region,
+            read_only,
+        );
 
         Self {
             should_quit: false,
@@ -159,45 +139,10 @@ impl App {
             action_log_detail_scroll: 0,
             services: ServiceStates::new(),
             tasks: TaskManager::new(),
-            available_profiles,
-            available_regions,
-            profile_switcher_index,
-            region_switcher_index,
-            pending_profile: None,
-            pending_read_only: read_only,
-            profile_filter: String::new(),
-            region_filter: String::new(),
-            profile_filter_active: false,
-            region_filter_active: false,
+            profile_switcher,
             config: crate::config::AppConfig::default(),
             render_cache: RenderCache::default(),
             global_search: super::global_search::GlobalSearchState::new(),
-        }
-    }
-
-    /// Get filtered profile list based on current filter
-    pub fn filtered_profiles(&self) -> Vec<&String> {
-        if self.profile_filter.is_empty() {
-            self.available_profiles.iter().collect()
-        } else {
-            let filter_lower = self.profile_filter.to_lowercase();
-            self.available_profiles
-                .iter()
-                .filter(|p| p.to_lowercase().contains(&filter_lower))
-                .collect()
-        }
-    }
-
-    /// Get filtered region list based on current filter
-    pub fn filtered_regions(&self) -> Vec<&String> {
-        if self.region_filter.is_empty() {
-            self.available_regions.iter().collect()
-        } else {
-            let filter_lower = self.region_filter.to_lowercase();
-            self.available_regions
-                .iter()
-                .filter(|r| r.to_lowercase().contains(&filter_lower))
-                .collect()
         }
     }
 

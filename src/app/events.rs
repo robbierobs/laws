@@ -291,18 +291,23 @@ impl App {
                 self.profile = profile;
                 self.region = region.clone();
                 self.read_only = read_only;
-                self.pending_read_only = read_only;
+                self.profile_switcher.pending_read_only = read_only;
 
                 // Update profile/region indices
-                if let Some(idx) = self.available_profiles.iter().position(|p| {
+                if let Some(idx) = self.profile_switcher.available_profiles.iter().position(|p| {
                     self.profile
                         .as_ref()
                         .map_or(p == "default", |prof| p == prof)
                 }) {
-                    self.profile_switcher_index = idx;
+                    self.profile_switcher.profile_switcher_index = idx;
                 }
-                if let Some(idx) = self.available_regions.iter().position(|r| r == &region) {
-                    self.region_switcher_index = idx;
+                if let Some(idx) = self
+                    .profile_switcher
+                    .available_regions
+                    .iter()
+                    .position(|r| r == &region)
+                {
+                    self.profile_switcher.region_switcher_index = idx;
                 }
 
                 // Clear all service data to force refresh

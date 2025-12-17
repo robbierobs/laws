@@ -1,7 +1,7 @@
 //! Global Search modal input handling
 
 use crate::app::global_search::GlobalSearchState;
-use crate::app::{Message, Service};
+use crate::app::Service;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// Result of handling Global Search input

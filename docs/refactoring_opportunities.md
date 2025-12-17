@@ -284,8 +284,14 @@ This reduced duplicates and standardized the deletion flow (log action -> spawn 
 
 **Summary**: 
 - Reduced clippy warnings from 12 to 2
-- Reduced `input.rs` from 1043 to 793 lines (250 lines extracted, 24% reduction)
-- Created `input_handlers/` module with 6 focused handler files
+
+- Reduced `input.rs` from 1043 to ~670 lines (350+ lines extracted, 35% reduction)
+- Created `input_handlers/` module with 7 focused handler files
 - Standardized IAM deletion logic
+
+### 8. Profile Switcher Refactoring (New)
+Created `src/app/profile_switcher.rs` to encapsulate profile/region state (moved 10 fields from `App` struct).
+Extracted input handling to `src/app/input_handlers/profile_switcher.rs` (115 lines).
+Updated `src/app/input.rs` to delegate to the new handler, further decoupling the monolithic input handler.
 
 The remaining enum variant warnings require boxing `AwsEvent` (~100 call sites).

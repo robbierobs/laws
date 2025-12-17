@@ -10,10 +10,12 @@ mod ecs_task_def_selector;
 mod global_search;
 mod s3_bucket_creation;
 mod s3_viewer;
+pub mod profile_switcher;
 
 pub use action_log::{handle_action_log_input, ActionLogState};
 pub use ecs_service_editor::{handle_ecs_service_editor_input, EcsEditorResult};
 pub use ecs_task_def_selector::{handle_ecs_task_def_selector_input, EcsTaskDefSelectorResult};
 pub use global_search::{handle_global_search_input, GlobalSearchInputResult};
-pub use s3_bucket_creation::{handle_s3_bucket_creation_input, process_bucket_creation_result};
+pub use s3_bucket_creation::{handle_s3_bucket_creation_input, S3BucketCreationResult};
 pub use s3_viewer::handle_s3_viewer_input;
+pub use profile_switcher::{handle_profile_selection_input, handle_region_selection_input, ProfileSwitcherResult};
