@@ -453,8 +453,10 @@ impl App {
             return;
         };
 
-        let mut loading_details = crate::models::s3::S3BucketDetails::default();
-        loading_details.loading = true;
+        let loading_details = crate::models::s3::S3BucketDetails {
+            loading: true,
+            ..Default::default()
+        };
         self.services
             .s3
             .bucket_details

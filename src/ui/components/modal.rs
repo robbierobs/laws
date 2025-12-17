@@ -29,7 +29,7 @@ pub fn render_confirmation_modal(frame: &mut Frame, area: Rect, action_descripti
         .border_style(Style::default().fg(THEME.warning));
 
     // Use fixed size that ensures content fits
-    let popup_width = area.width.min(60).max(40);
+    let popup_width = area.width.clamp(40, 60);
     let popup_height = 9u16; // Fixed height for 5 lines + border + padding
 
     let popup_area = centered_rect_fixed(popup_width, popup_height, area);
@@ -282,7 +282,7 @@ pub fn render_s3_bucket_creation_modal(frame: &mut Frame, area: Rect, bucket_nam
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.primary));
 
-    let popup_width = area.width.min(60).max(40);
+    let popup_width = area.width.clamp(40, 60);
     let popup_height = 11u16;
 
     let popup_area = centered_rect_fixed(popup_width, popup_height, area);

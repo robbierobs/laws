@@ -1,3 +1,10 @@
+//! ECS service update handlers
+//!
+//! These handlers have multiple parameters that mirror the EcsAction
+//! enum structure and are called from a single dispatch point.
+
+#![allow(clippy::too_many_arguments)]
+
 use crate::app::task_manager::task_keys;
 use crate::app::{App, EventSender};
 use crate::event::{AwsEvent, Event};

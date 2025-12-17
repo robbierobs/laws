@@ -2,6 +2,8 @@
 //!
 //! Provides a reusable detail panel with scrolling support and consistent styling.
 
+#![allow(clippy::too_many_arguments)]
+
 use ratatui::{
     layout::Rect,
     style::Style,
