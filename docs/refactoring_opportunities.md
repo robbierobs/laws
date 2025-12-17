@@ -260,12 +260,19 @@ AWS service names (EC2, S3, RDS, VPC, IAM, ECS, ECR) conventionally use capital 
 
 ### 6. Modal Input Handlers Extraction
 Created `src/app/input_handlers/` module to extract modal-specific input handling:
-- `s3_viewer.rs` - S3 object viewer keyboard handling (43 lines)
+- `s3_viewer.rs` - S3 object viewer keyboard handling (53 lines)
 - `s3_bucket_creation.rs` - S3 bucket creation modal (62 lines)
 - `action_log.rs` - Action log popup navigation (56 lines)
+- `ecs_service_editor.rs` - ECS service modification form (114 lines)
+- `ecs_task_def_selector.rs` - ECS task definition selector (84 lines)
+- `global_search.rs` - Global search functionality (59 lines)
 
-Total: ~160 lines extracted into focused, testable modules.
-Remaining extractable modals: ECS editor, global search, profile switcher.
+Total: ~430 lines extracted into focused, testable modules.
+Remaining extractable modals: profile switcher (complex dependencies).
+
+### 7. Generic Delete Handler (IAM)
+Refactored repetitive delete handlers in `src/app/update/iam.rs` (User, Role, Policy) to use a generic `perform_iam_delete` helper method. 
+This reduced duplicates and standardized the deletion flow (log action -> spawn task -> execute -> refresh).
 
 ---
 
@@ -277,7 +284,8 @@ Remaining extractable modals: ECS editor, global search, profile switcher.
 
 **Summary**: 
 - Reduced clippy warnings from 12 to 2
-- Reduced `input.rs` from 1043 to 937 lines (106 lines extracted, 10% reduction)
-- Created `input_handlers/` module with 3 focused handler files
+- Reduced `input.rs` from 1043 to 793 lines (250 lines extracted, 24% reduction)
+- Created `input_handlers/` module with 6 focused handler files
+- Standardized IAM deletion logic
 
 The remaining enum variant warnings require boxing `AwsEvent` (~100 call sites).

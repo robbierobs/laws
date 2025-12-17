@@ -256,200 +256,55 @@ impl App {
 
         // Handle ECS service editor modal
         if self.input_mode == InputMode::EcsServiceEditor {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_ecs_service_editor_input, EcsEditorResult};
+            match handle_ecs_service_editor_input(&mut self.services.ecs, key) {
+                EcsEditorResult::Continue => {}
+                EcsEditorResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.services.ecs.reset_service_editor();
                 }
-                KeyCode::Tab | KeyCode::Down => {
-                    // Cycle through fields: 0=task_def, 1=cpu, 2=memory, 3=force_deploy
-                    self.services.ecs.service_editor.active_field =
-                        (self.services.ecs.service_editor.active_field + 1) % 4;
+                EcsEditorResult::Update(msg) => {
+                    self.input_mode = InputMode::Normal;
+                    return Some(msg);
                 }
-                KeyCode::BackTab | KeyCode::Up => {
-                    // Cycle backwards
-                    self.services.ecs.service_editor.active_field =
-                        (self.services.ecs.service_editor.active_field + 3) % 4;
+                EcsEditorResult::Error(err) => {
+                    self.error_message = Some(err);
                 }
-                KeyCode::Char(' ') => {
-                    // Toggle force deploy if on that field
-                    if self.services.ecs.service_editor.active_field == 3 {
-                        self.services.ecs.service_editor.toggle_force_deploy();
-                    }
-                }
-                KeyCode::Backspace => match self.services.ecs.service_editor.active_field {
-                    0 => {
-                        self.services.ecs.service_editor.task_def.pop();
-                    }
-                    1 => {
-                        self.services.ecs.service_editor.cpu.pop();
-                    }
-                    2 => {
-                        self.services.ecs.service_editor.memory.pop();
-                    }
-                    _ => {}
-                },
-                KeyCode::Char(c) => {
-                    match self.services.ecs.service_editor.active_field {
-                        0 => self.services.ecs.service_editor.task_def.push(c),
-                        1 => {
-                            // Only allow digits for CPU
-                            if c.is_ascii_digit() {
-                                self.services.ecs.service_editor.cpu.push(c);
-                            }
-                        }
-                        2 => {
-                            // Only allow digits for memory
-                            if c.is_ascii_digit() {
-                                self.services.ecs.service_editor.memory.push(c);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                KeyCode::Enter => {
-                    // Submit the update
-                    if let (Some(cluster_arn), Some(service_name)) = (
-                        self.services.ecs.selected_cluster_arn.clone(),
-                        self.services.ecs.service_editor.service_name.clone(),
-                    ) {
-                        let task_def = if self.services.ecs.service_editor.task_def.is_empty() {
-                            None
-                        } else {
-                            Some(self.services.ecs.service_editor.task_def.clone())
-                        };
-                        let cpu = if self.services.ecs.service_editor.cpu.is_empty() {
-                            None
-                        } else {
-                            Some(self.services.ecs.service_editor.cpu.clone())
-                        };
-                        let memory = if self.services.ecs.service_editor.memory.is_empty() {
-                            None
-                        } else {
-                            Some(self.services.ecs.service_editor.memory.clone())
-                        };
-                        let force_deploy = self.services.ecs.service_editor.force_deploy;
-
-                        // Only submit if at least one field has a value
-                        if task_def.is_some() || cpu.is_some() || memory.is_some() {
-                            self.input_mode = InputMode::Normal;
-                            self.services.ecs.reset_service_editor();
-                            return Some(Message::ecs_update_service(
-                                cluster_arn,
-                                service_name,
-                                task_def,
-                                cpu,
-                                memory,
-                                force_deploy,
-                            ));
-                        } else {
-                            self.error_message =
-                                Some("Please specify at least one change".to_string());
-                        }
-                    }
-                }
-                _ => {}
             }
             return None;
         }
 
         // Handle ECS task definition selector modal
         if self.input_mode == InputMode::EcsTaskDefSelector {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_ecs_task_def_selector_input, EcsTaskDefSelectorResult};
+            match handle_ecs_task_def_selector_input(&mut self.services.ecs, key) {
+                EcsTaskDefSelectorResult::Continue => {}
+                EcsTaskDefSelectorResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.services.ecs.reset_task_def_selector();
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    self.services.ecs.task_def_selector.nav_down();
+                EcsTaskDefSelectorResult::SelectWithConfirmation(msg) => {
+                    self.input_mode = InputMode::Normal;
+                    // Request confirmation for the task definition change
+                    return self.request_action(msg);
                 }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    self.services.ecs.task_def_selector.nav_up();
-                }
-                KeyCode::Char('f') | KeyCode::Char('F') => {
-                    // Toggle force new deployment
-                    self.services.ecs.task_def_selector.toggle_force_deploy();
-                }
-                KeyCode::PageDown => {
-                    self.services.ecs.task_def_selector.scroll_down(5);
-                }
-                KeyCode::PageUp => {
-                    self.services.ecs.task_def_selector.scroll_up(5);
-                }
-                KeyCode::Char('l') | KeyCode::Right => {
-                    // Scroll detail pane down
-                    self.services.ecs.task_def_selector.scroll_down(1);
-                }
-                KeyCode::Char('h') | KeyCode::Left => {
-                    // Scroll detail pane up
-                    self.services.ecs.task_def_selector.scroll_up(1);
-                }
-                KeyCode::Enter => {
-                    // Submit the selection - request confirmation
-                    if let (Some(cluster_arn), Some(service_name), Some(task_def)) = (
-                        self.services.ecs.selected_cluster_arn.clone(),
-                        self.services.ecs.task_def_selector.service_name.clone(),
-                        self.services
-                            .ecs
-                            .task_def_selector
-                            .selected()
-                            .map(|td| td.task_definition_arn.clone()),
-                    ) {
-                        let force_deploy = self.services.ecs.task_def_selector.force_deploy;
-                        self.input_mode = InputMode::Normal;
-                        self.services.ecs.reset_task_def_selector();
-
-                        // Request confirmation for the task definition change
-                        return self.request_action(Message::ecs_update_service(
-                            cluster_arn,
-                            service_name,
-                            Some(task_def),
-                            None,
-                            None,
-                            force_deploy,
-                        ));
-                    }
-                }
-                _ => {}
             }
             return None;
         }
 
         // Handle global search modal
         if self.input_mode == InputMode::GlobalSearch {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_global_search_input, GlobalSearchInputResult};
+            match handle_global_search_input(&mut self.global_search, key) {
+                GlobalSearchInputResult::Continue => {}
+                GlobalSearchInputResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.global_search.clear();
                 }
-                KeyCode::Down | KeyCode::Char('j')
-                    if key.modifiers.is_empty() || self.global_search.query.is_empty() =>
-                {
-                    self.global_search.nav_down();
+                GlobalSearchInputResult::Select(service, resource_id) => {
+                    self.input_mode = InputMode::Normal;
+                    return Some(Message::goto_search_result(service, resource_id));
                 }
-                KeyCode::Up | KeyCode::Char('k')
-                    if key.modifiers.is_empty() || self.global_search.query.is_empty() =>
-                {
-                    self.global_search.nav_up();
-                }
-                KeyCode::Enter => {
-                    if let Some(result) = self.global_search.selected() {
-                        let service = result.service;
-                        let resource_id = result.primary_id.clone();
-                        self.input_mode = InputMode::Normal;
-                        self.global_search.clear();
-                        return Some(Message::goto_search_result(service, resource_id));
-                    }
-                }
-                KeyCode::Backspace => {
-                    self.global_search.query.pop();
+                GlobalSearchInputResult::QueryChanged => {
                     self.refresh_global_search();
                 }
-                KeyCode::Char(c) => {
-                    self.global_search.query.push(c);
-                    self.refresh_global_search();
-                }
-                _ => {}
             }
             return None;
         }

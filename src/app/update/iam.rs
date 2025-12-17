@@ -146,16 +146,23 @@ impl App {
         self.services.iam.selected_entity_name = None;
         self.services.iam.list_state.select(Some(0));
     }
-    pub(super) fn handle_delete_iam_user(&mut self, user_name: String, event_tx: crate::app::EventSender) {
-        self.action_log.push(format!("Deleting IAM User: {}", user_name));
+    fn perform_iam_delete<F, Fut>(
+        &mut self,
+        log_desc: String,
+        success_msg: String,
+        event_tx: crate::app::EventSender,
+        action: F,
+    ) where
+        F: FnOnce(crate::aws::iam::IamService) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = crate::error::AppResult<()>> + Send,
+    {
+        self.action_log.push(format!("Deleting IAM {}", log_desc));
         
         self.spawn_aws_task(event_tx, task_keys::IAM_ACTION, move |clients, tx| async move {
             let service = crate::aws::iam::IamService::new(clients.iam.clone());
-            match service.delete_user(&user_name).await {
+            match action(service).await {
                 Ok(_) => {
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(
-                        format!("User {} deleted", user_name)
-                    ))).await.ok();
+                    tx.send(Event::Aws(AwsEvent::ActionCompleted(success_msg))).await.ok();
                     // Trigger refresh
                     tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                 }
@@ -164,45 +171,35 @@ impl App {
                 }
             }
         });
+    }
+
+    pub(super) fn handle_delete_iam_user(&mut self, user_name: String, event_tx: crate::app::EventSender) {
+        let name = user_name.clone();
+        self.perform_iam_delete(
+            format!("User: {}", user_name),
+            format!("User {} deleted", user_name),
+            event_tx,
+            move |service| async move { service.delete_user(&name).await },
+        );
     }
 
     pub(super) fn handle_delete_iam_role(&mut self, role_name: String, event_tx: crate::app::EventSender) {
-        self.action_log.push(format!("Deleting IAM Role: {}", role_name));
-        
-        self.spawn_aws_task(event_tx, task_keys::IAM_ACTION, move |clients, tx| async move {
-            let service = crate::aws::iam::IamService::new(clients.iam.clone());
-            match service.delete_role(&role_name).await {
-                Ok(_) => {
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(
-                        format!("Role {} deleted", role_name)
-                    ))).await.ok();
-                    // Trigger refresh
-                    tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
-                }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
-                }
-            }
-        });
+        let name = role_name.clone();
+        self.perform_iam_delete(
+            format!("Role: {}", role_name),
+            format!("Role {} deleted", role_name),
+            event_tx,
+            move |service| async move { service.delete_role(&name).await },
+        );
     }
 
     pub(super) fn handle_delete_iam_policy(&mut self, policy_arn: String, event_tx: crate::app::EventSender) {
-        self.action_log.push(format!("Deleting IAM Policy: {}", policy_arn));
-        
-        self.spawn_aws_task(event_tx, task_keys::IAM_ACTION, move |clients, tx| async move {
-            let service = crate::aws::iam::IamService::new(clients.iam.clone());
-            match service.delete_policy(&policy_arn).await {
-                Ok(_) => {
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(
-                        format!("Policy {} deleted", policy_arn)
-                    ))).await.ok();
-                    // Trigger refresh
-                    tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
-                }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
-                }
-            }
-        });
+        let arn = policy_arn.clone();
+        self.perform_iam_delete(
+            format!("Policy: {}", policy_arn),
+            format!("Policy {} deleted", policy_arn),
+            event_tx,
+            move |service| async move { service.delete_policy(&arn).await },
+        );
     }
 }
