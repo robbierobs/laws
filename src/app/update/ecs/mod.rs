@@ -7,20 +7,19 @@ use crate::app::messages::EcsAction;
 use crate::app::{App, EventSender};
 
 impl App {
-    pub async fn handle_ecs_action(&mut self, action: EcsAction, event_tx: EventSender) {
+    pub fn handle_ecs_action(&mut self, action: EcsAction, event_tx: EventSender) {
         match action {
             // ================================================================
             // Navigation Actions
             // ================================================================
             EcsAction::ViewServices(cluster_arn) => {
-                self.handle_ecs_view_services(cluster_arn, event_tx).await;
+                self.handle_ecs_view_services(cluster_arn, event_tx);
             }
             EcsAction::ViewTasks(service_arn) => {
-                self.handle_ecs_view_tasks(service_arn, event_tx).await;
+                self.handle_ecs_view_tasks(service_arn, event_tx);
             }
             EcsAction::ViewTaskDefinition(task_definition_arn) => {
-                self.handle_ecs_view_task_definition(task_definition_arn, event_tx)
-                    .await;
+                self.handle_ecs_view_task_definition(task_definition_arn, event_tx);
             }
             EcsAction::BackToClusters => {
                 self.handle_ecs_back_to_clusters();
@@ -45,15 +44,13 @@ impl App {
                     service_name,
                     desired_count,
                     event_tx,
-                )
-                .await;
+                );
             }
             EcsAction::ForceNewDeployment {
                 cluster_arn,
                 service_name,
             } => {
-                self.handle_ecs_force_new_deployment(cluster_arn, service_name, event_tx)
-                    .await;
+                self.handle_ecs_force_new_deployment(cluster_arn, service_name, event_tx);
             }
 
             // ================================================================
@@ -63,24 +60,20 @@ impl App {
                 cluster_arn,
                 task_arn,
             } => {
-                self.handle_ecs_stop_task(cluster_arn, task_arn, event_tx)
-                    .await;
+                self.handle_ecs_stop_task(cluster_arn, task_arn, event_tx);
             }
 
             // ================================================================
             // Task Definition Actions
             // ================================================================
             EcsAction::DeregisterTaskDefinition(task_definition_arn) => {
-                self.handle_ecs_deregister_task_definition(task_definition_arn, event_tx)
-                    .await;
+                self.handle_ecs_deregister_task_definition(task_definition_arn, event_tx);
             }
             EcsAction::EditTaskDefinition(task_definition_arn) => {
-                self.handle_ecs_edit_task_definition(task_definition_arn, event_tx)
-                    .await;
+                self.handle_ecs_edit_task_definition(task_definition_arn, event_tx);
             }
             EcsAction::ListTaskDefinitions(family) => {
-                self.handle_ecs_list_task_definitions(family, event_tx)
-                    .await;
+                self.handle_ecs_list_task_definitions(family, event_tx);
             }
             EcsAction::UpdateServiceTaskDefinition {
                 cluster_arn,
@@ -92,8 +85,7 @@ impl App {
                     service_name,
                     task_definition_arn,
                     event_tx,
-                )
-                .await;
+                );
             }
             EcsAction::UpdateService {
                 cluster_arn,
@@ -111,11 +103,10 @@ impl App {
                     memory,
                     force_new_deployment,
                     event_tx,
-                )
-                .await;
+                );
             }
             EcsAction::LoadTaskDefinitionsForSelector(family) => {
-                self.handle_load_task_definitions_for_selector(family, event_tx).await;
+                self.handle_load_task_definitions_for_selector(family, event_tx);
             }
         }
     }

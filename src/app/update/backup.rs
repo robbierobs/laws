@@ -5,10 +5,10 @@ use crate::app::messages::BackupAction;
 use crate::app::BackupViewMode;
 
 impl App {
-    pub async fn handle_backup_action(&mut self, action: BackupAction, event_tx: EventSender) {
+    pub fn handle_backup_action(&mut self, action: BackupAction, event_tx: EventSender) {
         match action {
             BackupAction::LoadRecoveryPoints(vault_name) => {
-                self.handle_backup_load_recovery_points(vault_name, event_tx).await;
+                self.handle_backup_load_recovery_points(vault_name, event_tx);
             }
             BackupAction::LeaveVault => {
                 self.handle_backup_leave_vault();
@@ -16,7 +16,7 @@ impl App {
         }
     }
 
-    pub async fn handle_backup_load_recovery_points(&mut self, vault_name: String, event_tx: EventSender) {
+    pub fn handle_backup_load_recovery_points(&mut self, vault_name: String, event_tx: EventSender) {
         self.services.backup.view_mode = BackupViewMode::RecoveryPoints;
         self.services.backup.recovery_points.clear();
         self.services.backup.list_state.select(None);

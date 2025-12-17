@@ -308,6 +308,9 @@ pub mod task_keys {
     pub const ECR_REFRESH: &str = "ecr:refresh";
     pub const ECR_IMAGES: &str = "ecr:images";
     pub const ECR_ACTION: &str = "ecr:action";
+    
+    // Global tasks
+    pub const PROFILE_SWITCH: &str = "global:profile_switch";
 }
 
 #[cfg(test)]

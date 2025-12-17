@@ -102,6 +102,17 @@ pub enum AwsEvent {
     },
     EcrRepositoriesLoaded(Vec<EcrRepository>),
     EcrImagesLoaded(Vec<EcrImage>),
+    /// Profile/region switch completed with new AWS clients
+    ProfileRegionSwitched {
+        clients: crate::aws::client::AwsClients,
+        profile: Option<String>,
+        region: String,
+        read_only: bool,
+        /// Log messages from SSO login process
+        sso_messages: Vec<String>,
+    },
+    /// Profile/region switch failed
+    ProfileRegionSwitchFailed(String),
     ActionCompleted(String), // Message to display
     Error(String),
 }

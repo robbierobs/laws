@@ -3,14 +3,14 @@
 //! Handles application-wide messages like navigation, refresh, profile switching.
 
 use super::super::task_manager::task_keys;
-use super::super::{App, GlobalMessage, InputMode, Message, Service};
+use super::super::{App, GlobalMessage, InputMode, Service};
 use super::refresh::spawn_list_task;
 use crate::aws::traits::AwsService;
 use crate::event::{AwsEvent, Event};
 
 impl App {
     /// Handle global (non-service-specific) messages
-    pub(super) async fn handle_global_message(
+    pub(super) fn handle_global_message(
         &mut self,
         message: GlobalMessage,
         event_tx: crate::app::EventSender,
@@ -20,12 +20,12 @@ impl App {
             GlobalMessage::Navigate(service) => {
                 self.current_service = service;
                 self.sidebar.select_service(service);
-                self.update(Message::refresh(), event_tx).await;
+                self.handle_refresh_data(event_tx);
             }
             GlobalMessage::ConfirmAction => {
                 if let Some(action) = self.pending_action.take() {
                     self.show_confirmation = false;
-                    self.update(action, event_tx).await;
+                    self.update(action, event_tx);
                 }
             }
             GlobalMessage::CancelAction => {
@@ -33,7 +33,7 @@ impl App {
                 self.show_confirmation = false;
             }
             GlobalMessage::RefreshData => {
-                self.handle_refresh_data(event_tx.clone()).await;
+                self.handle_refresh_data(event_tx.clone());
             }
             GlobalMessage::ToggleDetailPanel => {
                 self.detail_panel_visible = !self.detail_panel_visible;
@@ -75,8 +75,7 @@ impl App {
                 region,
                 read_only,
             } => {
-                self.handle_switch_profile_region(profile, region, read_only, event_tx)
-                    .await;
+                self.handle_switch_profile_region(profile, region, read_only, event_tx);
             }
             GlobalMessage::CopyToClipboard(text) => {
                 match arboard::Clipboard::new() {
@@ -101,7 +100,7 @@ impl App {
                 self.global_search.clear();
                 self.global_search.loading = true;
                 // Trigger data load for all services
-                self.refresh_all_services_for_search(event_tx.clone()).await;
+                self.refresh_all_services_for_search(event_tx.clone());
                 // Pre-populate with all currently loaded results
                 self.refresh_global_search();
             }
@@ -127,7 +126,7 @@ impl App {
                 ));
 
                 // Refresh data for the service
-                self.update(Message::refresh(), event_tx).await;
+                self.handle_refresh_data(event_tx);
             }
         }
     }
@@ -153,7 +152,11 @@ impl App {
         self.region_filter_active = false;
     }
 
-    async fn handle_switch_profile_region(
+    /// Spawn a background task to switch profile/region
+    /// 
+    /// This performs SSO login (if needed) and AWS client creation in a background
+    /// task, then sends a ProfileRegionSwitched event when complete.
+    fn handle_switch_profile_region(
         &mut self,
         profile: Option<String>,
         region: String,
@@ -161,86 +164,84 @@ impl App {
         event_tx: crate::app::EventSender,
     ) {
         self.input_mode = InputMode::Normal;
-
-        // Check if profile uses SSO and run login if needed
+        self.loading = true;
+        
         let profile_name = profile.clone().unwrap_or_else(|| "default".to_string());
-        if crate::utils::aws_profiles::is_sso_profile(&profile_name) {
-            self.action_log
-                .push(format!("Running SSO login for profile: {}", profile_name));
-            let sso_result = tokio::process::Command::new("aws")
-                .args(["sso", "login", "--profile", &profile_name])
-                .output()
-                .await;
+        self.action_log.push(format!(
+            "Switching to profile: {}, region: {}...",
+            profile_name, region
+        ));
+        
+        // Clone values for async task
+        let profile_clone = profile.clone();
+        let region_clone = region.clone();
+        let is_sso = crate::utils::aws_profiles::is_sso_profile(&profile_name);
+        
+        let handle = tokio::spawn(async move {
+            let mut sso_messages = Vec::new();
+            
+            // Check if profile uses SSO and run login if needed
+            if is_sso {
+                sso_messages.push(format!("Running SSO login for profile: {}", profile_name));
+                let sso_result = tokio::process::Command::new("aws")
+                    .args(["sso", "login", "--profile", &profile_name])
+                    .output()
+                    .await;
 
-            match sso_result {
-                Ok(output) => {
-                    if output.status.success() {
-                        self.action_log.push(format!(
-                            "SSO login successful for profile: {}",
-                            profile_name
-                        ));
-                    } else {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        self.action_log
-                            .push(format!("SSO login warning: {}", stderr.trim()));
+                match sso_result {
+                    Ok(output) => {
+                        if output.status.success() {
+                            sso_messages.push(format!(
+                                "SSO login successful for profile: {}",
+                                profile_name
+                            ));
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            sso_messages.push(format!("SSO login warning: {}", stderr.trim()));
+                        }
+                    }
+                    Err(e) => {
+                        sso_messages.push(format!("SSO login error: {}", e));
                     }
                 }
+            }
+
+            // Create new AWS clients with the new profile and region
+            let new_clients = crate::aws::client::AwsClients::new(
+                profile_clone.as_deref(),
+                Some(region_clone.as_str()),
+                None,
+            )
+            .await;
+
+            match new_clients {
+                Ok(clients) => {
+                    event_tx
+                        .send(Event::Aws(AwsEvent::ProfileRegionSwitched {
+                            clients,
+                            profile: profile_clone,
+                            region: region_clone,
+                            read_only,
+                            sso_messages,
+                        }))
+                        .await
+                        .ok();
+                }
                 Err(e) => {
-                    self.action_log.push(format!("SSO login error: {}", e));
+                    event_tx
+                        .send(Event::Aws(AwsEvent::ProfileRegionSwitchFailed(
+                            e.to_string(),
+                        )))
+                        .await
+                        .ok();
                 }
             }
-        }
-
-        // Create new AWS clients with the new profile and region
-        self.loading = true;
-        let new_clients =
-            crate::aws::client::AwsClients::new(profile.as_deref(), Some(region.as_str()), None)
-                .await;
-
-        match new_clients {
-            Ok(clients) => {
-                self.aws_clients = Some(clients);
-                self.profile = profile;
-                self.region = region.clone();
-                self.read_only = read_only;
-                self.pending_read_only = read_only;
-
-                // Update profile/region indices
-                if let Some(idx) = self.available_profiles.iter().position(|p| {
-                    self.profile
-                        .as_ref()
-                        .map_or(p == "default", |prof| p == prof)
-                }) {
-                    self.profile_switcher_index = idx;
-                }
-                if let Some(idx) = self.available_regions.iter().position(|r| r == &region) {
-                    self.region_switcher_index = idx;
-                }
-
-                // Clear all service data to force refresh
-                self.services = super::super::states::ServiceStates::new();
-
-                let ro_status = if read_only { " [READ-ONLY]" } else { "" };
-                self.action_log.push(format!(
-                    "Switched to profile: {}, region: {}{}",
-                    self.profile.as_deref().unwrap_or("default"),
-                    self.region,
-                    ro_status
-                ));
-
-                // Refresh current service data
-                self.update(Message::refresh(), event_tx).await;
-            }
-            Err(e) => {
-                self.error_message = Some(format!("Failed to switch profile: {}", e));
-                self.action_log
-                    .push(format!("Failed to switch profile: {}", e));
-                self.loading = false;
-            }
-        }
+        });
+        
+        self.tasks.spawn(task_keys::PROFILE_SWITCH, handle);
     }
 
-    pub(super) async fn handle_refresh_data(&mut self, event_tx: crate::app::EventSender) {
+    pub(super) fn handle_refresh_data(&mut self, event_tx: crate::app::EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
         };
@@ -260,7 +261,7 @@ impl App {
             }
             Service::S3 => {
                 let clients = clients.clone();
-                self.handle_refresh_s3(&clients, event_tx).await;
+                self.handle_refresh_s3(&clients, event_tx);
             }
             Service::RDS => {
                 let client = clients.rds.clone();
@@ -456,7 +457,7 @@ impl App {
 
     /// Refresh all services in parallel for global search
     /// This ensures we have data from all services for comprehensive search results
-    async fn refresh_all_services_for_search(&mut self, event_tx: crate::app::EventSender) {
+    fn refresh_all_services_for_search(&mut self, event_tx: crate::app::EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
         };

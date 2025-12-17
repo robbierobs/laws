@@ -66,10 +66,10 @@ async fn main() -> anyhow::Result<()> {
 
     // If no profile was specified, open the profile switcher immediately
     if profile.is_none() {
-        app.update(Message::open_profile_switcher(), event_tx.clone()).await;
+        app.update(Message::open_profile_switcher(), event_tx.clone());
     } else {
         // Initial data load
-        app.update(Message::refresh(), event_tx.clone()).await;
+        app.update(Message::refresh(), event_tx.clone());
     }
 
     // Main loop
@@ -94,14 +94,14 @@ async fn main() -> anyhow::Result<()> {
                         break;
                     }
                     if let Some(msg) = app.handle_key(key) {
-                        app.update(msg, event_tx.clone()).await;
+                        app.update(msg, event_tx.clone());
                     }
                 }
                 Event::Tick => {
                     app.on_tick();
                     if app.should_refresh {
                         app.should_refresh = false;
-                        app.update(Message::refresh(), event_tx.clone()).await;
+                        app.update(Message::refresh(), event_tx.clone());
                     }
                 }
                 Event::Aws(aws_event) => {
@@ -118,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
                 Event::Message(msg) => {
-                    app.update(msg, event_tx.clone()).await;
+                    app.update(msg, event_tx.clone());
                 }
             }
         }

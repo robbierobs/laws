@@ -3,7 +3,7 @@ use crate::app::{App, EventSender};
 use crate::event::{AwsEvent, Event};
 
 impl App {
-    pub async fn handle_ecs_update_desired_count(
+    pub fn handle_ecs_update_desired_count(
         &mut self,
         cluster_arn: String,
         service_name: String,
@@ -57,7 +57,7 @@ impl App {
         );
     }
 
-    pub async fn handle_ecs_force_new_deployment(
+    pub fn handle_ecs_force_new_deployment(
         &mut self,
         cluster_arn: String,
         service_name: String,
@@ -111,7 +111,7 @@ impl App {
     }
 
     /// Handle updating an ECS service with optional task definition, CPU, and memory changes
-    pub async fn handle_ecs_update_service(
+    pub fn handle_ecs_update_service(
         &mut self,
         cluster_arn: String,
         service_name: String,

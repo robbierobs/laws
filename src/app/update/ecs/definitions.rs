@@ -4,7 +4,7 @@ use crate::event::{AwsEvent, Event};
 use std::sync::atomic::Ordering;
 
 impl App {
-    pub async fn handle_ecs_deregister_task_definition(
+    pub fn handle_ecs_deregister_task_definition(
         &mut self,
         task_definition_arn: String,
         event_tx: EventSender,
@@ -45,7 +45,7 @@ impl App {
 
     /// Phase 1: Download task definition for editing (async)
     /// This downloads and serializes the task definition, then sends an event when ready for editing
-    pub async fn handle_ecs_edit_task_definition(
+    pub fn handle_ecs_edit_task_definition(
         &mut self,
         task_definition_arn: String,
         event_tx: EventSender,
@@ -191,7 +191,7 @@ impl App {
         }
     }
 
-    pub async fn handle_ecs_list_task_definitions(&mut self, family: String, event_tx: EventSender) {
+    pub fn handle_ecs_list_task_definitions(&mut self, family: String, event_tx: EventSender) {
         let fam = family.clone();
         
         self.spawn_aws_task(
@@ -218,7 +218,7 @@ impl App {
         );
     }
 
-    pub async fn handle_ecs_update_service_task_definition(
+    pub fn handle_ecs_update_service_task_definition(
         &mut self,
         cluster_arn: String,
         service_name: String,
@@ -282,7 +282,7 @@ impl App {
         );
     }
 
-    pub async fn handle_load_task_definitions_for_selector(
+    pub fn handle_load_task_definitions_for_selector(
         &mut self,
         family: String,
         event_tx: EventSender,

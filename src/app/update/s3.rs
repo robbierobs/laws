@@ -9,7 +9,7 @@ use crate::event::{AwsEvent, Event};
 use std::sync::Arc;
 
 impl App {
-    pub(super) async fn handle_refresh_s3(
+    pub(super) fn handle_refresh_s3(
         &mut self,
         clients: &crate::aws::client::AwsClients,
         event_tx: crate::app::EventSender,
