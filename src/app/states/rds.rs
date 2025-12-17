@@ -29,6 +29,36 @@ impl RdsState {
     }
 }
 
+impl crate::app::global_search::Searchable for RdsState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+        for instance in &self.instances {
+            let mut result = SearchResult::new(
+                Service::RDS,
+                "RDS Instance",
+                &instance.db_instance_identifier,
+            );
+            result = result.with_secondary(instance.engine.clone());
+            results.push(result);
+        }
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for RdsState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        if let Some(idx) = self.instances.iter().position(|i| i.db_instance_identifier == resource_id) {
+            self.list_state.select(Some(idx));
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl ServiceInputHandler for RdsState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {

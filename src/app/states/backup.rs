@@ -56,6 +56,36 @@ impl BackupState {
     }
 }
 
+impl crate::app::global_search::Searchable for BackupState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+        // Backup Vaults
+        for vault in &self.vaults {
+            results.push(SearchResult::new(
+                Service::Backup,
+                "Backup Vault",
+                &vault.backup_vault_name,
+            ));
+        }
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for BackupState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        self.view_mode = BackupViewMode::Vaults;
+        if let Some(idx) = self.vaults.iter().position(|v| v.backup_vault_name == resource_id) {
+            self.list_state.select(Some(idx));
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl ServiceInputHandler for BackupState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         let len = match self.view_mode {

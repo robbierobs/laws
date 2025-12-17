@@ -25,6 +25,37 @@ impl LambdaState {
     }
 }
 
+impl crate::app::global_search::Searchable for LambdaState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+        for func in &self.functions {
+            let mut result =
+                SearchResult::new(Service::Lambda, "Lambda Function", &func.function_name);
+            if let Some(ref desc) = func.description {
+                if !desc.is_empty() {
+                    result = result.with_secondary(desc.clone());
+                }
+            }
+            results.push(result);
+        }
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for LambdaState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        if let Some(idx) = self.functions.iter().position(|f| f.function_name == resource_id) {
+            self.list_state.select(Some(idx));
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl ServiceInputHandler for LambdaState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         match key.code {

@@ -54,6 +54,70 @@ impl VpcState {
     }
 }
 
+impl crate::app::global_search::Searchable for VpcState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+
+        // VPCs
+        for vpc in &self.vpcs {
+            let name = vpc.name.clone().unwrap_or_default();
+            let mut result = SearchResult::new(Service::VPC, "VPC", &vpc.vpc_id);
+            if !name.is_empty() {
+                result = result.with_secondary(name);
+            }
+            results.push(result);
+        }
+
+        // Subnets
+        for subnet in &self.subnets {
+            let name = subnet.name.clone().unwrap_or_default();
+            let mut result = SearchResult::new(Service::VPC, "Subnet", &subnet.subnet_id);
+            if !name.is_empty() {
+                result = result.with_secondary(name);
+            }
+            results.push(result);
+        }
+
+        // Security Groups
+        for sg in &self.security_groups {
+            let mut result = SearchResult::new(Service::VPC, "Security Group", &sg.group_id);
+            result = result.with_secondary(sg.group_name.clone());
+            results.push(result);
+        }
+
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for VpcState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        // Detect resource type from ID prefix
+        if resource_id.starts_with("vpc-") {
+            self.view_mode = VpcViewMode::Vpcs;
+            if let Some(idx) = self.vpcs.iter().position(|v| v.vpc_id == resource_id) {
+                self.list_state.select(Some(idx));
+                return true;
+            }
+        } else if resource_id.starts_with("subnet-") {
+            self.view_mode = VpcViewMode::Subnets;
+            if let Some(idx) = self.subnets.iter().position(|s| s.subnet_id == resource_id) {
+                self.list_state.select(Some(idx));
+                return true;
+            }
+        } else if resource_id.starts_with("sg-") {
+            self.view_mode = VpcViewMode::SecurityGroups;
+            if let Some(idx) = self.security_groups.iter().position(|s| s.group_id == resource_id) {
+                self.list_state.select(Some(idx));
+                return true;
+            }
+        }
+        false
+    }
+}
+
 impl ServiceInputHandler for VpcState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         let len = match self.view_mode {
