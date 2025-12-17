@@ -258,12 +258,14 @@ Added `#![allow(clippy::too_many_arguments)]` to:
 Added `#![allow(clippy::upper_case_acronyms)]` to `src/app/messages.rs`.
 AWS service names (EC2, S3, RDS, VPC, IAM, ECS, ECR) conventionally use capital letters.
 
-### 6. Modal Input Handlers Extraction (Started)
+### 6. Modal Input Handlers Extraction
 Created `src/app/input_handlers/` module to extract modal-specific input handling:
-- `s3_viewer.rs` - S3 object viewer keyboard handling (43 lines extracted)
+- `s3_viewer.rs` - S3 object viewer keyboard handling (43 lines)
+- `s3_bucket_creation.rs` - S3 bucket creation modal (62 lines)
+- `action_log.rs` - Action log popup navigation (56 lines)
 
-This reduces the size of `input.rs` and makes modal handlers testable in isolation.
-Additional extractable modals: S3 bucket creation, action log, ECS editor, global search.
+Total: ~160 lines extracted into focused, testable modules.
+Remaining extractable modals: ECS editor, global search, profile switcher.
 
 ---
 
@@ -273,5 +275,9 @@ Additional extractable modals: S3 bucket creation, action log, ECS editor, globa
 |---------|-------|--------|
 | Large enum variants (Event, AwsEvent) | 2 | Needs Box refactoring (100+ sites) |
 
-**Summary**: Reduced clippy warnings from 12 to 2. Reduced `input.rs` from 1043 to 1000 lines.
+**Summary**: 
+- Reduced clippy warnings from 12 to 2
+- Reduced `input.rs` from 1043 to 937 lines (106 lines extracted, 10% reduction)
+- Created `input_handlers/` module with 3 focused handler files
+
 The remaining enum variant warnings require boxing `AwsEvent` (~100 call sites).

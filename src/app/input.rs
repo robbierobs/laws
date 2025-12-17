@@ -37,88 +37,26 @@ impl App {
 
         // Handle S3 bucket creation modal
         if self.input_mode == InputMode::S3BucketCreation {
-            match key.code {
-                KeyCode::Esc => {
-                    self.input_mode = InputMode::Normal;
-                    self.services.s3.reset_create_bucket_modal();
-                }
-                KeyCode::Enter => {
-                    // Sanitize: lowercase, replace whitespace with hyphen, keep only valid chars
-                    let name: String = self
-                        .services
-                        .s3
-                        .create_bucket_input
-                        .trim()
-                        .to_lowercase()
-                        .chars()
-                        .map(|c| if c.is_whitespace() { '-' } else { c })
-                        .filter(|c| {
-                            c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-' || *c == '.'
-                        })
-                        .collect();
-                    if !name.is_empty() {
-                        self.input_mode = InputMode::Normal;
-                        self.services.s3.show_create_bucket_modal = false;
-                        return Some(Message::s3_create_bucket(name));
-                    }
-                }
-                KeyCode::Backspace => {
-                    self.services.s3.create_bucket_input.pop();
-                }
-                KeyCode::Char(c) => {
-                    // Allow any character, sanitize on submit
-                    self.services.s3.create_bucket_input.push(c);
-                }
-                _ => {}
+            use super::input_handlers::{handle_s3_bucket_creation_input, process_bucket_creation_result};
+            let result = handle_s3_bucket_creation_input(&mut self.services.s3, key);
+            let (exit_modal, message) = process_bucket_creation_result(result);
+            if exit_modal {
+                self.input_mode = InputMode::Normal;
             }
-            return None;
+            return message;
         }
 
         // Handle action log popup navigation
         if self.action_log_expanded {
-            match key.code {
-                KeyCode::Char('A') | KeyCode::Esc => {
-                    self.action_log_expanded = false;
-                    self.action_log_selected_index = 0;
-                    self.action_log_detail_scroll = 0;
-                    return None;
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let max_idx = self.action_log.len().saturating_sub(1);
-                    if self.action_log_selected_index < max_idx {
-                        self.action_log_selected_index += 1;
-                        self.action_log_detail_scroll = 0; // Reset scroll on selection change
-                    }
-                    return None;
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if self.action_log_selected_index > 0 {
-                        self.action_log_selected_index -= 1;
-                        self.action_log_detail_scroll = 0; // Reset scroll on selection change
-                    }
-                    return None;
-                }
-                KeyCode::PageDown => {
-                    self.action_log_detail_scroll =
-                        self.action_log_detail_scroll.saturating_add(10);
-                    return None;
-                }
-                KeyCode::PageUp => {
-                    self.action_log_detail_scroll =
-                        self.action_log_detail_scroll.saturating_sub(10);
-                    return None;
-                }
-                KeyCode::Home | KeyCode::Char('g') => {
-                    self.action_log_detail_scroll = 0;
-                    return None;
-                }
-                KeyCode::Char('G') | KeyCode::End => {
-                    // Large value to scroll to end
-                    self.action_log_detail_scroll = u16::MAX;
-                    return None;
-                }
-                _ => return None,
-            }
+            use super::input_handlers::{handle_action_log_input, ActionLogState};
+            let mut state = ActionLogState {
+                expanded: &mut self.action_log_expanded,
+                selected_index: &mut self.action_log_selected_index,
+                detail_scroll: &mut self.action_log_detail_scroll,
+                log_len: self.action_log.len(),
+            };
+            handle_action_log_input(&mut state, key);
+            return None;
         }
 
         // Handle confirmation modal
