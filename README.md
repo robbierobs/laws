@@ -4,9 +4,8 @@ A keyboard-driven terminal UI for browsing and managing AWS resources. Think [la
 
 Built with Rust 🦀 + [Ratatui](https://ratatui.rs/).
 
-![LazyAWS Demo](docs/demo.gif) <!-- TODO: Add demo gif -->
-
-!CRITICAL: This is a work in progress and has largely been vibe coded. While I do have very good confidence in the instructions, specs, and context which I have been injecting into the agents, there is a chance that I, or the AI, have made some mistakes. Please use with caution and report any issues to me.
+> [!CAUTION]
+> This is a work in progress and has largely been vibed out with Antigravity, Kiro, etc. While I do have very good confidence in the instructions, specs, and context which I have been injecting into the agents, there is a chance that I, or the agentic coding, have made some mistakes. Please use with caution and report any issues to me.
 
 ## Why?
 
