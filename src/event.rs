@@ -57,7 +57,12 @@ pub enum AwsEvent {
     BackupJobsLoaded(Vec<BackupJob>),
     BackupRecoveryPointsLoaded(Vec<RecoveryPoint>),
     CloudTrailTrailsLoaded(Vec<Trail>),
-    CloudTrailEventsLoaded(Vec<CloudTrailEvent>),
+    CloudTrailEventsLoaded {
+        events: Vec<CloudTrailEvent>,
+        next_token: Option<String>,
+        /// If true, append to existing events (for "load more")
+        append: bool,
+    },
     SecretsManagerSecretsLoaded(Vec<Secret>),
     SecretsManagerSecretValueLoaded(String),
     EcsClustersLoaded(Vec<EcsCluster>),

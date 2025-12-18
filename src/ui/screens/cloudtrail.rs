@@ -42,6 +42,11 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
         }
     }
 
+    // Render filter modal if open
+    if app.services.cloudtrail.show_filter_modal {
+        render_filter_modal(frame, frame.area(), app);
+    }
+
     if app.services.cloudtrail.show_detail_modal {
         if let Some(json) = &app.services.cloudtrail.selected_event_detail {
             let title = app.services.cloudtrail.selected_event()
@@ -278,6 +283,27 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Row::new(cells).height(1)
         });
 
+    // Build dynamic title with status info
+    let event_count = app.services.cloudtrail.events.len();
+    let has_filters = !app.services.cloudtrail.current_filters.is_empty();
+    let has_more = app.services.cloudtrail.has_more_events;
+    let loading_more = app.services.cloudtrail.loading_more;
+    let sort_field = app.services.cloudtrail.sort_field.label();
+    let sort_dir = app.services.cloudtrail.sort_direction.label();
+    
+    let mut title_parts = vec![format!("CloudTrail Events ({}", event_count)];
+    if has_filters {
+        title_parts.push(" 🔍".to_string());
+    }
+    if loading_more {
+        title_parts.push(" ⏳".to_string());
+    } else if has_more {
+        title_parts.push(" 📥L".to_string());
+    }
+    // Show sort info
+    title_parts.push(format!(") ⇅{}{}  s:sort S:dir F:filter", sort_field, sort_dir));
+    let title = title_parts.join("");
+
     render_table(
         frame,
         area,
@@ -290,7 +316,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(20), // Username
             Constraint::Min(10),    // Read Only
         ],
-        "CloudTrail Events (v/h/l to switch view)",
+        &title,
         matches!(app.focus, crate::app::Focus::Main),
         &mut app.services.cloudtrail.list_state,
     );
@@ -367,4 +393,124 @@ fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
     }
 
     lines
+}
+
+/// Render the CloudTrail events filter modal
+fn render_filter_modal(frame: &mut Frame, area: Rect, app: &App) {
+    use ratatui::widgets::{Block, Borders, Paragraph, Clear};
+    use ratatui::layout::{Layout, Direction};
+    
+    let popup_area = centered_rect(area, 60, 70);
+    
+    // Clear the area behind the modal
+    frame.render_widget(Clear, popup_area);
+    
+    let block = Block::default()
+        .title(" CloudTrail Event Filters ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.secondary));
+    
+    let inner_area = block.inner(popup_area);
+    frame.render_widget(block, popup_area);
+    
+    // Split into rows for each field
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Start Date
+            Constraint::Length(3), // Start Time
+            Constraint::Length(3), // End Date
+            Constraint::Length(3), // End Time
+            Constraint::Length(3), // Event Source
+            Constraint::Length(3), // Event Name
+            Constraint::Length(3), // Username
+            Constraint::Length(3), // Read Only
+            Constraint::Min(2),    // Instructions
+        ])
+        .split(inner_area);
+    
+    let selected = app.services.cloudtrail.filter_modal_selected_field;
+    let inputs = &app.services.cloudtrail.filter_modal_inputs;
+    
+    // Field definitions: (label, value, is_selected)
+    let fields = [
+        ("Start Date (YYYY-MM-DD)", &inputs.start_date, selected == 0),
+        ("Start Time (HH:MM)", &inputs.start_time, selected == 1),
+        ("End Date (YYYY-MM-DD)", &inputs.end_date, selected == 2),
+        ("End Time (HH:MM)", &inputs.end_time, selected == 3),
+        ("Event Source (e.g., s3.amazonaws.com)", &inputs.event_source, selected == 4),
+        ("Event Name (e.g., CreateBucket)", &inputs.event_name, selected == 5),
+        ("Username", &inputs.username, selected == 6),
+    ];
+    
+    for (i, (label, value, is_selected)) in fields.iter().enumerate() {
+        render_input_field(frame, rows[i], label, value, *is_selected);
+    }
+    
+    // Read-only toggle (special handling)
+    let read_only_value = match inputs.read_only {
+        None => "All",
+        Some(true) => "Read Only",
+        Some(false) => "Write Only",
+    };
+    render_input_field(frame, rows[7], "Event Type (Space to toggle)", read_only_value, selected == 7);
+    
+    // Instructions
+    let instructions = Paragraph::new(Line::from(vec![
+        Span::styled("Tab", Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)),
+        Span::raw("/"),
+        Span::styled("↑↓", Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)),
+        Span::raw(": navigate  "),
+        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::raw(": apply  "),
+        Span::styled("Esc", Style::default().fg(THEME.warning).add_modifier(Modifier::BOLD)),
+        Span::raw(": cancel"),
+    ]))
+    .style(Style::default().fg(THEME.muted));
+    
+    frame.render_widget(instructions, rows[8]);
+}
+
+fn render_input_field(frame: &mut Frame, area: Rect, label: &str, value: &str, is_selected: bool) {
+    use ratatui::widgets::{Block, Borders, Paragraph};
+    
+    let style = if is_selected {
+        Style::default().fg(THEME.selection_fg).bg(THEME.selection_bg)
+    } else {
+        Style::default().fg(THEME.fg)
+    };
+    
+    let border_style = if is_selected {
+        Style::default().fg(THEME.primary)
+    } else {
+        Style::default().fg(THEME.muted)
+    };
+    
+    let display_value = if value.is_empty() && is_selected {
+        "█" // Cursor indicator
+    } else if value.is_empty() {
+        ""
+    } else if is_selected {
+        value
+    } else {
+        value
+    };
+    
+    // For selected field, show cursor at end
+    let display = if is_selected && !value.is_empty() {
+        format!("{}█", value)
+    } else {
+        display_value.to_string()
+    };
+    
+    let block = Block::default()
+        .title(format!(" {} ", label))
+        .borders(Borders::ALL)
+        .border_style(border_style);
+    
+    let input = Paragraph::new(display)
+        .style(style)
+        .block(block);
+    
+    frame.render_widget(input, area);
 }

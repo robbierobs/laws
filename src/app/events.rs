@@ -149,8 +149,22 @@ impl App {
                 self.loading = false;
                 self.update_global_search_for_event();
             }
-            AwsEvent::CloudTrailEventsLoaded(events) => {
-                self.services.cloudtrail.events = events;
+            AwsEvent::CloudTrailEventsLoaded { events, next_token, append } => {
+                if append {
+                    // Append to existing events (load more)
+                    self.services.cloudtrail.events.extend(events);
+                } else {
+                    // Replace events (fresh load or filter applied)
+                    self.services.cloudtrail.events = events;
+                    if !self.services.cloudtrail.events.is_empty() {
+                        self.services.cloudtrail.list_state.select(Some(0));
+                    }
+                }
+                // Apply current sort settings
+                self.services.cloudtrail.sort_events();
+                self.services.cloudtrail.next_token = next_token.clone();
+                self.services.cloudtrail.has_more_events = next_token.is_some();
+                self.services.cloudtrail.loading_more = false;
                 self.loading = false;
             }
             AwsEvent::SecretsManagerSecretsLoaded(secrets) => {

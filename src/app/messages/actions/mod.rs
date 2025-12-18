@@ -23,7 +23,7 @@ pub use lambda::LambdaAction;
 pub use vpc::VpcAction;
 pub use iam::IamAction;
 pub use backup::BackupAction;
-pub use cloudtrail::CloudTrailAction;
+pub use cloudtrail::{CloudTrailAction, CloudTrailLookupParams};
 pub use secretsmanager::SecretsManagerAction;
 pub use ecs::EcsAction;
 pub use ecr::EcrAction;

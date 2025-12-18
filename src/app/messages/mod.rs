@@ -25,7 +25,7 @@ pub use view_modes::{
 
 // Re-export action enums
 pub use actions::{
-    BackupAction, CloudTrailAction, DynamoDbAction, Ec2Action, EcrAction, EcsAction, IamAction,
+    BackupAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction, Ec2Action, EcrAction, EcsAction, IamAction,
     LambdaAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
 };
 
@@ -382,6 +382,23 @@ impl Message {
         )))
     }
 
+    pub fn cloudtrail_open_filter_modal() -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::OpenFilterModal))
+    }
+
+    pub fn cloudtrail_load_more_events() -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::LoadMoreEvents))
+    }
+
+    #[allow(dead_code)] // Used internally via direct Message construction
+    pub fn cloudtrail_apply_filters(params: CloudTrailLookupParams) -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::ApplyFilters(params)))
+    }
+
+    pub fn cloudtrail_clear_filters() -> Self {
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::ClearFilters))
+    }
+
     // SecretsManager message constructors
     pub fn secretsmanager_get_value(arn: String) -> Self {
         Message::Service(ServiceAction::SecretsManager(
@@ -547,6 +564,8 @@ pub enum InputMode {
     GlobalSearch,
     /// S3 bucket creation modal
     S3BucketCreation,
+    /// CloudTrail event filter modal
+    CloudTrailEventFilter,
 }
 
 #[cfg(test)]

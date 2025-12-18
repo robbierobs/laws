@@ -197,6 +197,60 @@ impl App {
             return None;
         }
 
+        // Handle CloudTrail event filter modal
+        if self.input_mode == InputMode::CloudTrailEventFilter {
+            use crate::app::messages::{CloudTrailAction, ServiceAction};
+            
+            match key.code {
+                KeyCode::Esc => {
+                    self.services.cloudtrail.show_filter_modal = false;
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Enter => {
+                    // Apply filters and close modal
+                    let params = self.services.cloudtrail.filter_modal_inputs.to_params();
+                    self.services.cloudtrail.show_filter_modal = false;
+                    self.input_mode = InputMode::Normal;
+                    return Some(Message::Service(ServiceAction::CloudTrail(
+                        CloudTrailAction::ApplyFilters(params),
+                    )));
+                }
+                KeyCode::Tab | KeyCode::Down => {
+                    // Move to next field
+                    self.services.cloudtrail.filter_modal_selected_field = 
+                        (self.services.cloudtrail.filter_modal_selected_field + 1) % 8;
+                }
+                KeyCode::BackTab | KeyCode::Up => {
+                    // Move to previous field
+                    self.services.cloudtrail.filter_modal_selected_field = 
+                        if self.services.cloudtrail.filter_modal_selected_field == 0 {
+                            7
+                        } else {
+                            self.services.cloudtrail.filter_modal_selected_field - 1
+                        };
+                }
+                // Toggle read_only with space when on that field
+                KeyCode::Char(' ') if self.services.cloudtrail.filter_modal_selected_field == 7 => {
+                    self.services.cloudtrail.filter_modal_inputs.read_only = 
+                        match self.services.cloudtrail.filter_modal_inputs.read_only {
+                            None => Some(true),
+                            Some(true) => Some(false),
+                            Some(false) => None,
+                        };
+                }
+                KeyCode::Char(c) => {
+                    // Add character to current field
+                    self.add_char_to_cloudtrail_filter(c);
+                }
+                KeyCode::Backspace => {
+                    // Remove character from current field
+                    self.remove_char_from_cloudtrail_filter();
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         if key.code == KeyCode::Tab {
             self.toggle_focus();
             return None;
@@ -331,6 +385,40 @@ impl App {
     // ====================================
     // Service-specific input handlers
     // ====================================
+
+    // ====================================
+    // CloudTrail filter modal helpers
+    // ====================================
+
+    fn add_char_to_cloudtrail_filter(&mut self, c: char) {
+        let inputs = &mut self.services.cloudtrail.filter_modal_inputs;
+        let field = match self.services.cloudtrail.filter_modal_selected_field {
+            0 => &mut inputs.start_date,
+            1 => &mut inputs.start_time,
+            2 => &mut inputs.end_date,
+            3 => &mut inputs.end_time,
+            4 => &mut inputs.event_source,
+            5 => &mut inputs.event_name,
+            6 => &mut inputs.username,
+            _ => return, // Field 7 is read_only toggle, handled separately
+        };
+        field.push(c);
+    }
+
+    fn remove_char_from_cloudtrail_filter(&mut self) {
+        let inputs = &mut self.services.cloudtrail.filter_modal_inputs;
+        let field = match self.services.cloudtrail.filter_modal_selected_field {
+            0 => &mut inputs.start_date,
+            1 => &mut inputs.start_time,
+            2 => &mut inputs.end_date,
+            3 => &mut inputs.end_time,
+            4 => &mut inputs.event_source,
+            5 => &mut inputs.event_name,
+            6 => &mut inputs.username,
+            _ => return,
+        };
+        field.pop();
+    }
 
     // ====================================
     // Global Search helpers
