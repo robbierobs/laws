@@ -30,32 +30,32 @@ impl App {
                     .await
                 {
                     Ok(()) => {
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(format!(
                             "Updated {} desired count to {}",
                             service, desired_count
-                        ))))
+                        )))))
                         .await
                         .ok();
 
                         // Refresh services list
                         match ecs_client.list_services(&cluster).await {
                             Ok(services) => {
-                                tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                                tx.send(Event::Aws(Box::new(AwsEvent::EcsServicesLoaded(services))))
                                     .await
                                     .ok();
                             }
                             Err(e) => {
-                                tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                                     .await
                                     .ok();
                             }
                         }
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to update {}: {}",
                             service, e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }
@@ -83,32 +83,32 @@ impl App {
                     .await
                 {
                     Ok(()) => {
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(format!(
                             "Forced new deployment for {}",
                             service
-                        ))))
+                        )))))
                         .await
                         .ok();
 
                         // Refresh services list
                         match ecs_client.list_services(&cluster).await {
                             Ok(services) => {
-                                tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                                tx.send(Event::Aws(Box::new(AwsEvent::EcsServicesLoaded(services))))
                                     .await
                                     .ok();
                             }
                             Err(e) => {
-                                tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                                     .await
                                     .ok();
                             }
                         }
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to force deployment for {}: {}",
                             service, e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }
@@ -166,34 +166,34 @@ impl App {
                 {
                     Ok(new_task_def_arn) => {
                         let short_arn = new_task_def_arn.split('/').next_back().unwrap_or(&new_task_def_arn);
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(format!(
                             "Updated {} - {} (using {})",
                             service,
                             changes.join(", "),
                             short_arn
-                        ))))
+                        )))))
                         .await
                         .ok();
 
                         // Refresh services list
                         match ecs_client.list_services(&cluster).await {
                             Ok(services) => {
-                                tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                                tx.send(Event::Aws(Box::new(AwsEvent::EcsServicesLoaded(services))))
                                     .await
                                     .ok();
                             }
                             Err(e) => {
-                                tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                                     .await
                                     .ok();
                             }
                         }
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to update {}: {}",
                             service, e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }

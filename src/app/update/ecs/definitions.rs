@@ -23,18 +23,18 @@ impl App {
                 let ecs_client = crate::aws::ecs::EcsClient::new(clients.ecs.clone());
                 match ecs_client.deregister_task_definition(&arn).await {
                     Ok(()) => {
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(format!(
                             "Deregistered task definition {}",
                             td_short
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to deregister task definition {}: {}",
                             td_short, e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }
@@ -62,10 +62,10 @@ impl App {
                 let task_def = match ecs_client.describe_task_definition(&arn).await {
                     Ok(td) => td,
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to fetch task definition: {}",
                             e
-                        ))))
+                        )))))
                         .await
                         .ok();
                         return;
@@ -76,10 +76,10 @@ impl App {
                 let json = match serde_json::to_string_pretty(&task_def) {
                     Ok(j) => j,
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to serialize task definition: {}",
                             e
-                        ))))
+                        )))))
                         .await
                         .ok();
                         return;
@@ -89,10 +89,10 @@ impl App {
                 // Write to temp file
                 let temp_dir = std::env::temp_dir().join("lazy_aws");
                 if let Err(e) = std::fs::create_dir_all(&temp_dir) {
-                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                         "Failed to create temp directory: {}",
                         e
-                    ))))
+                    )))))
                     .await
                     .ok();
                     return;
@@ -101,20 +101,20 @@ impl App {
                 let filename = format!("{}_taskdef.json", task_def.family);
                 let file_path = temp_dir.join(&filename);
                 if let Err(e) = std::fs::write(&file_path, &json) {
-                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                         "Failed to write temp file: {}",
                         e
-                    ))))
+                    )))))
                     .await
                     .ok();
                     return;
                 }
 
                 // Signal that file is ready for editing
-                tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionReadyForEdit {
+                tx.send(Event::Aws(Box::new(AwsEvent::EcsTaskDefinitionReadyForEdit {
                     family: task_def.family.clone(),
                     path: file_path.to_string_lossy().to_string(),
-                }))
+                })))
                 .await
                 .ok();
             }
@@ -157,18 +157,18 @@ impl App {
                                 let ecs_client = crate::aws::ecs::EcsClient::new(clients.ecs.clone());
                                 match ecs_client.register_task_definition(&edited_json).await {
                                     Ok(new_arn) => {
-                                        tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionEdited {
+                                        tx.send(Event::Aws(Box::new(AwsEvent::EcsTaskDefinitionEdited {
                                             family: family_clone,
                                             new_arn,
-                                        }))
+                                        })))
                                         .await
                                         .ok();
                                     }
                                     Err(e) => {
-                                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                                             "Failed to register edited task definition: {}",
                                             e
-                                        ))))
+                                        )))))
                                         .await
                                         .ok();
                                     }
@@ -201,15 +201,15 @@ impl App {
                 let ecs_client = crate::aws::ecs::EcsClient::new(clients.ecs.clone());
                 match ecs_client.list_task_definitions(Some(&fam)).await {
                     Ok(task_defs) => {
-                        tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionsListed(task_defs)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::EcsTaskDefinitionsListed(task_defs))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to list task definitions: {}",
                             e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }
@@ -247,33 +247,33 @@ impl App {
                 {
                     Ok(_) => {
                         let short_td = td.split('/').next_back().unwrap_or(&td);
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(format!(
                             "Updated {} to use task definition {}",
                             service,
                             short_td
-                        ))))
+                        )))))
                         .await
                         .ok();
 
                         // Refresh services list
                         match ecs_client.list_services(&cluster).await {
                             Ok(services) => {
-                                tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                                tx.send(Event::Aws(Box::new(AwsEvent::EcsServicesLoaded(services))))
                                     .await
                                     .ok();
                             }
                             Err(e) => {
-                                tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                                     .await
                                     .ok();
                             }
                         }
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to update service: {}",
                             e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }
@@ -296,15 +296,15 @@ impl App {
                 let ecs_client = crate::aws::ecs::EcsClient::new(clients.ecs.clone());
                 match ecs_client.list_task_definitions_with_details(Some(&fam), Some(15)).await {
                     Ok(task_defs) => {
-                        tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionsForSelectorLoaded(task_defs)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::EcsTaskDefinitionsForSelectorLoaded(task_defs))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to load task definitions: {}",
                             e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }

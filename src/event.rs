@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 pub enum Event {
     Key(KeyEvent),
     Tick,
-    Aws(AwsEvent),
+    Aws(Box<AwsEvent>),
     Message(crate::app::Message),
 }
 
@@ -63,7 +63,7 @@ pub enum AwsEvent {
     EcsClustersLoaded(Vec<EcsCluster>),
     EcsServicesLoaded(Vec<EcsService>),
     EcsTasksLoaded(Vec<EcsTask>),
-    EcsTaskDefinitionLoaded(EcsTaskDefinition),
+    EcsTaskDefinitionLoaded(Box<EcsTaskDefinition>),
     /// S3 object was downloaded to a file path
     S3ObjectDownloaded {
         key: String,
@@ -103,18 +103,21 @@ pub enum AwsEvent {
     EcrRepositoriesLoaded(Vec<EcrRepository>),
     EcrImagesLoaded(Vec<EcrImage>),
     /// Profile/region switch completed with new AWS clients
-    ProfileRegionSwitched {
-        clients: crate::aws::client::AwsClients,
-        profile: Option<String>,
-        region: String,
-        read_only: bool,
-        /// Log messages from SSO login process
-        sso_messages: Vec<String>,
-    },
+    ProfileRegionSwitched(Box<ProfileRegionSwitchedData>),
     /// Profile/region switch failed
     ProfileRegionSwitchFailed(String),
     ActionCompleted(String), // Message to display
     Error(String),
+}
+
+#[derive(Debug)]
+pub struct ProfileRegionSwitchedData {
+    pub clients: crate::aws::client::AwsClients,
+    pub profile: Option<String>,
+    pub region: String,
+    pub read_only: bool,
+    /// Log messages from SSO login process
+    pub sso_messages: Vec<String>,
 }
 
 /// Metrics for event channel monitoring

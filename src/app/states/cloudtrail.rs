@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
-use crate::app::{CloudTrailViewMode, InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{CloudTrailViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for CloudTrail service
@@ -113,5 +118,52 @@ impl ServiceInputHandler for CloudTrailState {
             CloudTrailViewMode::Trails => self.selected_trail().map(|t| t.name.clone()),
             CloudTrailViewMode::Events => self.selected_event().and_then(|e| e.event_id.clone()),
         }
+    }
+}
+
+impl ServiceInternal for CloudTrailState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.cloudtrail.clone();
+        let handle = spawn_list_task(
+            tx.clone(),
+            move || async move {
+                crate::aws::cloudtrail::CloudTrailService::new(client)
+                    .list_trails()
+                    .await
+            },
+            AwsEvent::CloudTrailTrailsLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle);
+
+        // Also refresh events
+        let client_events = clients.cloudtrail.clone();
+        let handle_events = spawn_list_task(
+            tx,
+            move || async move {
+                crate::aws::cloudtrail::CloudTrailService::new(client_events)
+                    .lookup_events(50)
+                    .await
+            },
+            AwsEvent::CloudTrailEventsLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle_events);
+    }
+
+    fn clear(&mut self) {
+        self.trails.clear();
+        self.events.clear();
+        self.selected_event_detail = None;
+        self.show_detail_modal = false;
+        self.view_mode = CloudTrailViewMode::Trails;
+        self.list_state.select(Some(0));
     }
 }

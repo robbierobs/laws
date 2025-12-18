@@ -19,12 +19,12 @@ impl App {
                 let ecs_client = crate::aws::ecs::EcsClient::new(clients.ecs.clone());
                 match ecs_client.list_services(&arn).await {
                     Ok(services) => {
-                        tx.send(Event::Aws(AwsEvent::EcsServicesLoaded(services)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::EcsServicesLoaded(services))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }
@@ -64,12 +64,12 @@ impl App {
                     .await
                 {
                     Ok(tasks) => {
-                        tx.send(Event::Aws(AwsEvent::EcsTasksLoaded(tasks)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::EcsTasksLoaded(tasks))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }
@@ -99,12 +99,12 @@ impl App {
                     .await
                 {
                     Ok(td) => {
-                        tx.send(Event::Aws(AwsEvent::EcsTaskDefinitionLoaded(td)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::EcsTaskDefinitionLoaded(Box::new(td)))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }

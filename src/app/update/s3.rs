@@ -3,80 +3,12 @@
 //! Handles S3-specific state mutations and async operations.
 
 use super::super::task_manager::task_keys;
-use super::super::{App, Message, ServiceAction};
-use crate::app::messages::S3Action;
+use super::super::App;
 use crate::event::{AwsEvent, Event};
 use std::sync::Arc;
 
 impl App {
-    pub(super) fn handle_refresh_s3(
-        &mut self,
-        clients: &crate::aws::client::AwsClients,
-        event_tx: crate::app::EventSender,
-    ) {
-        let client = clients.s3.clone();
-        let tx = event_tx.clone();
 
-        // Settings for rate limiting the detail loading
-        let delay_ms = self.config.s3_detail_delay_ms; // e.g. 50ms
-
-        // Spawn the main refresh task
-        let handle = tokio::spawn(async move {
-            let service = crate::aws::s3::S3Service::new(client.clone());
-            match service.list_buckets().await {
-                Ok(buckets) => {
-                    // 1. Notify that buckets are loaded
-                    tx.send(Event::Aws(AwsEvent::S3BucketsLoaded(buckets.clone())))
-                        .await
-                        .ok();
-
-                    // 2. Trigger detail loading for top buckets (rate limited)
-                    // We send messages back to the main loop to spawn tracked tasks
-                    for bucket in buckets.iter().take(20) {
-                        if delay_ms > 0 {
-                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-                        }
-
-                        tx.send(Event::Message(Message::Service(ServiceAction::S3(
-                            S3Action::LoadBucketDetails(bucket.name.clone()),
-                        ))))
-                        .await
-                        .ok();
-                    }
-                }
-                Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                        .await
-                        .ok();
-                }
-            }
-        });
-
-        self.tasks.spawn(task_keys::S3_REFRESH, handle);
-
-        // Also refresh objects if inside a bucket
-        if let Some(bucket) = &self.services.s3.current_bucket {
-            let bucket_name = bucket.clone();
-            let client = clients.s3.clone();
-            let tx = event_tx.clone();
-            let handle = tokio::spawn(async move {
-                let service = crate::aws::s3::S3Service::new(client);
-                match service.list_objects(&bucket_name).await {
-                    Ok(objects) => {
-                        tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects)))
-                            .await
-                            .ok();
-                    }
-                    Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
-                            .await
-                            .ok();
-                    }
-                }
-            });
-            self.tasks.spawn(task_keys::S3_OBJECTS, handle);
-        }
-    }
 
     pub(super) fn handle_load_s3_objects(
         &mut self,
@@ -97,12 +29,12 @@ impl App {
             let service = crate::aws::s3::S3Service::new(client);
             match service.list_objects(&bucket).await {
                 Ok(objects) => {
-                    tx.send(Event::Aws(AwsEvent::S3ObjectsLoaded(objects)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectsLoaded(objects))))
                         .await
                         .ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                         .await
                         .ok();
                 }
@@ -126,12 +58,12 @@ impl App {
                 match service.delete_object(&bucket, &key).await {
                     Ok(_) => {
                         let msg = format!("Deleted object {}/{}", bucket, key);
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(msg))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }
@@ -153,12 +85,12 @@ impl App {
                 match service.create_bucket(&bucket_name, &region).await {
                     Ok(_) => {
                         let msg = format!("Created bucket '{}'", bucket_name);
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(msg))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }
@@ -180,12 +112,12 @@ impl App {
                 match service.delete_bucket(&bucket_name).await {
                     Ok(_) => {
                         let msg = format!("Deleted bucket '{}'", bucket_name);
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(msg)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(msg))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }
@@ -211,7 +143,7 @@ impl App {
                         Self::write_s3_object(tx, key, bytes, open_mode).await;
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }
@@ -243,7 +175,7 @@ impl App {
             let bytes = match service.get_object(&bucket, &key).await {
                 Ok(b) => b,
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                         .await
                         .ok();
                     return;
@@ -254,10 +186,10 @@ impl App {
             let filename = key.split('/').next_back().unwrap_or(&key).to_string();
             let temp_dir = std::env::temp_dir().join("lazy_aws");
             if let Err(e) = std::fs::create_dir_all(&temp_dir) {
-                tx.send(Event::Aws(AwsEvent::Error(format!(
+                tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                     "Failed to create temp directory: {}",
                     e
-                ))))
+                )))))
                 .await
                 .ok();
                 return;
@@ -265,21 +197,21 @@ impl App {
 
             let file_path = temp_dir.join(&filename);
             if let Err(e) = std::fs::write(&file_path, &bytes) {
-                tx.send(Event::Aws(AwsEvent::Error(format!(
+                tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                     "Failed to write temp file: {}",
                     e
-                ))))
+                )))))
                 .await
                 .ok();
                 return;
             }
 
             // Signal that file is ready for editing
-            tx.send(Event::Aws(AwsEvent::S3ObjectReadyForEdit {
+            tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectReadyForEdit {
                 bucket,
                 key,
                 path: file_path.to_string_lossy().to_string(),
-            }))
+            })))
             .await
             .ok();
         });
@@ -334,18 +266,18 @@ impl App {
                                 .await
                             {
                                 Ok(_) => {
-                                    tx.send(Event::Aws(AwsEvent::S3ObjectEdited {
+                                    tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectEdited {
                                         bucket: bucket_clone,
                                         key: key_clone,
-                                    }))
+                                    })))
                                     .await
                                     .ok();
                                 }
                                 Err(e) => {
-                                    tx.send(Event::Aws(AwsEvent::Error(format!(
+                                    tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                                         "Failed to upload edited object: {}",
                                         e
-                                    ))))
+                                    )))))
                                     .await
                                     .ok();
                                 }
@@ -390,10 +322,10 @@ impl App {
         };
 
         if let Err(e) = std::fs::create_dir_all(&target_dir) {
-            tx.send(Event::Aws(AwsEvent::Error(format!(
+            tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                 "Failed to create directory: {}",
                 e
-            ))))
+            )))))
             .await
             .ok();
             return;
@@ -416,28 +348,28 @@ impl App {
                     } else {
                         None
                     };
-                    tx.send(Event::Aws(AwsEvent::S3ObjectOpened {
+                    tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectOpened {
                         key,
                         path: path_str,
                         content,
                         raw_bytes,
-                    }))
+                    })))
                     .await
                     .ok();
                 } else {
-                    tx.send(Event::Aws(AwsEvent::S3ObjectDownloaded {
+                    tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectDownloaded {
                         key,
                         path: path_str,
-                    }))
+                    })))
                     .await
                     .ok();
                 }
             }
             Err(e) => {
-                tx.send(Event::Aws(AwsEvent::Error(format!(
+                tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                     "Failed to write file: {}",
                     e
-                ))))
+                )))))
                 .await
                 .ok();
             }
@@ -470,10 +402,10 @@ impl App {
         let handle = tokio::spawn(async move {
             let service = crate::aws::s3::S3Service::new(client);
             let details = service.get_bucket_details(&bucket).await;
-            tx.send(Event::Aws(AwsEvent::S3BucketDetailsLoaded {
+            tx.send(Event::Aws(Box::new(AwsEvent::S3BucketDetailsLoaded {
                 bucket_name: bucket,
                 details,
-            }))
+            })))
             .await
             .ok();
         });

@@ -47,10 +47,10 @@ pub async fn execute_instance_action<S: InstanceActionService>(
         Ok(_) => {
             let action_past = format!("{}ed", action.trim_end_matches('e'));
             let msg = format!("{} {} instance {}", action_past, service_name, id);
-            tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).await.ok();
+            tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(msg)))).await.ok();
         }
         Err(e) => {
-            tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+            tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
         }
     }
 }

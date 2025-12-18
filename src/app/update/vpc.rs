@@ -60,14 +60,14 @@ impl App {
             let service = crate::aws::vpc::VpcService::new(clients.ec2.clone());
             match service.delete_security_group(&group_id).await {
                 Ok(_) => {
-                    tx.send(crate::event::Event::Aws(crate::event::AwsEvent::ActionCompleted(
+                    tx.send(crate::event::Event::Aws(Box::new(crate::event::AwsEvent::ActionCompleted(
                         format!("Security Group {} deleted", group_id)
-                    ))).await.ok();
+                    )))).await.ok();
                     // Trigger refresh
                     tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                 }
                 Err(e) => {
-                    tx.send(crate::event::Event::Aws(crate::event::AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(crate::event::Event::Aws(Box::new(crate::event::AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

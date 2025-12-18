@@ -16,11 +16,11 @@ impl App {
             let service = crate::aws::secretsmanager::SecretsManagerService::new(clients.secretsmanager.clone());
             match service.get_secret_value(&arn).await {
                 Ok(value) => {
-                    tx.send(Event::Aws(AwsEvent::SecretsManagerSecretValueLoaded(value)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::SecretsManagerSecretValueLoaded(value))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -33,14 +33,14 @@ impl App {
             let service = crate::aws::secretsmanager::SecretsManagerService::new(clients.secretsmanager.clone());
             match service.delete_secret(&arn).await {
                 Ok(_) => {
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                    tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(
                         format!("Secret {} deleted", arn)
-                    ))).await.ok();
+                    )))).await.ok();
                     // Trigger refresh
                     tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

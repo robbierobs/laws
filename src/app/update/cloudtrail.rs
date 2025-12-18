@@ -14,14 +14,14 @@ impl App {
             let service = crate::aws::cloudtrail::CloudTrailService::new(clients.cloudtrail.clone());
             match service.delete_trail(&name).await {
                 Ok(_) => {
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                    tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(
                         format!("Trail {} deleted", name)
-                    ))).await.ok();
+                    )))).await.ok();
                     // Trigger refresh
                     tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

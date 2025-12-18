@@ -32,12 +32,12 @@ impl App {
                         } else {
                             payload
                         };
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(
                             format!("Function invoked. Payload: {}", display_payload)
-                        ))).await.ok();
+                        )))).await.ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                     }
                 }
             }
@@ -60,14 +60,14 @@ impl App {
                 let service = crate::aws::lambda::LambdaService::new(clients.lambda.clone());
                 match service.delete_function(&func_name).await {
                     Ok(_) => {
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(
                             format!("Function {} deleted", func_name)
-                        ))).await.ok();
+                        )))).await.ok();
                         // Trigger refresh
                         tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                     }
                 }
             }
@@ -105,13 +105,13 @@ impl App {
             let service = crate::aws::lambda::LambdaService::new(client);
             match service.get_function_details(&function_name).await {
                 Ok(details) => {
-                    event_tx.send(Event::Aws(AwsEvent::LambdaFunctionDetailsLoaded {
+                    event_tx.send(Event::Aws(Box::new(AwsEvent::LambdaFunctionDetailsLoaded {
                         function_name,
                         details,
-                    })).await.ok();
+                    }))).await.ok();
                 }
                 Err(e) => {
-                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    event_tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

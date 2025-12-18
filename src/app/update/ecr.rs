@@ -27,12 +27,12 @@ impl App {
                         let ecr_service = crate::aws::ecr::EcrService::new(client);
                         match ecr_service.describe_images(&repo_name_clone).await {
                             Ok(images) => {
-                                tx.send(Event::Aws(AwsEvent::EcrImagesLoaded(images)))
+                                tx.send(Event::Aws(Box::new(AwsEvent::EcrImagesLoaded(images))))
                                     .await
                                     .ok();
                             }
                             Err(e) => {
-                                tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                                     .await
                                     .ok();
                             }

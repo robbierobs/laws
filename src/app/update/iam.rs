@@ -31,11 +31,11 @@ impl App {
             let service = crate::aws::iam::IamService::new(client);
             match service.list_attached_user_policies(&name).await {
                 Ok(policies) => {
-                    tx.send(Event::Aws(AwsEvent::IamUserPoliciesLoaded(policies)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::IamUserPoliciesLoaded(policies))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -67,11 +67,11 @@ impl App {
             let service = crate::aws::iam::IamService::new(client);
             match service.list_attached_role_policies(&name).await {
                 Ok(policies) => {
-                    tx.send(Event::Aws(AwsEvent::IamRolePoliciesLoaded(policies)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::IamRolePoliciesLoaded(policies))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -115,11 +115,11 @@ impl App {
             let service = crate::aws::iam::IamService::new(client);
             match service.get_policy_version(&arn).await {
                 Ok(doc) => {
-                    tx.send(Event::Aws(AwsEvent::IamPolicyDocumentLoaded(doc)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::IamPolicyDocumentLoaded(doc))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -162,12 +162,12 @@ impl App {
             let service = crate::aws::iam::IamService::new(clients.iam.clone());
             match action(service).await {
                 Ok(_) => {
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(success_msg))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(success_msg)))).await.ok();
                     // Trigger refresh
                     tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

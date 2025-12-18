@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::lambda::LambdaFunction;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for Lambda service
@@ -96,5 +101,35 @@ impl ServiceInputHandler for LambdaState {
 
     fn get_copiable_text(&self) -> Option<String> {
         self.selected_function().map(|f| f.function_name.clone())
+    }
+}
+
+impl ServiceInternal for LambdaState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.lambda.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move {
+                crate::aws::lambda::LambdaService::new(client)
+                    .list_functions()
+                    .await
+            },
+            AwsEvent::LambdaFunctionsLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::LAMBDA_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.functions.clear();
+        self.function_details.clear();
+        self.list_state.select(Some(0));
     }
 }

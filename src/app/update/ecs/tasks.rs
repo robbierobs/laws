@@ -24,10 +24,10 @@ impl App {
                     .await
                 {
                     Ok(()) => {
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(format!(
                             "Stopped task {}",
                             task_id
-                        ))))
+                        )))))
                         .await
                         .ok();
 
@@ -37,22 +37,22 @@ impl App {
                             .await
                         {
                             Ok(tasks) => {
-                                tx.send(Event::Aws(AwsEvent::EcsTasksLoaded(tasks)))
+                                tx.send(Event::Aws(Box::new(AwsEvent::EcsTasksLoaded(tasks))))
                                     .await
                                     .ok();
                             }
                             Err(e) => {
-                                tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                                tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                                     .await
                                     .ok();
                             }
                         }
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(format!(
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                             "Failed to stop task {}: {}",
                             task_id, e
-                        ))))
+                        )))))
                         .await
                         .ok();
                     }

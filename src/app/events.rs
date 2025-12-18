@@ -20,8 +20,8 @@ impl App {
     }
 
     /// Handle async AWS events and update state accordingly
-    pub fn handle_aws_event(&mut self, event: AwsEvent) {
-        match event {
+    pub fn handle_aws_event(&mut self, event: Box<AwsEvent>) {
+        match *event {
             AwsEvent::Ec2InstancesLoaded(instances) => {
                 self.services.ec2.instances = instances;
                 self.loading = false;
@@ -181,7 +181,7 @@ impl App {
                 self.loading = false;
             }
             AwsEvent::EcsTaskDefinitionLoaded(task_definition) => {
-                self.services.ecs.current_task_definition = Some(task_definition);
+                self.services.ecs.current_task_definition = Some(*task_definition);
                 self.loading = false;
             }
             AwsEvent::S3ObjectDownloaded { key, path } => {
@@ -274,24 +274,18 @@ impl App {
                 }
                 self.loading = false;
             }
-            AwsEvent::ProfileRegionSwitched {
-                clients,
-                profile,
-                region,
-                read_only,
-                sso_messages,
-            } => {
+            AwsEvent::ProfileRegionSwitched(data) => {
                 // Log SSO messages
-                for msg in sso_messages {
+                for msg in data.sso_messages {
                     self.action_log.push(msg);
                 }
                 
                 // Apply the new clients and state
-                self.aws_clients = Some(clients);
-                self.profile = profile;
-                self.region = region.clone();
-                self.read_only = read_only;
-                self.profile_switcher.pending_read_only = read_only;
+                self.aws_clients = Some(data.clients);
+                self.profile = data.profile;
+                self.region = data.region.clone();
+                self.read_only = data.read_only;
+                self.profile_switcher.pending_read_only = data.read_only;
 
                 // Update profile/region indices
                 if let Some(idx) = self.profile_switcher.available_profiles.iter().position(|p| {
@@ -305,15 +299,15 @@ impl App {
                     .profile_switcher
                     .available_regions
                     .iter()
-                    .position(|r| r == &region)
+                    .position(|r| r == &data.region)
                 {
                     self.profile_switcher.region_switcher_index = idx;
                 }
 
                 // Clear all service data to force refresh
-                self.services = super::states::ServiceStates::new();
+                self.services.clear_all();
 
-                let ro_status = if read_only { " [READ-ONLY]" } else { "" };
+                let ro_status = if data.read_only { " [READ-ONLY]" } else { "" };
                 self.action_log.push(format!(
                     "Switched to profile: {}, region: {}{}",
                     self.profile.as_deref().unwrap_or("default"),

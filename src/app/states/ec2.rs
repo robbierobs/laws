@@ -3,6 +3,13 @@ use crate::models::ec2::Ec2Instance;
 use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, Service};
 use crate::app::global_search::{AutoSelectable, Searchable, SearchResult};
 use crossterm::event::{KeyCode, KeyEvent};
+use crate::app::states::ServiceInternal;
+use crate::app::EventSender;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::aws::traits::AwsService;
+use crate::event::AwsEvent;
 
 /// State for EC2 service
 #[derive(Default)]
@@ -110,5 +117,30 @@ impl ServiceInputHandler for Ec2State {
 
     fn get_copiable_text(&self) -> Option<String> {
         self.selected_instance_id()
+    }
+}
+
+impl ServiceInternal for Ec2State {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.ec2.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move { crate::aws::ec2::Ec2Service::new(client).list().await },
+            AwsEvent::Ec2InstancesLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::EC2_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.instances.clear();
+        self.list_state.select(Some(0));
     }
 }

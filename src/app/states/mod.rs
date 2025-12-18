@@ -10,6 +10,10 @@ pub mod cloudtrail;
 pub mod secretsmanager;
 pub mod ecs;
 pub mod ecr;
+pub mod traits;
+
+pub use self::traits::ServiceInternal;
+
 
 use self::ec2::Ec2State;
 use self::s3::S3State;
@@ -102,5 +106,30 @@ impl ServiceStates {
             crate::app::Service::ECS => self.ecs.select_by_id(resource_id),
             crate::app::Service::ECR => self.ecr.select_by_id(resource_id),
         }
+    }
+
+    /// Clear all service states
+    pub fn clear_all(&mut self) {
+        for service in self.get_all_mut() {
+            service.clear();
+        }
+    }
+
+    /// Get all service states as mutable trait objects
+    pub fn get_all_mut(&mut self) -> Vec<&mut dyn ServiceInternal> {
+        vec![
+            &mut self.ec2,
+            &mut self.s3,
+            &mut self.rds,
+            &mut self.dynamodb,
+            &mut self.lambda,
+            &mut self.vpc,
+            &mut self.iam,
+            &mut self.backup,
+            &mut self.cloudtrail,
+            &mut self.secretsmanager,
+            &mut self.ecs,
+            &mut self.ecr,
+        ]
     }
 }

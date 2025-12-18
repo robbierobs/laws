@@ -39,11 +39,11 @@ impl App {
             let service = crate::aws::dynamodb::DynamoDbService::new(client);
             match service.scan_items(&table_name, limit).await {
                 Ok(items) => {
-                    tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::DynamoDbItemsLoaded(items))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -76,11 +76,11 @@ impl App {
             let service = crate::aws::dynamodb::DynamoDbService::new(client);
             match service.scan_items(&table_name, limit).await {
                 Ok(items) => {
-                    tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::DynamoDbItemsLoaded(items))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -150,10 +150,10 @@ impl App {
             match service.delete_item(&tbl, key).await {
                 Ok(_) => {
                     let msg = format!("Deleted item from {}", tbl);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(msg)))).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
