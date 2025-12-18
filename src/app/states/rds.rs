@@ -146,4 +146,10 @@ impl ServiceInternal for RdsState {
         self.instances.clear();
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.instances.is_empty() {
+            self.list_state.select(Some(0));
+        }
+    }
 }

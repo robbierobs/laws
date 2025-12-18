@@ -258,6 +258,12 @@ impl ServiceInternal for EcsState {
         self.view_mode = EcsViewMode::Clusters;
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.clusters.is_empty() {
+            self.list_state.select(Some(0));
+        }
+    }
 }
 
 impl EcsState {

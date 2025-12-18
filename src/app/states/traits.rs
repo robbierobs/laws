@@ -20,4 +20,10 @@ pub trait ServiceInternal: AutoSelectable + Searchable + Send {
     
     /// Clear the service's current data (e.g. on profile switch)
     fn clear(&mut self);
+    
+    /// Auto-select the first item if nothing is selected
+    /// 
+    /// Each service implements this based on its current view mode
+    /// and data availability.
+    fn auto_select_first(&mut self);
 }

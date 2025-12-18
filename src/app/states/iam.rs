@@ -235,4 +235,21 @@ impl ServiceInternal for IamState {
         self.view_mode = IamViewMode::Users;
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                IamViewMode::Users => !self.users.is_empty(),
+                IamViewMode::Roles => !self.roles.is_empty(),
+                IamViewMode::Policies => !self.policies.is_empty(),
+                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => {
+                    !self.current_policies.is_empty()
+                }
+                IamViewMode::PolicyDocument => false,
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
 }

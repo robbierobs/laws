@@ -132,4 +132,10 @@ impl ServiceInternal for LambdaState {
         self.function_details.clear();
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.functions.is_empty() {
+            self.list_state.select(Some(0));
+        }
+    }
 }

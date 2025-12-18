@@ -171,4 +171,10 @@ impl ServiceInternal for DynamoDbState {
         self.list_state.select(Some(0));
         self.item_list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.tables.is_empty() {
+            self.list_state.select(Some(0));
+        }
+    }
 }

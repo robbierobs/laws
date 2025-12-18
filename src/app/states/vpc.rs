@@ -220,4 +220,18 @@ impl ServiceInternal for VpcState {
         self.view_mode = VpcViewMode::Vpcs;
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                VpcViewMode::Vpcs => !self.vpcs.is_empty(),
+                VpcViewMode::Subnets => !self.subnets.is_empty(),
+                VpcViewMode::SecurityGroups => !self.security_groups.is_empty(),
+                VpcViewMode::SecurityGroupRules => !self.current_sg_rules.is_empty(),
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
 }

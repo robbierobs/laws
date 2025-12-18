@@ -345,6 +345,20 @@ impl ServiceInternal for S3State {
         self.list_state.select(Some(0));
         self.object_list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.current_bucket.is_some() {
+            // In objects view
+            if self.object_list_state.selected().is_none() && !self.objects.is_empty() {
+                self.object_list_state.select(Some(0));
+            }
+        } else {
+            // In buckets view
+            if self.list_state.selected().is_none() && !self.buckets.is_empty() {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -184,4 +184,18 @@ impl ServiceInternal for BackupState {
         self.view_mode = BackupViewMode::Vaults;
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                BackupViewMode::Vaults => !self.vaults.is_empty(),
+                BackupViewMode::Plans => !self.plans.is_empty(),
+                BackupViewMode::Jobs => !self.jobs.is_empty(),
+                BackupViewMode::RecoveryPoints => !self.recovery_points.is_empty(),
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
 }

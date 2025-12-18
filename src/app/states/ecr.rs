@@ -143,4 +143,16 @@ impl ServiceInternal for EcrState {
         self.view_mode = EcrViewMode::Repositories;
         self.list_state.select(Some(0));
     }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                EcrViewMode::Repositories => !self.repositories.is_empty(),
+                EcrViewMode::Images => !self.images.is_empty(),
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
 }
