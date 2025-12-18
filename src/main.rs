@@ -105,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
                 Event::Aws(aws_event) => {
-                    app.handle_aws_event(aws_event);
+                    app.handle_aws_event(*aws_event);
                     
                     // Check for pending S3 edits that need synchronous processing
                     if let Some((bucket, key, path)) = app.services.s3.pending_edit.take() {

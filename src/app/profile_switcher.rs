@@ -1,6 +1,7 @@
 //! Profile and Region Switcher State
 
 /// State for the profile and region switcher modal
+#[derive(Default)]
 pub struct ProfileSwitcherState {
     pub available_profiles: Vec<String>,
     pub available_regions: Vec<String>,
@@ -12,23 +13,6 @@ pub struct ProfileSwitcherState {
     pub region_filter: String,
     pub profile_filter_active: bool,
     pub region_filter_active: bool,
-}
-
-impl Default for ProfileSwitcherState {
-    fn default() -> Self {
-        Self {
-            available_profiles: Vec::new(),
-            available_regions: Vec::new(),
-            profile_switcher_index: 0,
-            region_switcher_index: 0,
-            pending_profile: None,
-            pending_read_only: false,
-            profile_filter: String::new(),
-            region_filter: String::new(),
-            profile_filter_active: false,
-            region_filter_active: false,
-        }
-    }
 }
 
 impl ProfileSwitcherState {

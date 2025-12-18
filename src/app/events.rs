@@ -20,8 +20,11 @@ impl App {
     }
 
     /// Handle async AWS events and update state accordingly
-    pub fn handle_aws_event(&mut self, event: Box<AwsEvent>) {
-        match *event {
+    pub fn handle_aws_event(&mut self, event: AwsEvent) {
+        // Reset loading state for most events - saves repeating this 30+ times
+        self.loading = false;
+        
+        match event {
             AwsEvent::Ec2InstancesLoaded(instances) => {
                 self.services.ec2.instances = instances;
                 self.loading = false;
