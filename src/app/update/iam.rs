@@ -4,10 +4,42 @@
 
 use super::super::task_manager::task_keys;
 use super::super::{App, IamViewMode};
+use crate::app::messages::IamAction;
 use crate::event::{AwsEvent, Event};
 
 impl App {
-    pub(super) fn handle_drill_down_iam_user(&mut self, event_tx: crate::app::EventSender) {
+    /// Main entry point for IAM actions
+    pub(super) fn handle_iam_action(
+        &mut self,
+        action: IamAction,
+        event_tx: crate::app::EventSender,
+    ) {
+        match action {
+            IamAction::DrillDownUser => {
+                self.handle_drill_down_iam_user(event_tx);
+            }
+            IamAction::DrillDownRole => {
+                self.handle_drill_down_iam_role(event_tx);
+            }
+            IamAction::DrillDownPolicy => {
+                self.handle_drill_down_iam_policy(event_tx);
+            }
+            IamAction::ExitDrillDown => {
+                self.handle_exit_iam_drill_down();
+            }
+            IamAction::DeleteUser(name) => {
+                self.handle_delete_iam_user(name, event_tx);
+            }
+            IamAction::DeleteRole(name) => {
+                self.handle_delete_iam_role(name, event_tx);
+            }
+            IamAction::DeletePolicy(arn) => {
+                self.handle_delete_iam_policy(arn, event_tx);
+            }
+        }
+    }
+
+    fn handle_drill_down_iam_user(&mut self, event_tx: crate::app::EventSender) {
         let Some(idx) = self.services.iam.list_state.selected() else {
             return;
         };
@@ -43,7 +75,7 @@ impl App {
         self.tasks.spawn(task_keys::IAM_POLICIES, handle);
     }
 
-    pub(super) fn handle_drill_down_iam_role(&mut self, event_tx: crate::app::EventSender) {
+    fn handle_drill_down_iam_role(&mut self, event_tx: crate::app::EventSender) {
         let Some(idx) = self.services.iam.list_state.selected() else {
             return;
         };
@@ -79,7 +111,7 @@ impl App {
         self.tasks.spawn(task_keys::IAM_POLICIES, handle);
     }
 
-    pub(super) fn handle_drill_down_iam_policy(&mut self, event_tx: crate::app::EventSender) {
+    fn handle_drill_down_iam_policy(&mut self, event_tx: crate::app::EventSender) {
         let Some(idx) = self.services.iam.list_state.selected() else {
             return;
         };
@@ -127,7 +159,7 @@ impl App {
         self.tasks.spawn(task_keys::IAM_POLICIES, handle);
     }
 
-    pub(super) fn handle_exit_iam_drill_down(&mut self) {
+    fn handle_exit_iam_drill_down(&mut self) {
         match self.services.iam.view_mode {
             IamViewMode::UserAttachedPolicies => {
                 self.services.iam.view_mode = IamViewMode::Users;
@@ -173,7 +205,7 @@ impl App {
         });
     }
 
-    pub(super) fn handle_delete_iam_user(&mut self, user_name: String, event_tx: crate::app::EventSender) {
+    fn handle_delete_iam_user(&mut self, user_name: String, event_tx: crate::app::EventSender) {
         let name = user_name.clone();
         self.perform_iam_delete(
             format!("User: {}", user_name),
@@ -183,7 +215,7 @@ impl App {
         );
     }
 
-    pub(super) fn handle_delete_iam_role(&mut self, role_name: String, event_tx: crate::app::EventSender) {
+    fn handle_delete_iam_role(&mut self, role_name: String, event_tx: crate::app::EventSender) {
         let name = role_name.clone();
         self.perform_iam_delete(
             format!("Role: {}", role_name),
@@ -193,7 +225,7 @@ impl App {
         );
     }
 
-    pub(super) fn handle_delete_iam_policy(&mut self, policy_arn: String, event_tx: crate::app::EventSender) {
+    fn handle_delete_iam_policy(&mut self, policy_arn: String, event_tx: crate::app::EventSender) {
         let arn = policy_arn.clone();
         self.perform_iam_delete(
             format!("Policy: {}", policy_arn),

@@ -4,13 +4,51 @@
 
 use super::super::task_manager::task_keys;
 use super::super::App;
+use crate::app::messages::S3Action;
 use crate::event::{AwsEvent, Event};
 use std::sync::Arc;
 
 impl App {
+    /// Main entry point for S3 actions
+    pub(super) fn handle_s3_action(
+        &mut self,
+        action: S3Action,
+        event_tx: crate::app::EventSender,
+    ) {
+        match action {
+            S3Action::LoadObjects(bucket) => {
+                self.handle_load_s3_objects(bucket, event_tx);
+            }
+            S3Action::LoadBucketDetails(bucket) => {
+                self.handle_load_bucket_details(bucket, event_tx);
+            }
+            S3Action::CreateBucket(name) => {
+                self.handle_create_s3_bucket(name, event_tx);
+            }
+            S3Action::DeleteBucket(name) => {
+                self.handle_delete_s3_bucket(name, event_tx);
+            }
+            S3Action::DeleteObject { bucket, key } => {
+                self.handle_delete_s3_object(bucket, key, event_tx);
+            }
+            S3Action::DownloadObject { bucket, key } => {
+                self.handle_download_s3_object(bucket, key, false, event_tx);
+            }
+            S3Action::OpenObject { bucket, key } => {
+                self.handle_download_s3_object(bucket, key, true, event_tx);
+            }
+            S3Action::EditObject { bucket, key } => {
+                self.handle_edit_s3_object(bucket, key, event_tx);
+            }
+            S3Action::LeaveBucket => {
+                self.services.s3.current_bucket = None;
+                self.services.s3.objects.clear();
+            }
+        }
+    }
 
 
-    pub(super) fn handle_load_s3_objects(
+    fn handle_load_s3_objects(
         &mut self,
         bucket: String,
         event_tx: crate::app::EventSender,
@@ -44,7 +82,7 @@ impl App {
         self.tasks.spawn(task_keys::S3_OBJECTS, handle);
     }
 
-    pub(super) fn handle_delete_s3_object(
+    fn handle_delete_s3_object(
         &mut self,
         bucket: String,
         key: String,
@@ -72,7 +110,7 @@ impl App {
         );
     }
 
-    pub(super) fn handle_create_s3_bucket(
+    fn handle_create_s3_bucket(
         &mut self,
         bucket_name: String,
         event_tx: crate::app::EventSender,
@@ -99,7 +137,7 @@ impl App {
         });
     }
 
-    pub(super) fn handle_delete_s3_bucket(
+    fn handle_delete_s3_bucket(
         &mut self,
         bucket_name: String,
         event_tx: crate::app::EventSender,
@@ -126,7 +164,7 @@ impl App {
         );
     }
 
-    pub(super) fn handle_download_s3_object(
+    fn handle_download_s3_object(
         &mut self,
         bucket: String,
         key: String,
@@ -154,7 +192,7 @@ impl App {
 
     /// Phase 1: Download S3 object for editing (async)
     /// This downloads the file and sends an event when ready for editing
-    pub(super) fn handle_edit_s3_object(
+    fn handle_edit_s3_object(
         &mut self,
         bucket: String,
         key: String,
@@ -376,7 +414,7 @@ impl App {
         }
     }
 
-    pub(super) fn handle_load_bucket_details(
+    fn handle_load_bucket_details(
         &mut self,
         bucket_name: String,
         event_tx: crate::app::EventSender,
