@@ -317,20 +317,24 @@ pub struct ObjectViewer {
 
 ## Recommended Refactoring Order
 
-### Phase 1: Quick Wins (Before New Features)
+### Phase 1: Quick Wins (Before New Features) ✅ COMPLETED
 1. ✅ Add `ServiceStates::get_mut(Service)` method
-2. ✅ Simplify `handle_refresh_data` using the new method
-3. 🔄 Audit and use/remove dead_code items
+2. ✅ Simplify `handle_refresh_data` using the new method (57→14 lines)
+3. ✅ Simplify `select_by_service_and_id` (21→3 lines)
+4. ✅ Move auto-select logic to service states (137→3 lines)
+5. ✅ Add view mode cycling abstraction (51→12 lines)
+6. ✅ Audit dead_code - converted module-level suppressions to targeted annotations
+
+**Total lines saved: ~240+**
 
 ### Phase 2: Medium Term (During Feature Development)
-4. Move auto-select logic to service states
-5. Add view mode cycling abstraction
-6. Consider delegating service actions to state handlers
+7. 🔄 Consider delegating service actions to state handlers
+8. 🔄 Standardize any remaining scattered logic
 
 ### Phase 3: Long Term (When Pain Becomes Acute)
-7. Extract event handling to service states
-8. Organize large state structs with sub-structs
-9. Split complex ECS register function
+9. Extract event handling to service states
+10. Organize large state structs with sub-structs
+11. Split complex ECS register function
 
 ---
 

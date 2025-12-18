@@ -42,10 +42,12 @@ pub enum AppError {
     },
 
     /// Configuration error
+    #[allow(dead_code)] // Error variant for future use
     #[error("Configuration error: {0}")]
     Config(String),
 
     /// Task cancelled
+    #[allow(dead_code)] // Error variant for future use
     #[error("Task cancelled: {0}")]
     Cancelled(String),
 
@@ -57,6 +59,7 @@ pub enum AppError {
 /// Convenience type alias for Results with AppError
 pub type AppResult<T> = Result<T, AppError>;
 
+#[allow(dead_code)] // Error helper methods - API completeness
 impl AppError {
     /// Create an AWS API error
     pub fn aws_api(service: impl Into<String>, message: impl Into<String>) -> Self {
@@ -130,6 +133,7 @@ impl AppError {
 }
 
 /// Extension trait for converting AWS SDK errors to AppError
+#[allow(dead_code)] // Infrastructure for standardized error handling
 pub trait AwsErrorExt<T> {
     fn map_aws_err(self, service: &str) -> AppResult<T>;
 }

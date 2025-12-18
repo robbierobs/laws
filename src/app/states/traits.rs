@@ -26,4 +26,13 @@ pub trait ServiceInternal: AutoSelectable + Searchable + Send {
     /// Each service implements this based on its current view mode
     /// and data availability.
     fn auto_select_first(&mut self);
+    
+    /// Returns true if the current view mode supports cycling
+    /// 
+    /// Services without view modes return false.
+    /// Services with view modes return true only when in a cyclable state
+    /// (e.g., not in a drill-down view).
+    fn can_cycle_view(&self) -> bool {
+        false
+    }
 }

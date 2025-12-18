@@ -178,4 +178,8 @@ impl ServiceInternal for CloudTrailState {
             }
         }
     }
+
+    fn can_cycle_view(&self) -> bool {
+        true // CloudTrail supports view mode cycling in all tabs
+    }
 }

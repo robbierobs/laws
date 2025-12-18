@@ -3,7 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use super::{
-    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ViewMode, VpcViewMode,
+    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service,
 };
 use crate::app::global_search::Searchable;
 use crate::ui::components::Component;
@@ -218,53 +218,14 @@ impl App {
                     return None;
                 }
 
-                // View mode cycling
-                if key.code == KeyCode::Char('v') {
-                    match self.current_service {
-                        Service::Backup | Service::CloudTrail => {
-                            return Some(Message::cycle_view_mode())
-                        }
-                        Service::VPC
-                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
-                        {
-                            return Some(Message::cycle_view_mode())
-                        }
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
-                            return Some(Message::cycle_view_mode())
-                        }
+                // View mode cycling - only for services that support it
+                if self.services.get(self.current_service).can_cycle_view() {
+                    match key.code {
+                        KeyCode::Char('v') => return Some(Message::cycle_view_mode()),
+                        KeyCode::Right | KeyCode::Char('l') => return Some(Message::next_view()),
+                        KeyCode::Left | KeyCode::Char('h') => return Some(Message::previous_view()),
                         _ => {}
                     }
-                }
-
-                // Arrow navigation for view modes
-                match key.code {
-                    KeyCode::Right | KeyCode::Char('l') => match self.current_service {
-                        Service::Backup | Service::CloudTrail => return Some(Message::next_view()),
-                        Service::VPC
-                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
-                        {
-                            return Some(Message::next_view())
-                        }
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
-                            return Some(Message::next_view())
-                        }
-                        _ => {}
-                    },
-                    KeyCode::Left | KeyCode::Char('h') => match self.current_service {
-                        Service::Backup | Service::CloudTrail => {
-                            return Some(Message::previous_view())
-                        }
-                        Service::VPC
-                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
-                        {
-                            return Some(Message::previous_view())
-                        }
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
-                            return Some(Message::previous_view())
-                        }
-                        _ => {}
-                    },
-                    _ => {}
                 }
 
                 // Service-specific input handling

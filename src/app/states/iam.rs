@@ -252,4 +252,10 @@ impl ServiceInternal for IamState {
             }
         }
     }
+
+    fn can_cycle_view(&self) -> bool {
+        use crate::app::ViewMode;
+        // Disable cycling when in drill-down views
+        self.view_mode.is_main_tab()
+    }
 }

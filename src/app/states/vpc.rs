@@ -234,4 +234,9 @@ impl ServiceInternal for VpcState {
             }
         }
     }
+
+    fn can_cycle_view(&self) -> bool {
+        // Disable cycling when in drill-down (SecurityGroupRules) view
+        self.view_mode != VpcViewMode::SecurityGroupRules
+    }
 }

@@ -3,8 +3,6 @@
 //! This module contains state structs for ECS-related modals, extracted from
 //! EcsState to reduce its complexity and improve maintainability.
 
-#![allow(dead_code)]
-
 use crate::app::navigation::{nav_down, nav_up};
 use crate::models::ecs::EcsTaskDefinition;
 
@@ -35,6 +33,7 @@ pub struct ServiceEditorState {
     pub force_deploy: bool,
 }
 
+#[allow(dead_code)] // ECS service editor modal - methods used by UI (planned)
 impl ServiceEditorState {
     /// Number of editable fields in the modal
     pub const FIELD_COUNT: usize = 3;
@@ -138,6 +137,7 @@ pub struct TaskDefSelectorState {
     pub loading: bool,
 }
 
+#[allow(dead_code)] // Task definition selector modal - methods used by UI (planned)
 impl TaskDefSelectorState {
     /// Create a new task definition selector state
     pub fn new() -> Self {

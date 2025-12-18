@@ -198,4 +198,8 @@ impl ServiceInternal for BackupState {
             }
         }
     }
+
+    fn can_cycle_view(&self) -> bool {
+        true // Backup supports view mode cycling in all tabs
+    }
 }

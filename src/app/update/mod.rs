@@ -23,7 +23,7 @@ mod view_mode;
 mod vpc;
 
 use super::messages::{
-    DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
+    DynamoDbAction, Ec2Action, IamAction, RdsAction, S3Action, VpcAction,
 };
 use super::{App, Message, ServiceAction};
 
@@ -163,46 +163,20 @@ impl App {
             }
 
             // SecretsManager actions
-            ServiceAction::SecretsManager(SecretsManagerAction::GetSecretValue(arn)) => {
-                self.handle_get_secret_value(arn, event_tx);
-            }
-            ServiceAction::SecretsManager(SecretsManagerAction::CloseSecretValue) => {
-                self.services.secretsmanager.show_secret_modal = false;
-                self.services.secretsmanager.secret_value = None;
-            }
-            ServiceAction::SecretsManager(SecretsManagerAction::DeleteSecret(arn)) => {
-                self.handle_delete_secret(arn, event_tx);
+            ServiceAction::SecretsManager(action) => {
+                self.handle_secretsmanager_action(action, event_tx);
             }
 
-            // No-op actions for services without mutations
             // Lambda actions
-            ServiceAction::Lambda(crate::app::messages::LambdaAction::InvokeFunction(name)) => {
-                self.handle_invoke_lambda(name, event_tx);
-            }
-            ServiceAction::Lambda(crate::app::messages::LambdaAction::DeleteFunction(name)) => {
-                self.handle_delete_lambda(name, event_tx);
-            }
-            ServiceAction::Lambda(crate::app::messages::LambdaAction::LoadFunctionDetails(
-                name,
-            )) => {
-                self.handle_load_function_details(name, event_tx);
+            ServiceAction::Lambda(action) => {
+                self.handle_lambda_action(action, event_tx);
             }
             ServiceAction::Backup(action) => {
                 self.handle_backup_action(action, event_tx);
             }
-            ServiceAction::CloudTrail(action) => match action {
-                crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {
-                    self.services.cloudtrail.selected_event_detail = Some(json);
-                    self.services.cloudtrail.show_detail_modal = true;
-                }
-                crate::app::messages::CloudTrailAction::CloseEventDetails => {
-                    self.services.cloudtrail.show_detail_modal = false;
-                    self.services.cloudtrail.selected_event_detail = None;
-                }
-                crate::app::messages::CloudTrailAction::DeleteTrail(name) => {
-                    self.handle_delete_trail(name, event_tx);
-                }
-            },
+            ServiceAction::CloudTrail(action) => {
+                self.handle_cloudtrail_action(action, event_tx);
+            }
             ServiceAction::Ecs(action) => {
                 self.handle_ecs_action(action, event_tx);
             }
