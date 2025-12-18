@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
-use crate::app::{EcsViewMode, InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{EcsViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crate::app::ecs_modals::{ServiceEditorState, TaskDefSelectorState};
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -219,6 +224,44 @@ impl ServiceInputHandler for EcsState {
             EcsViewMode::Services => self.selected_service().map(|s| s.service_arn.clone()),
             EcsViewMode::Tasks => self.selected_task().map(|t| t.task_arn.clone()),
             EcsViewMode::TaskDefinition => self.current_task_definition.as_ref().map(|td| td.task_definition_arn.clone()),
+        }
+    }
+}
+
+impl ServiceInternal for EcsState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.ecs.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move { crate::aws::ecs::EcsClient::new(client).list_clusters().await },
+            AwsEvent::EcsClustersLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::ECS_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.clusters.clear();
+        self.services.clear();
+        self.tasks.clear();
+        self.current_task_definition = None;
+        self.selected_cluster_arn = None;
+        self.selected_service_arn = None;
+        self.selected_service_name = None;
+        self.view_mode = EcsViewMode::Clusters;
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.clusters.is_empty() {
+            self.list_state.select(Some(0));
         }
     }
 }

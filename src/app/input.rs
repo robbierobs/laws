@@ -3,7 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use super::{
-    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ViewMode, VpcViewMode,
+    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service,
 };
 use crate::app::global_search::Searchable;
 use crate::ui::components::Component;
@@ -218,53 +218,14 @@ impl App {
                     return None;
                 }
 
-                // View mode cycling
-                if key.code == KeyCode::Char('v') {
-                    match self.current_service {
-                        Service::Backup | Service::CloudTrail => {
-                            return Some(Message::cycle_view_mode())
-                        }
-                        Service::VPC
-                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
-                        {
-                            return Some(Message::cycle_view_mode())
-                        }
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
-                            return Some(Message::cycle_view_mode())
-                        }
+                // View mode cycling - only for services that support it
+                if self.services.get(self.current_service).can_cycle_view() {
+                    match key.code {
+                        KeyCode::Char('v') => return Some(Message::cycle_view_mode()),
+                        KeyCode::Right | KeyCode::Char('l') => return Some(Message::next_view()),
+                        KeyCode::Left | KeyCode::Char('h') => return Some(Message::previous_view()),
                         _ => {}
                     }
-                }
-
-                // Arrow navigation for view modes
-                match key.code {
-                    KeyCode::Right | KeyCode::Char('l') => match self.current_service {
-                        Service::Backup | Service::CloudTrail => return Some(Message::next_view()),
-                        Service::VPC
-                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
-                        {
-                            return Some(Message::next_view())
-                        }
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
-                            return Some(Message::next_view())
-                        }
-                        _ => {}
-                    },
-                    KeyCode::Left | KeyCode::Char('h') => match self.current_service {
-                        Service::Backup | Service::CloudTrail => {
-                            return Some(Message::previous_view())
-                        }
-                        Service::VPC
-                            if self.services.vpc.view_mode != VpcViewMode::SecurityGroupRules =>
-                        {
-                            return Some(Message::previous_view())
-                        }
-                        Service::IAM if self.services.iam.view_mode.is_main_tab() => {
-                            return Some(Message::previous_view())
-                        }
-                        _ => {}
-                    },
-                    _ => {}
                 }
 
                 // Service-specific input handling
@@ -364,142 +325,7 @@ impl App {
     }
 
     fn auto_select_first_item(&mut self) {
-        match self.current_service {
-            Service::EC2 => {
-                if self.services.ec2.list_state.selected().is_none()
-                    && !self.services.ec2.instances.is_empty()
-                {
-                    self.services.ec2.list_state.select(Some(0));
-                }
-            }
-            Service::S3 => {
-                if self.services.s3.current_bucket.is_some() {
-                    if self.services.s3.object_list_state.selected().is_none()
-                        && !self.services.s3.objects.is_empty()
-                    {
-                        self.services.s3.object_list_state.select(Some(0));
-                    }
-                } else if self.services.s3.list_state.selected().is_none()
-                    && !self.services.s3.buckets.is_empty()
-                {
-                    self.services.s3.list_state.select(Some(0));
-                }
-            }
-            Service::RDS => {
-                if self.services.rds.list_state.selected().is_none()
-                    && !self.services.rds.instances.is_empty()
-                {
-                    self.services.rds.list_state.select(Some(0));
-                }
-            }
-            Service::DynamoDB => {
-                if self.services.dynamodb.list_state.selected().is_none()
-                    && !self.services.dynamodb.tables.is_empty()
-                {
-                    self.services.dynamodb.list_state.select(Some(0));
-                }
-            }
-            Service::Lambda => {
-                if self.services.lambda.list_state.selected().is_none()
-                    && !self.services.lambda.functions.is_empty()
-                {
-                    self.services.lambda.list_state.select(Some(0));
-                }
-            }
-            Service::VPC => self.auto_select_vpc(),
-            Service::IAM => self.auto_select_iam(),
-            Service::Backup => self.auto_select_backup(),
-            Service::CloudTrail => self.auto_select_cloudtrail(),
-            Service::SecretsManager => {
-                if self.services.secretsmanager.list_state.selected().is_none()
-                    && !self.services.secretsmanager.secrets.is_empty()
-                {
-                    self.services.secretsmanager.list_state.select(Some(0));
-                }
-            }
-            Service::ECS => {
-                if self.services.ecs.list_state.selected().is_none()
-                    && !self.services.ecs.clusters.is_empty()
-                {
-                    self.services.ecs.list_state.select(Some(0));
-                }
-            }
-            Service::ECR => self.auto_select_ecr(),
-        }
-    }
-
-    fn auto_select_vpc(&mut self) {
-        if self.services.vpc.list_state.selected().is_none() {
-            use crate::app::VpcViewMode;
-            let has_items = match self.services.vpc.view_mode {
-                VpcViewMode::Vpcs => !self.services.vpc.vpcs.is_empty(),
-                VpcViewMode::Subnets => !self.services.vpc.subnets.is_empty(),
-                VpcViewMode::SecurityGroups => !self.services.vpc.security_groups.is_empty(),
-                VpcViewMode::SecurityGroupRules => !self.services.vpc.current_sg_rules.is_empty(),
-            };
-            if has_items {
-                self.services.vpc.list_state.select(Some(0));
-            }
-        }
-    }
-
-    fn auto_select_iam(&mut self) {
-        if self.services.iam.list_state.selected().is_none() {
-            use crate::app::IamViewMode;
-            let has_items = match self.services.iam.view_mode {
-                IamViewMode::Users => !self.services.iam.users.is_empty(),
-                IamViewMode::Roles => !self.services.iam.roles.is_empty(),
-                IamViewMode::Policies => !self.services.iam.policies.is_empty(),
-                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => {
-                    !self.services.iam.current_policies.is_empty()
-                }
-                IamViewMode::PolicyDocument => false,
-            };
-            if has_items {
-                self.services.iam.list_state.select(Some(0));
-            }
-        }
-    }
-
-    fn auto_select_backup(&mut self) {
-        if self.services.backup.list_state.selected().is_none() {
-            use crate::app::BackupViewMode;
-            let has_items = match self.services.backup.view_mode {
-                BackupViewMode::Vaults => !self.services.backup.vaults.is_empty(),
-                BackupViewMode::Plans => !self.services.backup.plans.is_empty(),
-                BackupViewMode::Jobs => !self.services.backup.jobs.is_empty(),
-                BackupViewMode::RecoveryPoints => !self.services.backup.recovery_points.is_empty(),
-            };
-            if has_items {
-                self.services.backup.list_state.select(Some(0));
-            }
-        }
-    }
-
-    fn auto_select_cloudtrail(&mut self) {
-        if self.services.cloudtrail.list_state.selected().is_none() {
-            use crate::app::CloudTrailViewMode;
-            let has_items = match self.services.cloudtrail.view_mode {
-                CloudTrailViewMode::Trails => !self.services.cloudtrail.trails.is_empty(),
-                CloudTrailViewMode::Events => !self.services.cloudtrail.events.is_empty(),
-            };
-            if has_items {
-                self.services.cloudtrail.list_state.select(Some(0));
-            }
-        }
-    }
-
-    fn auto_select_ecr(&mut self) {
-        if self.services.ecr.list_state.selected().is_none() {
-            use crate::app::EcrViewMode;
-            let has_items = match self.services.ecr.view_mode {
-                EcrViewMode::Repositories => !self.services.ecr.repositories.is_empty(),
-                EcrViewMode::Images => !self.services.ecr.images.is_empty(),
-            };
-            if has_items {
-                self.services.ecr.list_state.select(Some(0));
-            }
-        }
+        self.services.get_mut(self.current_service).auto_select_first();
     }
 
     // ====================================

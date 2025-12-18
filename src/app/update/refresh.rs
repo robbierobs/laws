@@ -37,11 +37,11 @@ where
     tokio::spawn(async move {
         match list_fn().await {
             Ok(data) => {
-                tx.send(Event::Aws(event_builder(data))).await.ok();
+                tx.send(Event::Aws(Box::new(event_builder(data)))).await.ok();
             }
             Err(e) => {
                 if report_errors {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                         .await
                         .ok();
                 }
@@ -78,13 +78,13 @@ where
     tokio::spawn(async move {
         match action_fn().await {
             Ok(()) => {
-                tx.send(Event::Aws(AwsEvent::ActionCompleted(success_message)))
+                tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(success_message))))
                     .await
                     .ok();
             }
             Err(e) => {
                 if report_errors {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                         .await
                         .ok();
                 }
@@ -110,11 +110,11 @@ where
     tokio::spawn(async move {
         match action_fn().await {
             Ok(result) => {
-                tx.send(Event::Aws(event_builder(result))).await.ok();
+                tx.send(Event::Aws(Box::new(event_builder(result)))).await.ok();
             }
             Err(e) => {
                 if report_errors {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                         .await
                         .ok();
                 }
@@ -141,10 +141,14 @@ mod tests {
 
         handle.await.unwrap();
 
-        if let Some(Event::Aws(AwsEvent::ActionCompleted(msg))) = rx.recv().await {
-            assert_eq!(msg, "Loaded 2 items");
+        if let Some(Event::Aws(aws_event)) = rx.recv().await {
+            if let AwsEvent::ActionCompleted(msg) = *aws_event {
+                assert_eq!(msg, "Loaded 2 items");
+            } else {
+                panic!("Expected ActionCompleted event");
+            }
         } else {
-            panic!("Expected ActionCompleted event");
+            panic!("Expected Aws event");
         }
     }
 
@@ -161,10 +165,14 @@ mod tests {
 
         handle.await.unwrap();
 
-        if let Some(Event::Aws(AwsEvent::Error(msg))) = rx.recv().await {
-            assert_eq!(msg, "test error");
+        if let Some(Event::Aws(aws_event)) = rx.recv().await {
+            if let AwsEvent::Error(msg) = *aws_event {
+                assert_eq!(msg, "test error");
+            } else {
+                panic!("Expected Error event");
+            }
         } else {
-            panic!("Expected Error event");
+            panic!("Expected Aws event");
         }
     }
 

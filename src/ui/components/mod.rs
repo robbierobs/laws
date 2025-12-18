@@ -3,12 +3,18 @@ pub mod sidebar;
 pub mod resource_list;
 pub mod detail_panel;
 pub mod action_bar;
-pub mod modal;
+pub mod modals;
 pub mod input;
 pub mod loading;
 pub mod tabs;
 pub mod action_log;
 pub mod table;
+
+// Re-export modal functions for backwards compatibility
+// This allows existing code to use `modal::render_*` without changes
+pub mod modal {
+    pub use super::modals::*;
+}
 
 use ratatui::{Frame, layout::Rect};
 use crossterm::event::KeyEvent;

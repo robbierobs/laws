@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::vpc::{SecurityGroup, SecurityGroupRule, Subnet, Vpc};
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, VpcViewMode};
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, VpcViewMode, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::aws::vpc::VpcService;
+use crate::event::{AwsEvent, Event};
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for VPC service
@@ -166,5 +171,72 @@ impl ServiceInputHandler for VpcState {
             VpcViewMode::SecurityGroups => self.selected_security_group().map(|sg| sg.group_id.clone()),
             VpcViewMode::SecurityGroupRules => None,
         }
+    }
+}
+
+impl ServiceInternal for VpcState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.ec2.clone();
+        let handle = tokio::spawn(async move {
+            let service = VpcService::new(client);
+            if let Ok(vpcs) = service.list_vpcs().await {
+                tx.send(Event::Aws(Box::new(AwsEvent::VpcsLoaded(vpcs))))
+                    .await
+                    .ok();
+            } else if report_errors {
+                tx.send(Event::Aws(Box::new(AwsEvent::Error(
+                    "Failed to load VPCs".to_string(),
+                ))))
+                .await
+                .ok();
+            }
+            if let Ok(subnets) = service.list_subnets(None).await {
+                tx.send(Event::Aws(Box::new(AwsEvent::SubnetsLoaded(subnets))))
+                    .await
+                    .ok();
+            }
+            if let Ok(sgs) = service.list_security_groups(None).await {
+                tx.send(Event::Aws(Box::new(AwsEvent::SecurityGroupsLoaded(sgs))))
+                    .await
+                    .ok();
+            }
+        });
+        tasks.spawn(task_keys::VPC_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.vpcs.clear();
+        self.subnets.clear();
+        self.security_groups.clear();
+        self.current_sg_rules.clear();
+        self.selected_sg_id = None;
+        self.view_mode = VpcViewMode::Vpcs;
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                VpcViewMode::Vpcs => !self.vpcs.is_empty(),
+                VpcViewMode::Subnets => !self.subnets.is_empty(),
+                VpcViewMode::SecurityGroups => !self.security_groups.is_empty(),
+                VpcViewMode::SecurityGroupRules => !self.current_sg_rules.is_empty(),
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn can_cycle_view(&self) -> bool {
+        // Disable cycling when in drill-down (SecurityGroupRules) view
+        self.view_mode != VpcViewMode::SecurityGroupRules
     }
 }

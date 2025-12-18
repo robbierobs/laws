@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::iam::{IamPolicy, IamRole, IamUser};
-use crate::app::{IamViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, ViewMode};
+use crate::app::{IamViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, ViewMode, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::aws::iam::IamService;
+use crate::event::{AwsEvent, Event};
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for IAM service
@@ -177,5 +182,80 @@ impl ServiceInputHandler for IamState {
             IamViewMode::Policies => self.selected_policy().map(|p| p.policy_name.clone()),
             _ => None,
         }
+    }
+}
+
+impl ServiceInternal for IamState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.iam.clone();
+        let handle = tokio::spawn(async move {
+            let service = IamService::new(client);
+            match service.list_users().await {
+                Ok(users) => {
+                    tx.send(Event::Aws(Box::new(AwsEvent::IamUsersLoaded(users))))
+                        .await
+                        .ok();
+                }
+                Err(e) => {
+                    if report_errors {
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
+                            .await
+                            .ok();
+                    }
+                }
+            }
+            if let Ok(roles) = service.list_roles().await {
+                tx.send(Event::Aws(Box::new(AwsEvent::IamRolesLoaded(roles))))
+                    .await
+                    .ok();
+            }
+            if let Ok(policies) = service.list_policies().await {
+                tx.send(Event::Aws(Box::new(AwsEvent::IamPoliciesLoaded(policies))))
+                    .await
+                    .ok();
+            }
+        });
+        tasks.spawn(task_keys::IAM_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.users.clear();
+        self.roles.clear();
+        self.policies.clear();
+        self.current_policies.clear();
+        self.current_policy_document.clear();
+        self.selected_entity_name = None;
+        self.view_mode = IamViewMode::Users;
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                IamViewMode::Users => !self.users.is_empty(),
+                IamViewMode::Roles => !self.roles.is_empty(),
+                IamViewMode::Policies => !self.policies.is_empty(),
+                IamViewMode::UserAttachedPolicies | IamViewMode::RoleAttachedPolicies => {
+                    !self.current_policies.is_empty()
+                }
+                IamViewMode::PolicyDocument => false,
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn can_cycle_view(&self) -> bool {
+        use crate::app::ViewMode;
+        // Disable cycling when in drill-down views
+        self.view_mode.is_main_tab()
     }
 }

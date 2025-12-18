@@ -4,16 +4,36 @@
 //! All handlers follow the standardized pattern: sync function that spawns
 //! a tracked task via the TaskManager.
 
+use crate::app::messages::LambdaAction;
 use crate::app::task_manager::task_keys;
 use crate::app::{App, EventSender};
 use crate::event::{AwsEvent, Event};
 
 impl App {
+    /// Main entry point for Lambda actions
+    pub(super) fn handle_lambda_action(
+        &mut self,
+        action: LambdaAction,
+        event_tx: EventSender,
+    ) {
+        match action {
+            LambdaAction::InvokeFunction(name) => {
+                self.handle_invoke_lambda(name, event_tx);
+            }
+            LambdaAction::DeleteFunction(name) => {
+                self.handle_delete_lambda(name, event_tx);
+            }
+            LambdaAction::LoadFunctionDetails(name) => {
+                self.handle_load_function_details(name, event_tx);
+            }
+        }
+    }
+
     /// Invoke a Lambda function
     /// 
     /// Spawns a tracked async task that invokes the function and sends
     /// the result back via the event channel.
-    pub(super) fn handle_invoke_lambda(&mut self, function_name: String, event_tx: EventSender) {
+    fn handle_invoke_lambda(&mut self, function_name: String, event_tx: EventSender) {
         self.action_log.push(format!("Invoking Lambda function: {}", function_name));
         
         // Clone for async block
@@ -32,12 +52,12 @@ impl App {
                         } else {
                             payload
                         };
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(
                             format!("Function invoked. Payload: {}", display_payload)
-                        ))).await.ok();
+                        )))).await.ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                     }
                 }
             }
@@ -48,7 +68,7 @@ impl App {
     /// 
     /// Spawns a tracked async task that deletes the function and triggers
     /// a refresh on success.
-    pub(super) fn handle_delete_lambda(&mut self, function_name: String, event_tx: EventSender) {
+    fn handle_delete_lambda(&mut self, function_name: String, event_tx: EventSender) {
         self.action_log.push(format!("Deleting Lambda function: {}", function_name));
         
         let func_name = function_name.clone();
@@ -60,14 +80,14 @@ impl App {
                 let service = crate::aws::lambda::LambdaService::new(clients.lambda.clone());
                 match service.delete_function(&func_name).await {
                     Ok(_) => {
-                        tx.send(Event::Aws(AwsEvent::ActionCompleted(
+                        tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(
                             format!("Function {} deleted", func_name)
-                        ))).await.ok();
+                        )))).await.ok();
                         // Trigger refresh
                         tx.send(crate::event::Event::Message(crate::app::Message::refresh())).await.ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                     }
                 }
             }
@@ -78,7 +98,7 @@ impl App {
     /// 
     /// Spawns a tracked async task that fetches function details and sends
     /// them back via the event channel.
-    pub(super) fn handle_load_function_details(&mut self, function_name: String, event_tx: EventSender) {
+    fn handle_load_function_details(&mut self, function_name: String, event_tx: EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
         };
@@ -105,13 +125,13 @@ impl App {
             let service = crate::aws::lambda::LambdaService::new(client);
             match service.get_function_details(&function_name).await {
                 Ok(details) => {
-                    event_tx.send(Event::Aws(AwsEvent::LambdaFunctionDetailsLoaded {
+                    event_tx.send(Event::Aws(Box::new(AwsEvent::LambdaFunctionDetailsLoaded {
                         function_name,
                         details,
-                    })).await.ok();
+                    }))).await.ok();
                 }
                 Err(e) => {
-                    event_tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    event_tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

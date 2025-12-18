@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::secretsmanager::Secret;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for Secrets Manager service
@@ -95,5 +100,42 @@ impl ServiceInputHandler for SecretsManagerState {
 
     fn get_copiable_text(&self) -> Option<String> {
         self.selected_secret().map(|s| s.name.clone())
+    }
+}
+
+impl ServiceInternal for SecretsManagerState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.secretsmanager.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move {
+                crate::aws::secretsmanager::SecretsManagerService::new(client)
+                    .list_secrets()
+                    .await
+            },
+            AwsEvent::SecretsManagerSecretsLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::SECRETSMANAGER_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.secrets.clear();
+        self.secret_value = None;
+        self.show_secret_modal = false;
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.secrets.is_empty() {
+            self.list_state.select(Some(0));
+        }
     }
 }

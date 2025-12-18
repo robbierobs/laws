@@ -9,10 +9,10 @@ This document defines the personas, workflows, and standards for AI agents worki
 **LazyAWS** is a terminal user interface (TUI) for managing AWS resources, built with **Rust** and **Ratatui**. It aims to be a keyboard-driven, fast, and responsive alternative to the AWS Console, inspired by `lazygit`.
 
 ### 1.1 Project Statistics
-- **~12,000 lines** of Rust code
-- **11 AWS services** supported
+- **~25,000 lines** of Rust code
+- **12 AWS services** supported
 - **70+ source files** across 5 major modules
-- **88 unit tests**
+- **112 unit tests**
 
 ### 1.2 Technology Stack
 | Component | Crate | Purpose |
@@ -63,7 +63,7 @@ The application uses a **hybrid pattern** combining:
 ### 2.2 Data Flow
 
 1. **Input**: Keyboard event received via `crossterm`
-2. **Handle**: `App::handle_key()` returns `Option<Message>`
+2. **Handle**: `App::handle_key()` dispatches to `ServiceInputHandler` → returns `InputResult`
 3. **Update**: `App::update(msg)` mutates state and/or spawns async tasks
 4. **Async Result**: AWS operations complete, send `AwsEvent` via channel
 5. **Event Handle**: `App::handle_aws_event()` updates state with results
@@ -101,136 +101,301 @@ enum ServiceAction {
 }
 ```
 
-### 2.4 State Organization
+---
 
-State is organized hierarchically to avoid a monolithic `App` struct:
+## 3. Trait Hierarchy (Critical for Development)
+
+The codebase uses a well-defined trait hierarchy to standardize behavior across all 12 AWS services:
+
+### 3.1 Core Traits Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         SERVICE STATE TRAITS                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                    ServiceInternal                               │    │
+│  │  (src/app/states/traits.rs)                                      │    │
+│  │  ───────────────────────────────────────────────────────────────│    │
+│  │  Required methods:                                               │    │
+│  │    - refresh(&mut self, tx, clients, tasks, config, report_err)  │    │
+│  │    - clear(&mut self)                                            │    │
+│  │    - auto_select_first(&mut self)                                │    │
+│  │  Default methods:                                                 │    │
+│  │    - can_cycle_view(&self) -> bool { false }                     │    │
+│  │                                                                   │    │
+│  │  Supertraits: AutoSelectable + Searchable + Send                 │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│          │                      │                                        │
+│          ▼                      ▼                                        │
+│  ┌──────────────────┐  ┌────────────────────────────────────┐           │
+│  │  AutoSelectable  │  │           Searchable               │           │
+│  │  (global_search) │  │         (global_search)            │           │
+│  │  ────────────────│  │  ──────────────────────────────────│           │
+│  │  - select_by_id  │  │  - get_search_results() -> Vec<>   │           │
+│  │    (&mut, &str)  │  │                                    │           │
+│  │    -> bool       │  │                                    │           │
+│  └──────────────────┘  └────────────────────────────────────┘           │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                  ServiceInputHandler                             │    │
+│  │  (src/app/mod.rs)                                                │    │
+│  │  ───────────────────────────────────────────────────────────────│    │
+│  │  Required methods:                                               │    │
+│  │    - handle_input(&mut self, key: KeyEvent) -> InputResult       │    │
+│  │    - reset_selection(&mut self)                                  │    │
+│  │    - get_copiable_text(&self) -> Option<String>                  │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              OTHER TRAITS                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                        ViewMode                                  │    │
+│  │  (src/app/view_mode.rs)                                          │    │
+│  │  ───────────────────────────────────────────────────────────────│    │
+│  │  For services with multiple tabs (VPC, IAM, Backup, etc.)       │    │
+│  │  Required:                                                       │    │
+│  │    - all() -> &'static [Self]                                    │    │
+│  │    - index(&self) -> usize                                       │    │
+│  │    - from_index(i: usize) -> Self                                │    │
+│  │    - label(&self) -> &'static str                                │    │
+│  │  Defaults:                                                       │    │
+│  │    - main_tabs() -> all()                                        │    │
+│  │    - next(&self), prev(&self) -- cyclic navigation               │    │
+│  │    - is_main_tab(&self) -> bool { true }                         │    │
+│  │    - is_drill_down(&self) -> bool { !is_main_tab() }             │    │
+│  │    - supports_cycling(&self) -> bool { is_main_tab() }           │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  ┌─────────────────────────────────────────┐ ┌────────────────────────┐ │
+│  │        AwsService<T>                    │ │   TableStateExt        │ │
+│  │  (src/aws/traits.rs)                    │ │ (src/app/navigation.rs)│ │
+│  │  ──────────────────────────────────────│ │  ─────────────────────│ │
+│  │  For AWS SDK wrappers:                  │ │  Extension trait for   │ │
+│  │    - list(&self) -> Future<Vec<T>>      │ │  TableState:           │ │
+│  │                                         │ │  - nav_up(&mut, len)   │ │
+│  │                                         │ │  - nav_down(&mut, len) │ │
+│  │                                         │ │  - nav_first/last      │ │
+│  │                                         │ │  - clamp_selection     │ │
+│  └─────────────────────────────────────────┘ └────────────────────────┘ │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 Required Trait Implementations Per Service State
+
+Every `XxxState` struct in `src/app/states/` MUST implement:
+
+| Trait | Location | Purpose |
+|-------|----------|---------|
+| `ServiceInternal` | `states/traits.rs` | Refresh, clear, auto-select |
+| `ServiceInputHandler` | `app/mod.rs` | Handle keyboard input |
+| `Searchable` | `global_search.rs` | Provide search results |
+| `AutoSelectable` | `global_search.rs` | Select by resource ID |
+
+For services with multiple views (tabs):
+| Trait | Location | Purpose |
+|-------|----------|---------|
+| `ViewMode` | `view_mode.rs` | Tab navigation (next/prev/label) |
+
+### 3.3 Example: Complete Service State Implementation
 
 ```rust
-struct App {
-    // Core state
-    current_service: Service,
-    input_mode: InputMode,
-    focus: Focus,
-    
-    // AWS
-    aws_clients: Option<AwsClients>,
-    profile: Option<String>,
-    region: String,
-    
-    // Per-service state (organized in ServiceStates)
-    services: ServiceStates,
-    
-    // UI modals and action tracking
-    pending_action: Option<Message>,
-    show_confirmation: bool,
-    action_log: Vec<String>,
-    
-    // Async task management
-    tasks: TaskManager,
-    
-    // Profile switcher state
-    available_profiles: Vec<String>,
-    available_regions: Vec<String>,
-    
-    // Configuration
-    config: AppConfig,
+// src/app/states/ec2.rs
+
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, Service};
+use crate::app::global_search::{AutoSelectable, Searchable, SearchResult};
+use crate::app::states::ServiceInternal;
+use crate::app::EventSender;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::aws::traits::AwsService;
+use crate::event::AwsEvent;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::widgets::TableState;
+
+/// State for EC2 service
+#[derive(Default)]
+pub struct Ec2State {
+    pub instances: Vec<Ec2Instance>,
+    pub list_state: TableState,
 }
 
-struct ServiceStates {
-    ec2: Ec2State,
-    s3: S3State,
-    rds: RdsState,
-    dynamodb: DynamoDbState,
-    lambda: LambdaState,
-    vpc: VpcState,
-    iam: IamState,
-    backup: BackupState,
-    cloudtrail: CloudTrailState,
-    secretsmanager: SecretsManagerState,
-    ecs: EcsState,
+impl Ec2State {
+    pub fn new() -> Self { Self::default() }
+
+    /// Get the currently selected instance
+    pub fn selected_instance(&self) -> Option<&Ec2Instance> {
+        self.list_state.selected().and_then(|i| self.instances.get(i))
+    }
+}
+
+// === TRAIT: Searchable ===
+impl Searchable for Ec2State {
+    fn get_search_results(&self) -> Vec<SearchResult> {
+        self.instances.iter().map(|i| {
+            let mut r = SearchResult::new(Service::EC2, "EC2 Instance", &i.instance_id);
+            if let Some(name) = &i.name {
+                r = r.with_secondary(name.clone());
+            }
+            r.with_tags(i.tags.clone())
+        }).collect()
+    }
+}
+
+// === TRAIT: AutoSelectable ===
+impl AutoSelectable for Ec2State {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        if let Some(idx) = self.instances.iter().position(|i| i.instance_id == resource_id) {
+            self.list_state.select(Some(idx));
+            true
+        } else {
+            false
+        }
+    }
+}
+
+// === TRAIT: ServiceInputHandler ===
+impl ServiceInputHandler for Ec2State {
+    fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        match key.code {
+            KeyCode::Down | KeyCode::Char('j') => self.list_state.nav_down(self.instances.len()),
+            KeyCode::Up | KeyCode::Char('k') => self.list_state.nav_up(self.instances.len()),
+            KeyCode::Char('s') => {
+                if let Some(instance) = self.selected_instance() {
+                    return InputResult::Action(Message::ec2_start(instance.instance_id.clone()));
+                }
+            }
+            // ... more keybindings
+            _ => {}
+        }
+        InputResult::None
+    }
+
+    fn reset_selection(&mut self) {
+        self.list_state.select(Some(0));
+    }
+
+    fn get_copiable_text(&self) -> Option<String> {
+        self.selected_instance().map(|i| i.instance_id.clone())
+    }
+}
+
+// === TRAIT: ServiceInternal ===
+impl ServiceInternal for Ec2State {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.ec2.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move { Ec2Service::new(client).list().await },
+            AwsEvent::Ec2InstancesLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::EC2_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.instances.clear();
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.instances.is_empty() {
+            self.list_state.select(Some(0));
+        }
+    }
+    
+    // Override if service has tabs (VPC, IAM, Backup, etc.)
+    fn can_cycle_view(&self) -> bool {
+        false  // EC2 has no view modes
+    }
 }
 ```
 
 ---
 
-## 3. Module Structure
+## 4. Module Structure
 
 ```
 src/
 ├── main.rs                 # Entry point, event loop, terminal setup
-├── config.rs               # CLI args (clap), Args struct
-├── event.rs                # Event, AwsEvent, EventHandler
+├── config.rs               # CLI args (clap), Args struct, AppConfig
+├── event.rs                # Event, AwsEvent, EventHandler (bounded channel)
 ├── error.rs                # Error types (thiserror)
 │
-├── app/                    # Application state machine (12 files, ~170KB)
-│   ├── mod.rs              # Re-exports: App, Message, Service, Focus, InputMode
-│   ├── messages.rs         # Message, GlobalMessage, ServiceAction, ViewMode enums
+├── app/                    # Application state machine (~15 files)
+│   ├── mod.rs              # Re-exports, InputResult enum, ServiceInputHandler trait
+│   ├── messages/           # Message, GlobalMessage, ServiceAction enums
+│   │   ├── mod.rs          # Main message enums + constructors
+│   │   ├── service.rs      # Service enum
+│   │   ├── view_modes.rs   # ViewMode enums (VpcViewMode, IamViewMode, etc.)
+│   │   └── actions/        # Per-service action enums (Ec2Action, S3Action, etc.)
 │   ├── state.rs            # App struct, new(), render()
-│   ├── update/             # Message handlers split by service (14 files)
-│   ├── input.rs            # Keyboard handling, handle_key() (~40KB)
-│   ├── events.rs           # AWS event handling
-│   ├── service_state.rs    # Per-service state structs (~50KB)
-│   ├── task_manager.rs     # Async task tracking with TaskManager
-│   ├── filtered_list.rs    # Generic filter logic for resource lists
-│   ├── navigation.rs       # List navigation helpers (TableStateExt trait)
-│   ├── ecs_modals.rs       # ECS modal state components
-│   └── view_mode.rs        # Generic ViewMode trait for multi-tab services
+│   ├── states/             # Per-service state structs
+│   │   ├── mod.rs          # ServiceStates container + get_mut(Service)
+│   │   ├── traits.rs       # ServiceInternal trait
+│   │   ├── ec2.rs          # Ec2State
+│   │   ├── s3.rs           # S3State (with ViewerMode, BucketCreation)
+│   │   └── ...             # Other service states
+│   ├── update/             # Message handlers split by service (~17 files)
+│   │   ├── mod.rs          # Main update() dispatcher
+│   │   ├── global.rs       # GlobalMessage handlers
+│   │   ├── refresh.rs      # spawn_list_task helper
+│   │   ├── ec2.rs          # EC2 action handlers
+│   │   └── ...             # Other service handlers
+│   ├── input.rs            # handle_key() dispatcher
+│   ├── input_handlers/     # Modal-specific input handlers
+│   ├── events.rs           # handle_aws_event()
+│   ├── task_manager.rs     # TaskManager for async task tracking
+│   ├── navigation.rs       # TableStateExt, nav_up/down helpers
+│   ├── view_mode.rs        # ViewMode trait
+│   ├── filtered_list.rs    # FilteredList with caching
+│   ├── global_search.rs    # Searchable, AutoSelectable, SearchResult
+│   └── profile_switcher.rs # ProfileSwitcherState
 │
-├── aws/                    # AWS SDK wrappers (12 files)
-│   ├── client.rs           # AwsClients initialization, endpoint_url handling
-│   ├── traits.rs           # AwsService trait definition
-│   ├── ec2.rs              # Ec2Service: list, start, stop, reboot
-│   ├── s3.rs               # S3Service: list buckets/objects, get/delete object
-│   ├── rds.rs              # RdsService: list, start, stop, reboot
-│   ├── dynamodb.rs         # DynamoDbService: list tables, scan items, delete
-│   ├── lambda.rs           # LambdaService: list functions
-│   ├── vpc.rs              # VpcService: list VPCs, subnets, security groups
-│   ├── iam.rs              # IamService: list users/roles/policies, get policy doc
-│   ├── backup.rs           # BackupService: list vaults/plans/jobs
-│   ├── cloudtrail.rs       # CloudTrailService: list trails, lookup events
-│   ├── secretsmanager.rs   # SecretsManagerService: list secrets, get values
-│   └── ecs.rs              # EcsClient: clusters, services, tasks, task definitions
+├── aws/                    # AWS SDK wrappers (~15 files)
+│   ├── client.rs           # AwsClients initialization
+│   ├── traits.rs           # AwsService<T> trait, aws_service_struct! macro
+│   ├── ec2.rs              # Ec2Service
+│   └── ...                 # Other service clients
 │
-├── models/                 # Data structures (13 files)
+├── models/                 # Data structures (~14 files)
 │   ├── ec2.rs              # Ec2Instance, InstanceState + state_color()
-│   ├── s3.rs               # S3Bucket, S3Object, S3BucketDetails
-│   ├── rds.rs              # RdsInstance + status_color()
-│   ├── dynamodb.rs         # DynamoDbTable, DynamoDbItem, KeySchema
-│   ├── lambda.rs           # LambdaFunction + runtime_color()
-│   ├── vpc.rs              # Vpc, Subnet, SecurityGroup, SgRule
-│   ├── iam.rs              # IamUser, IamRole, IamPolicy
-│   ├── backup.rs           # BackupVault, BackupPlan, BackupJob + status_color()
-│   ├── cloudtrail.rs       # Trail, CloudTrailEvent
-│   ├── secretsmanager.rs   # Secret
-│   ├── ecs.rs              # EcsCluster, EcsService, EcsTask, EcsTaskDefinition
-│   └── ids.rs              # Type-safe ID wrappers (Ec2InstanceId, etc.)
+│   └── ...                 # Other models with from_aws() conversion
 │
-├── ui/                     # Rendering logic (25 files)
+├── ui/                     # Rendering logic (~29 files)
 │   ├── render.rs           # Main render dispatcher
 │   ├── theme.rs            # THEME constant with colors
-│   ├── components/         # Reusable widgets (11 files)
+│   ├── components/         # Reusable widgets
 │   │   ├── sidebar.rs      # Service navigation
-│   │   ├── modal.rs        # Confirmation, object viewer, profile switcher modals
+│   │   ├── modal.rs        # All modal rendering functions
 │   │   ├── action_bar.rs   # Bottom help bar with keybindings
-│   │   ├── action_log.rs   # Action history popup
-│   │   └── tabs.rs         # Tab navigation component
-│   └── screens/            # Service-specific views (10 files)
-│       ├── ec2.rs          # render_ec2_screen, render_ec2_row, render_ec2_details
-│       ├── s3.rs           # render_s3_screen (buckets + objects views)
-│       ├── vpc.rs          # render_vpc_screen (VPCs, Subnets, SGs, Rules)
-│       ├── iam.rs          # render_iam_screen (Users, Roles, Policies, Docs)
+│   │   └── ...
+│   └── screens/            # Service-specific views
+│       ├── ec2.rs          # render_ec2_screen()
 │       └── ...
 │
-└── utils/                  # Utilities (5 files)
-    ├── aws_profiles.rs     # list_profiles(), is_sso_profile(), get_profile_endpoint_url()
-    ├── error.rs            # Error helpers
-    ├── formatting.rs       # Display formatting
-    └── pagination.rs       # AWS pagination helpers
+└── utils/                  # Utilities (~6 files)
+    ├── aws_profiles.rs     # list_profiles(), is_sso_profile()
+    └── ...
 ```
 
 ---
 
-## 4. Agent Persona
+## 5. Agent Persona
 
 When working on this project, adopt the following persona:
 
@@ -247,60 +412,63 @@ When working on this project, adopt the following persona:
 
 ---
 
-## 5. Coding Standards
+## 6. Coding Standards
 
-### 5.1 Architecture Rules
+### 6.1 Architecture Rules
 - **State**: All mutable state lives in `App`. Components receive `&App` for rendering.
-- **Updates**: State mutations only in `update.rs` via `Message` handling.
-- **Input**: `input.rs` returns `Option<Message>`, never mutates state directly (except list navigation).
-- **Async**: Use `tokio::spawn` for AWS operations. Never block the UI thread.
+- **Updates**: State mutations only in `update/` modules via `Message` handling.
+- **Input**: `input.rs` routes to `ServiceInputHandler`, never mutates state directly (except list navigation).
+- **Async**: Use `spawn_aws_task` helper or `spawn_list_task`. Never block the UI thread.
 
-### 5.2 Naming Conventions
+### 6.2 Naming Conventions
 - **Files**: `snake_case.rs`
 - **Types**: `PascalCase` (e.g., `Ec2State`, `S3Action`)
 - **Functions**: `snake_case` (e.g., `handle_refresh_data`)
 - **Constants**: `SCREAMING_SNAKE_CASE` (e.g., `ALL_REGIONS`)
 
-### 5.3 Error Handling
+### 6.3 Error Handling
 - Use `anyhow::Result` for async operations
 - Use `thiserror` for domain-specific error types
 - Always send errors back via `AwsEvent::Error(String)` to display in UI
 
-### 5.4 Testing
+### 6.4 Testing
 - Add unit tests in `#[cfg(test)] mod tests` at the bottom of files
 - Test business logic (parsing, state transitions), not UI rendering
 - Use descriptive test names: `test_parse_profile_endpoint_url_no_spaces`
 
 ---
 
-## 6. Workflows
+## 7. Workflows
 
-### 6.1 Adding a New AWS Service
+### 7.1 Adding a New AWS Service
 
 1. **Update `Cargo.toml`**: Add `aws-sdk-<service> = "1.x"`
 2. **Create Model** (`src/models/<service>.rs`): Define data structs with `from_aws()` conversion
 3. **Create AWS Service** (`src/aws/<service>.rs`):
-   - Implement `<Service>Service` struct with implicit methods
-   - Implement `AwsService<Model>` trait for standard listing
-4. **Add to State** (`src/app/service_state.rs`): Create `<Service>State` struct
-5. **Add to Messages** (`src/app/messages.rs`):
-   - Add variant to `Service` enum
-   - Create `<Service>Action` enum
-   - Add to `ServiceAction` enum
-6. **Add to AwsEvent** (`src/event.rs`): Add loaded event variants
-7. **Create Screen** (`src/ui/screens/<service>.rs`): Implement `render_<service>_screen()`
-8. **Update Handlers**:
-   - `src/app/update.rs`: Handle service actions
-   - `src/app/input.rs`: Add keybindings
-   - `src/app/events.rs`: Handle AWS events
-9. **Update Navigation**:
-   - `src/ui/components/sidebar.rs`: Add to service list
-   - `src/ui/screens/mod.rs`: Add screen function
-   - `src/ui/render.rs`: Add dispatch case
+   - Use `aws_service_struct!(<Service>Service, Client)` macro
+   - Implement methods for listing and actions
+   - Implement `AwsService<Model>` trait
+4. **Add to Event** (`src/event.rs`): Add `<Service>Loaded(Vec<Model>)` to `AwsEvent`
+5. **Create State** (`src/app/states/<service>.rs`):
+   - Define `<Service>State` struct with data fields + `TableState`
+   - Implement `Searchable`, `AutoSelectable`, `ServiceInputHandler`, `ServiceInternal`
+   - For multi-tab services: implement `ViewMode` trait on a `<Service>ViewMode` enum
+6. **Add to ServiceStates** (`src/app/states/mod.rs`): Add field + update `get_mut()`, `get_all_mut()`
+7. **Add Actions** (`src/app/messages/actions/<service>.rs`): Create `<Service>Action` enum
+8. **Add to ServiceAction** (`src/app/messages/mod.rs`): Add variant
+9. **Create Update Handler** (`src/app/update/<service>.rs`): Implement `handle_<service>_action()`
+10. **Add to Dispatcher** (`src/app/update/mod.rs`): Add case in `handle_service_action()`
+11. **Handle Events** (`src/app/events.rs`): Handle the new `AwsEvent` variants
+12. **Add Task Keys** (`src/app/task_manager.rs`): Add refresh/action keys
+13. **Create Screen** (`src/ui/screens/<service>.rs`): Implement `render_<service>_screen()`
+14. **Update UI**:
+    - `src/ui/render.rs`: Add dispatch case
+    - `src/ui/components/sidebar.rs`: Add to service list
+    - `src/ui/components/action_bar.rs`: Add keybinding hints
 
-### 6.2 Implementing an Action (e.g., Start Instance)
+### 7.2 Implementing an Action
 
-1. **Define Action** in `messages.rs`:
+1. **Define Action** in `src/app/messages/actions/<service>.rs`:
    ```rust
    pub enum Ec2Action {
        Start(String),  // instance_id
@@ -308,50 +476,44 @@ When working on this project, adopt the following persona:
    }
    ```
 
-2. **Add Keybinding** in `input.rs`:
+2. **Add Keybinding** in service state's `handle_input()`:
    ```rust
    KeyCode::Char('s') => {
-       if let Some(id) = self.services.ec2.selected_instance_id() {
-           return InputResult::Action(Message::ec2_start(id));
+       if let Some(instance) = self.selected_instance() {
+           return InputResult::Action(Message::ec2_start(instance.instance_id.clone()));
        }
    }
    ```
 
-3. **Request Confirmation** (for destructive actions):
+3. **Handle Message** in `src/app/update/<service>.rs`:
    ```rust
-   // In request_action() helper, it checks read_only mode and sets pending_action
-   ```
-
-4. **Handle Message** in `update.rs`:
-   ```rust
-   ServiceAction::Ec2(Ec2Action::Start(id)) => {
-       self.handle_ec2_action("start", id, event_tx);
-   }
-   ```
-
-5. **Implement AWS Call**:
-   ```rust
-   fn handle_ec2_action(&mut self, action: &str, id: String, event_tx: ...) {
-       let client = clients.ec2.clone();
-       tokio::spawn(async move {
-           let service = Ec2Service::new(client);
-           match service.start_instance(&id).await {
-               Ok(_) => tx.send(Event::Aws(AwsEvent::ActionCompleted(...))).ok(),
-               Err(e) => tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(),
+   pub(super) fn handle_ec2_action(&mut self, action: Ec2Action, event_tx: EventSender) {
+       match action {
+           Ec2Action::Start(id) => {
+               self.spawn_aws_task(event_tx, task_keys::EC2_ACTION, move |clients, tx| async move {
+                   // AWS call here
+               });
            }
-       });
+       }
    }
    ```
 
-### 6.3 Implementing Hierarchical Navigation (e.g., S3 Bucket → Objects)
+4. **Handle Result** in `src/app/events.rs`:
+   ```rust
+   AwsEvent::ActionCompleted(msg) => {
+       self.action_log.push(format!("[SUCCESS] {}", msg));
+       self.should_refresh = true;
+   }
+   ```
 
-1. **Add State Fields** in `service_state.rs`:
+### 7.3 Implementing Hierarchical Navigation (Drill-Down)
+
+1. **Add State Fields**:
    ```rust
    pub struct S3State {
        pub buckets: Vec<S3Bucket>,
        pub current_bucket: Option<String>,  // Indicates drill-down
        pub objects: Vec<S3Object>,
-       // ...
    }
    ```
 
@@ -362,164 +524,52 @@ When working on this project, adopt the following persona:
    }
    ```
 
-3. **Add Actions** in `messages.rs`:
+3. **Handle Input**:
    ```rust
-   pub enum S3Action {
-       LoadObjects(String),  // bucket_name
-       LeaveBucket,
-       // ...
-   }
-   ```
-
-4. **Handle in Input**:
-   ```rust
-   // Enter drills down
    KeyCode::Enter => {
-       if self.services.s3.is_viewing_objects() {
-           // Handle object selection
-       } else {
-           // Drill into bucket
-           return Some(Message::s3_load_objects(bucket_name));
+       if !self.is_viewing_objects() {
+           if let Some(bucket) = self.selected_bucket() {
+               return InputResult::Message(Message::s3_load_objects(bucket.name.clone()));
+           }
        }
    }
-   
-   // Esc goes back
-   KeyCode::Esc => {
-       if self.services.s3.is_viewing_objects() {
-           return Some(Message::s3_leave_bucket());
+   KeyCode::Esc | KeyCode::Backspace => {
+       if self.is_viewing_objects() {
+           return InputResult::Message(Message::s3_leave_bucket());
        }
-   }
-   ```
-
-5. **Conditional Rendering** in screen:
-   ```rust
-   if app.services.s3.is_viewing_objects() {
-       render_objects_table(frame, area, app);
-   } else {
-       render_buckets_table(frame, area, app);
    }
    ```
 
 ---
 
-## 7. Key Features & Patterns
+## 8. Key Patterns
 
-### 7.1 Read-Only Mode
-- `App.read_only: bool` prevents destructive actions
-- `--read-only` CLI flag or toggle via `Shift+R` in profile switcher
-- `request_action()` helper in `input.rs` checks this flag
+### 8.1 Standardized Async Task Pattern
 
-### 7.2 Confirmation Modals
-- `App.pending_action: Option<Message>` stores action awaiting confirmation
-- `App.show_confirmation: bool` triggers modal render
-- Only `y/Y` confirms, `n/N/Esc` cancels (Enter does NOT confirm for safety)
+**ALWAYS** use `spawn_aws_task` or `spawn_list_task`:
 
-### 7.3 Profile/Region Switcher
-- `Shift+P` opens modal
-- Reads profiles from `~/.aws/config` and `~/.aws/credentials`
-- Auto-detects SSO profiles and runs `aws sso login` if needed
-- Reads `endpoint_url` from profile config for LocalStack support
-
-### 7.4 Task Manager
-- `TaskManager` tracks spawned async tasks
-- `spawn(key, handle)` replaces existing task with same key
-- `cancel_all()` on shutdown prevents dangling tasks
-- Predefined keys: `task_keys::EC2_REFRESH`, `EC2_ACTION`, etc.
-
-### 7.5 Action Log
-- `App.action_log: Vec<String>` stores history
-- Success/error events logged in `events.rs`
-- `Shift+A` opens full-screen popup
-- Last action shown in action bar (color-coded)
-
-### 7.6 Multi-View Navigation
-- Services like VPC, IAM, Backup have multiple views
-- Implements `ViewMode` trait (`next()`, `prev()`, `label()`, `iterator()`)
-- Keys: `v` cycles, `h/l` navigate, tabs shown at top
-
-### 7.7 Status Coloring
-- Models implement `state_color()` or `status_color()` methods
-- Return `ratatui::style::Color` using `THEME` constants
-- Consistent visual feedback: Green=running, Yellow=pending, Red=stopped
-
-### 7.8 Auto-Loading Details
-- S3 bucket details fetched automatically after listing
-- Rate limiting controlled by `AppConfig` (concurrency, delay)
-- UI shows loading indicator until complete
-
-### 7.9 Centralized Configuration
-- `AppConfig` struct in `src/config.rs`
-- Defines magic numbers: tick rate, API limits, UI layout percentages
-- Initialized in `App::new()` and accessed via `self.config`
-
-### 7.10 Navigation Helpers (`TableStateExt`)
-- Extension trait for `ratatui::widgets::TableState` in `src/app/navigation.rs`
-- Methods: `nav_up(len)`, `nav_down(len)`, `nav_first()`, `nav_last()`, `clamp_selection(len)`
-- All service states use these for consistent list navigation with wrap-around
-- Standalone functions also available: `nav_up()`, `nav_down()` for custom index management
-
-### 7.11 Modal State Components
-- Complex modals extracted into dedicated state structs in `src/app/ecs_modals.rs`
-- Pattern: Encapsulate modal fields + behavior methods (init, reset, navigation)
-- Example: `ServiceEditorState`, `TaskDefSelectorState` for ECS
-- Benefits: Reduced parent struct size, improved testability, reusable patterns
-
-### 7.12 Standardized Async Task Pattern
-All action handlers should use the `spawn_aws_task` helper for consistency:
 ```rust
-// PREFERRED: Use spawn_aws_task helper
-pub(super) fn handle_some_action(&mut self, arg: String, event_tx: EventSender) {
-    self.spawn_aws_task(event_tx, task_keys::SERVICE_ACTION, move |clients, tx| async move {
-        let service = SomeService::new(clients.some_client.clone());
-        match service.some_operation(&arg).await {
-            Ok(_) => {
-                tx.send(Event::Aws(AwsEvent::ActionCompleted(...))).await.ok();
-            }
-            Err(e) => {
-                tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
-            }
-        }
-    });
-}
+// For refresh operations:
+let handle = spawn_list_task(
+    tx,
+    move || async move { Ec2Service::new(client).list().await },
+    AwsEvent::Ec2InstancesLoaded,
+    report_errors,
+);
+tasks.spawn(task_keys::EC2_REFRESH, handle);
+
+// For action operations:
+self.spawn_aws_task(event_tx, task_keys::EC2_ACTION, move |clients, tx| async move {
+    let service = Ec2Service::new(clients.ec2.clone());
+    match service.start_instance(&id).await {
+        Ok(_) => tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(...)))).await.ok(),
+        Err(e) => tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok(),
+    }
+});
 ```
 
-The `spawn_aws_task` helper automatically handles:
-1. Checking if AWS clients are available
-2. Setting `self.loading = true`
-3. Cloning the clients and event sender
-4. Spawning the tokio task
-5. Registering with TaskManager for proper cancellation
+### 8.2 Safe State Access
 
-Key requirements:
-1. Function is sync (not async)
-2. Use predefined keys from `task_keys::*` module
-3. Never use raw `tokio::spawn` - always use `spawn_aws_task` or manual tracking
-
----
-
-## 8. Testing
-
-Run tests with:
-```bash
-cargo test
-```
-
-Current test coverage:
-- `app::filtered_list` - Filter and selection logic
-- `app::service_state` - State struct initialization and helpers
-- `app::task_manager` - Task spawn/cancel behavior
-- `app::navigation` - List navigation helper functions
-- `app::ecs_modals` - Modal state initialization, navigation, reset
-- `utils::aws_profiles` - Config parsing, SSO detection, endpoint_url
-- `models::ids` - Type-safe ID wrappers
-- `event` - Channel backpressure handling
-- `error` - Error type construction
-
----
-
-## 9. Common Patterns
-
-### Pattern: Safe State Access
 ```rust
 // Always use helper methods that return Option
 if let Some(instance) = self.services.ec2.selected_instance() {
@@ -527,29 +577,79 @@ if let Some(instance) = self.services.ec2.selected_instance() {
 }
 ```
 
-### Pattern: Async Results
+### 8.3 InputResult Types
+
 ```rust
-// Spawn task, send result via channel
-let tx = event_tx.clone();
-tokio::spawn(async move {
-    match service.some_operation().await {
-        Ok(data) => tx.send(Event::Aws(AwsEvent::DataLoaded(data))).ok(),
-        Err(e) => tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).ok(),
-    }
-});
+pub enum InputResult {
+    None,                        // No action
+    Message(Message),            // Execute immediately
+    Action(Message),             // Needs confirmation first
+    OpenInputMode(InputMode),    // Switch to modal input mode
+}
 ```
 
-### Pattern: Conditional Action
+### 8.4 Dynamic Service Dispatch
+
 ```rust
-// Check preconditions before creating action
-if !self.services.s3.is_viewing_objects() {
-    if let Some(bucket) = self.services.s3.selected_bucket() {
-        return Some(Message::s3_load_objects(bucket.name.clone()));
-    }
+// Get current service state dynamically:
+self.services.get_mut(self.current_service).refresh(tx, clients, tasks, config, true);
+
+// Iterate over all services:
+for service in self.services.get_all_mut() {
+    service.refresh(tx.clone(), clients, tasks, config, false);
 }
 ```
 
 ---
 
-*Last updated: 2025-12-12*
+## 9. Important Features
+
+### 9.1 Read-Only Mode
+- `App.read_only: bool` prevents destructive actions
+- `--read-only` CLI flag or toggle via `Shift+R` in profile switcher
+- `request_action()` in `input.rs` checks this flag
+
+### 9.2 Confirmation Modals
+- `App.pending_action: Option<Message>` stores action awaiting confirmation
+- `App.show_confirmation: bool` triggers modal render
+- Only `y/Y` confirms, `n/N/Esc` cancels (Enter does NOT confirm for safety)
+
+### 9.3 Global Search
+- `?` or `S` opens global search modal
+- Searches across all services using `Searchable` trait
+- `tag:` prefix for tag-only search
+- Results show service, type, ID, and name
+
+### 9.4 Task Manager
+- All async tasks tracked via `TaskManager`
+- Predefined keys in `task_keys::*` module
+- `cancel_all()` on shutdown prevents dangling tasks
+
+### 9.5 Profile/Region Switcher
+- `Shift+P` opens modal
+- Reads profiles from `~/.aws/config` and `~/.aws/credentials`
+- Auto-detects SSO profiles and runs `aws sso login` if needed
+
+---
+
+## 10. Testing
+
+Run tests with:
+```bash
+cargo test
+```
+
+Current test coverage areas:
+- `app::navigation` - List navigation helpers
+- `app::filtered_list` - Filter and selection logic
+- `app::global_search` - Search matching and state
+- `app::task_manager` - Task spawn/cancel/cleanup
+- `app::view_mode` - Tab cycling behavior
+- `event` - Channel backpressure handling
+- `utils::aws_profiles` - Config parsing, SSO detection
+- `models::*` - State display, color methods
+
+---
+
+*Last updated: 2025-12-18*
 *Target: Rust 1.75+, Ratatui 0.29, AWS SDK for Rust 1.x*

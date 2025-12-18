@@ -4,11 +4,34 @@
 
 use super::super::task_manager::task_keys;
 use super::super::{App, DynamoDbViewMode};
+use crate::app::messages::DynamoDbAction;
 use crate::event::{AwsEvent, Event};
 use std::collections::HashMap;
 
 impl App {
-    pub(super) fn handle_drill_down_dynamodb_table(
+    /// Main entry point for DynamoDB actions
+    pub(super) fn handle_dynamodb_action(
+        &mut self,
+        action: DynamoDbAction,
+        event_tx: crate::app::EventSender,
+    ) {
+        match action {
+            DynamoDbAction::DrillDownTable => {
+                self.handle_drill_down_dynamodb_table(event_tx);
+            }
+            DynamoDbAction::ExitDrillDown => {
+                self.handle_dynamodb_exit_drilldown();
+            }
+            DynamoDbAction::LoadItems(table_name) => {
+                self.handle_load_dynamodb_items(table_name, event_tx);
+            }
+            DynamoDbAction::DeleteItem { table_name, key_attrs } => {
+                self.handle_delete_dynamodb_item(table_name, key_attrs, event_tx);
+            }
+        }
+    }
+
+    fn handle_drill_down_dynamodb_table(
         &mut self,
         event_tx: crate::app::EventSender,
     ) {
@@ -39,11 +62,11 @@ impl App {
             let service = crate::aws::dynamodb::DynamoDbService::new(client);
             match service.scan_items(&table_name, limit).await {
                 Ok(items) => {
-                    tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::DynamoDbItemsLoaded(items))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -51,14 +74,14 @@ impl App {
         self.tasks.spawn(task_keys::DYNAMODB_ITEMS, handle);
     }
 
-    pub(super) fn handle_dynamodb_exit_drilldown(&mut self) {
+    fn handle_dynamodb_exit_drilldown(&mut self) {
         self.services.dynamodb.view_mode = DynamoDbViewMode::Tables;
         self.services.dynamodb.current_table = None;
         self.services.dynamodb.items.clear();
         self.services.dynamodb.list_state.select(Some(0));
     }
 
-    pub(super) fn handle_load_dynamodb_items(
+    fn handle_load_dynamodb_items(
         &mut self,
         table_name: String,
         event_tx: crate::app::EventSender,
@@ -76,11 +99,11 @@ impl App {
             let service = crate::aws::dynamodb::DynamoDbService::new(client);
             match service.scan_items(&table_name, limit).await {
                 Ok(items) => {
-                    tx.send(Event::Aws(AwsEvent::DynamoDbItemsLoaded(items)))
+                    tx.send(Event::Aws(Box::new(AwsEvent::DynamoDbItemsLoaded(items))))
                         .await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });
@@ -88,7 +111,7 @@ impl App {
         self.tasks.spawn(task_keys::DYNAMODB_ITEMS, handle);
     }
 
-    pub(super) fn handle_delete_dynamodb_item(
+    fn handle_delete_dynamodb_item(
         &mut self,
         table_name: String,
         key_attrs: HashMap<String, String>,
@@ -150,10 +173,10 @@ impl App {
             match service.delete_item(&tbl, key).await {
                 Ok(_) => {
                     let msg = format!("Deleted item from {}", tbl);
-                    tx.send(Event::Aws(AwsEvent::ActionCompleted(msg))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::ActionCompleted(msg)))).await.ok();
                 }
                 Err(e) => {
-                    tx.send(Event::Aws(AwsEvent::Error(e.to_string()))).await.ok();
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string())))).await.ok();
                 }
             }
         });

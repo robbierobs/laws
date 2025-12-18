@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
-use crate::app::{DynamoDbViewMode, InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{DynamoDbViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for DynamoDB service
@@ -131,24 +136,45 @@ impl ServiceInputHandler for DynamoDbState {
     }
 
     fn get_copiable_text(&self) -> Option<String> {
-        if self.view_mode == DynamoDbViewMode::Items {
-            // No easy way to copy items yet as per existing code
-            // "For items, we could format as JSON, but for now let's stick to IDs/names if possible"
-            // "Detailed item copy is better handled in a specific view"
-            // "self.services.dynamodb.selected_table().map(|t| t.table_name.clone())"
-            
-            // Wait, existing code just returns table name even in items view?
-            // "self.services.dynamodb.selected_table().map(|t| t.table_name.clone())"
-            // Yes, because `selected_table` depends on `list_state`, which might still be selected.
-            // But let's check `src/app/input.rs` again.
-            // It has:
-            // Service::DynamoDB => {
-            //     self.services.dynamodb.selected_table().map(|t| t.table_name.clone())
-            // }
-            // So it actually always copies the table name regardless of view mode.
-            self.selected_table().map(|t| t.table_name.clone())
-        } else {
-             self.selected_table().map(|t| t.table_name.clone())
+        self.selected_table().map(|t| t.table_name.clone())
+    }
+}
+
+impl ServiceInternal for DynamoDbState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.dynamodb.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move {
+                crate::aws::dynamodb::DynamoDbService::new(client)
+                    .list_tables()
+                    .await
+            },
+            AwsEvent::DynamoDbTablesLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::DYNAMODB_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.tables.clear();
+        self.items.clear();
+        self.current_table = None;
+        self.view_mode = DynamoDbViewMode::Tables;
+        self.list_state.select(Some(0));
+        self.item_list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.tables.is_empty() {
+            self.list_state.select(Some(0));
         }
     }
 }

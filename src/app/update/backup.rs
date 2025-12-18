@@ -41,12 +41,12 @@ impl App {
                 let backup_client = crate::aws::backup::BackupService::new(clients.backup.clone());
                 match backup_client.list_recovery_points(&v_name).await {
                     Ok(points) => {
-                        tx.send(Event::Aws(AwsEvent::BackupRecoveryPointsLoaded(points)))
+                        tx.send(Event::Aws(Box::new(AwsEvent::BackupRecoveryPointsLoaded(points))))
                             .await
                             .ok();
                     }
                     Err(e) => {
-                        tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
                             .await
                             .ok();
                     }

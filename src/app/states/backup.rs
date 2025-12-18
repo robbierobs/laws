@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
-use crate::app::{BackupViewMode, InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{BackupViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::aws::backup::BackupService;
+use crate::event::{AwsEvent, Event};
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for AWS Backup service
@@ -128,5 +133,73 @@ impl ServiceInputHandler for BackupState {
             BackupViewMode::Jobs => self.selected_job().map(|j| j.backup_job_id.clone()),
             BackupViewMode::RecoveryPoints => self.selected_recovery_point().map(|rp| rp.recovery_point_arn.clone()),
         }
+    }
+}
+
+impl ServiceInternal for BackupState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.backup.clone();
+        let handle = tokio::spawn(async move {
+            let service = BackupService::new(client);
+            match service.list_backup_vaults().await {
+                Ok(vaults) => {
+                    tx.send(Event::Aws(Box::new(AwsEvent::BackupVaultsLoaded(vaults))))
+                        .await
+                        .ok();
+                }
+                Err(e) => {
+                    if report_errors {
+                        tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
+                            .await
+                            .ok();
+                    }
+                }
+            }
+            if let Ok(plans) = service.list_backup_plans().await {
+                tx.send(Event::Aws(Box::new(AwsEvent::BackupPlansLoaded(plans))))
+                    .await
+                    .ok();
+            }
+            if let Ok(jobs) = service.list_backup_jobs().await {
+                tx.send(Event::Aws(Box::new(AwsEvent::BackupJobsLoaded(jobs))))
+                    .await
+                    .ok();
+            }
+        });
+        tasks.spawn(task_keys::BACKUP_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.vaults.clear();
+        self.plans.clear();
+        self.jobs.clear();
+        self.recovery_points.clear();
+        self.view_mode = BackupViewMode::Vaults;
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                BackupViewMode::Vaults => !self.vaults.is_empty(),
+                BackupViewMode::Plans => !self.plans.is_empty(),
+                BackupViewMode::Jobs => !self.jobs.is_empty(),
+                BackupViewMode::RecoveryPoints => !self.recovery_points.is_empty(),
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
+        }
+    }
+
+    fn can_cycle_view(&self) -> bool {
+        true // Backup supports view mode cycling in all tabs
     }
 }

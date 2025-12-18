@@ -1,5 +1,11 @@
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::event::{AwsEvent, Event};
+use crate::app::messages::ServiceAction;
+use crate::app::messages::S3Action;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
@@ -244,6 +250,113 @@ impl ServiceInputHandler for S3State {
             self.selected_object().map(|o| o.key.clone())
         } else {
             self.selected_bucket().map(|b| b.name.clone())
+        }
+    }
+}
+
+impl ServiceInternal for S3State {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.s3.clone();
+        let tx_clone = tx.clone();
+        let delay_ms = config.s3_detail_delay_ms;
+
+        let handle = tokio::spawn(async move {
+            let service = crate::aws::s3::S3Service::new(client.clone());
+            match service.list_buckets().await {
+                Ok(buckets) => {
+                    // 1. Notify that buckets are loaded
+                    tx_clone
+                        .send(Event::Aws(Box::new(AwsEvent::S3BucketsLoaded(
+                            buckets.clone(),
+                        ))))
+                        .await
+                        .ok();
+
+                    // 2. Trigger detail loading for top buckets (rate limited)
+                    for bucket in buckets.iter().take(20) {
+                        if delay_ms > 0 {
+                            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                        }
+
+                        tx_clone
+                            .send(Event::Message(Message::Service(ServiceAction::S3(
+                                S3Action::LoadBucketDetails(bucket.name.clone()),
+                            ))))
+                            .await
+                            .ok();
+                    }
+                }
+                Err(e) => {
+                    if report_errors {
+                        tx_clone
+                            .send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
+                            .await
+                            .ok();
+                    }
+                }
+            }
+        });
+        tasks.spawn(task_keys::S3_REFRESH, handle);
+
+        // Also refresh objects if inside a bucket
+        if let Some(bucket_name) = &self.current_bucket {
+            let bucket_name = bucket_name.clone();
+            let client = clients.s3.clone();
+            let tx = tx.clone();
+            let handle = tokio::spawn(async move {
+                let service = crate::aws::s3::S3Service::new(client);
+                match service.list_objects(&bucket_name).await {
+                    Ok(objects) => {
+                        tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectsLoaded(objects))))
+                            .await
+                            .ok();
+                    }
+                    Err(e) => {
+                        if report_errors {
+                            tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
+                                .await
+                                .ok();
+                        }
+                    }
+                }
+            });
+            tasks.spawn(task_keys::S3_OBJECTS, handle);
+        }
+    }
+
+    fn clear(&mut self) {
+        self.buckets.clear();
+        self.objects.clear();
+        self.current_bucket = None;
+        self.bucket_details.clear();
+        self.opened_object_content = None;
+        self.opened_object_path = None;
+        self.opened_object_key = None;
+        self.show_object_viewer = false;
+        self.opened_object_bytes = None;
+        self.pending_edit = None;
+        self.list_state.select(Some(0));
+        self.object_list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.current_bucket.is_some() {
+            // In objects view
+            if self.object_list_state.selected().is_none() && !self.objects.is_empty() {
+                self.object_list_state.select(Some(0));
+            }
+        } else {
+            // In buckets view
+            if self.list_state.selected().is_none() && !self.buckets.is_empty() {
+                self.list_state.select(Some(0));
+            }
         }
     }
 }

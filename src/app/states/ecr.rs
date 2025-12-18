@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::ecr::{EcrImage, EcrRepository};
-use crate::app::{EcrViewMode, InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{EcrViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for ECR service
@@ -104,6 +109,50 @@ impl ServiceInputHandler for EcrState {
         match self.view_mode {
             EcrViewMode::Repositories => self.selected_repository().map(|r| r.repository_name.clone()),
             EcrViewMode::Images => self.selected_image().map(|i| i.image_digest.clone()),
+        }
+    }
+}
+
+impl ServiceInternal for EcrState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.ecr.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move {
+                crate::aws::ecr::EcrService::new(client)
+                    .list_repositories()
+                    .await
+            },
+            AwsEvent::EcrRepositoriesLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::ECR_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.repositories.clear();
+        self.images.clear();
+        self.selected_repo_name = None;
+        self.view_mode = EcrViewMode::Repositories;
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() {
+            let has_items = match self.view_mode {
+                EcrViewMode::Repositories => !self.repositories.is_empty(),
+                EcrViewMode::Images => !self.images.is_empty(),
+            };
+            if has_items {
+                self.list_state.select(Some(0));
+            }
         }
     }
 }

@@ -1,6 +1,11 @@
 use ratatui::widgets::TableState;
 use crate::models::rds::RdsInstance;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::states::ServiceInternal;
+use crate::aws::client::AwsClients;
+use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::update::refresh::spawn_list_task;
+use crate::event::AwsEvent;
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for RDS service
@@ -111,5 +116,40 @@ impl ServiceInputHandler for RdsState {
 
     fn get_copiable_text(&self) -> Option<String> {
         self.selected_instance_id()
+    }
+}
+
+impl ServiceInternal for RdsState {
+    fn refresh(
+        &mut self,
+        tx: EventSender,
+        clients: &AwsClients,
+        tasks: &mut TaskManager,
+        _config: &crate::config::AppConfig,
+        report_errors: bool,
+    ) {
+        let client = clients.rds.clone();
+        let handle = spawn_list_task(
+            tx,
+            move || async move {
+                crate::aws::rds::RdsService::new(client)
+                    .list_instances()
+                    .await
+            },
+            AwsEvent::RdsInstancesLoaded,
+            report_errors,
+        );
+        tasks.spawn(task_keys::RDS_REFRESH, handle);
+    }
+
+    fn clear(&mut self) {
+        self.instances.clear();
+        self.list_state.select(Some(0));
+    }
+
+    fn auto_select_first(&mut self) {
+        if self.list_state.selected().is_none() && !self.instances.is_empty() {
+            self.list_state.select(Some(0));
+        }
     }
 }
