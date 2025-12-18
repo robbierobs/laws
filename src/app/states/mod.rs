@@ -90,22 +90,7 @@ impl ServiceStates {
     /// Select a resource by service and ID
     /// Returns true if the resource was found and selected
     pub fn select_by_service_and_id(&mut self, service: crate::app::Service, resource_id: &str) -> bool {
-        use crate::app::global_search::AutoSelectable;
-
-        match service {
-            crate::app::Service::EC2 => self.ec2.select_by_id(resource_id),
-            crate::app::Service::S3 => self.s3.select_by_id(resource_id),
-            crate::app::Service::RDS => self.rds.select_by_id(resource_id),
-            crate::app::Service::DynamoDB => self.dynamodb.select_by_id(resource_id),
-            crate::app::Service::Lambda => self.lambda.select_by_id(resource_id),
-            crate::app::Service::VPC => self.vpc.select_by_id(resource_id),
-            crate::app::Service::IAM => self.iam.select_by_id(resource_id),
-            crate::app::Service::Backup => self.backup.select_by_id(resource_id),
-            crate::app::Service::CloudTrail => self.cloudtrail.select_by_id(resource_id),
-            crate::app::Service::SecretsManager => self.secretsmanager.select_by_id(resource_id),
-            crate::app::Service::ECS => self.ecs.select_by_id(resource_id),
-            crate::app::Service::ECR => self.ecr.select_by_id(resource_id),
-        }
+        self.get_mut(service).select_by_id(resource_id)
     }
 
     /// Clear all service states
@@ -131,5 +116,46 @@ impl ServiceStates {
             &mut self.ecs,
             &mut self.ecr,
         ]
+    }
+
+    /// Get a specific service state by Service enum (mutable)
+    ///
+    /// This enables generic operations on services without repeating match statements.
+    pub fn get_mut(&mut self, service: crate::app::Service) -> &mut dyn ServiceInternal {
+        use crate::app::Service;
+        match service {
+            Service::EC2 => &mut self.ec2,
+            Service::S3 => &mut self.s3,
+            Service::RDS => &mut self.rds,
+            Service::DynamoDB => &mut self.dynamodb,
+            Service::Lambda => &mut self.lambda,
+            Service::VPC => &mut self.vpc,
+            Service::IAM => &mut self.iam,
+            Service::Backup => &mut self.backup,
+            Service::CloudTrail => &mut self.cloudtrail,
+            Service::SecretsManager => &mut self.secretsmanager,
+            Service::ECS => &mut self.ecs,
+            Service::ECR => &mut self.ecr,
+        }
+    }
+
+    /// Get a specific service state by Service enum (immutable)
+    #[allow(dead_code)] // Infrastructure for future use
+    pub fn get(&self, service: crate::app::Service) -> &dyn ServiceInternal {
+        use crate::app::Service;
+        match service {
+            Service::EC2 => &self.ec2,
+            Service::S3 => &self.s3,
+            Service::RDS => &self.rds,
+            Service::DynamoDB => &self.dynamodb,
+            Service::Lambda => &self.lambda,
+            Service::VPC => &self.vpc,
+            Service::IAM => &self.iam,
+            Service::Backup => &self.backup,
+            Service::CloudTrail => &self.cloudtrail,
+            Service::SecretsManager => &self.secretsmanager,
+            Service::ECS => &self.ecs,
+            Service::ECR => &self.ecr,
+        }
     }
 }

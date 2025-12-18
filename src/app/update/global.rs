@@ -2,7 +2,6 @@
 //!
 //! Handles application-wide messages like navigation, refresh, profile switching.
 
-use crate::app::states::ServiceInternal;
 use crate::app::task_manager::task_keys;
 use crate::app::{App, GlobalMessage, InputMode, Service};
 use crate::event::{AwsEvent, Event, ProfileRegionSwitchedData};
@@ -248,57 +247,13 @@ impl App {
         };
 
         self.loading = true;
-
-        match self.current_service {
-            Service::EC2 => self
-                .services
-                .ec2
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::S3 => self
-                .services
-                .s3
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::RDS => self
-                .services
-                .rds
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::DynamoDB => self
-                .services
-                .dynamodb
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::Lambda => self
-                .services
-                .lambda
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::VPC => self
-                .services
-                .vpc
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::IAM => self
-                .services
-                .iam
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::Backup => self
-                .services
-                .backup
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::CloudTrail => self
-                .services
-                .cloudtrail
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::SecretsManager => self
-                .services
-                .secretsmanager
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::ECS => self
-                .services
-                .ecs
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-            Service::ECR => self
-                .services
-                .ecr
-                .refresh(event_tx, clients, &mut self.tasks, &self.config, true),
-        }
+        self.services.get_mut(self.current_service).refresh(
+            event_tx,
+            clients,
+            &mut self.tasks,
+            &self.config,
+            true,
+        );
     }
 
     /// Refresh all services in parallel for global search
