@@ -3,14 +3,14 @@
 //! Handles application-wide messages like navigation, refresh, profile switching.
 
 use super::super::task_manager::task_keys;
-use super::super::{App, GlobalMessage, InputMode, Message, Service};
+use super::super::{App, GlobalMessage, InputMode, Service};
 use super::refresh::spawn_list_task;
 use crate::aws::traits::AwsService;
 use crate::event::{AwsEvent, Event};
 
 impl App {
     /// Handle global (non-service-specific) messages
-    pub(super) async fn handle_global_message(
+    pub(super) fn handle_global_message(
         &mut self,
         message: GlobalMessage,
         event_tx: crate::app::EventSender,
@@ -20,12 +20,12 @@ impl App {
             GlobalMessage::Navigate(service) => {
                 self.current_service = service;
                 self.sidebar.select_service(service);
-                self.update(Message::refresh(), event_tx).await;
+                self.handle_refresh_data(event_tx);
             }
             GlobalMessage::ConfirmAction => {
                 if let Some(action) = self.pending_action.take() {
                     self.show_confirmation = false;
-                    self.update(action, event_tx).await;
+                    self.update(action, event_tx);
                 }
             }
             GlobalMessage::CancelAction => {
@@ -33,7 +33,7 @@ impl App {
                 self.show_confirmation = false;
             }
             GlobalMessage::RefreshData => {
-                self.handle_refresh_data(event_tx.clone()).await;
+                self.handle_refresh_data(event_tx.clone());
             }
             GlobalMessage::ToggleDetailPanel => {
                 self.detail_panel_visible = !self.detail_panel_visible;
@@ -75,8 +75,7 @@ impl App {
                 region,
                 read_only,
             } => {
-                self.handle_switch_profile_region(profile, region, read_only, event_tx)
-                    .await;
+                self.handle_switch_profile_region(profile, region, read_only, event_tx);
             }
             GlobalMessage::CopyToClipboard(text) => {
                 match arboard::Clipboard::new() {
@@ -101,7 +100,7 @@ impl App {
                 self.global_search.clear();
                 self.global_search.loading = true;
                 // Trigger data load for all services
-                self.refresh_all_services_for_search(event_tx.clone()).await;
+                self.refresh_all_services_for_search(event_tx.clone());
                 // Pre-populate with all currently loaded results
                 self.refresh_global_search();
             }
@@ -127,33 +126,39 @@ impl App {
                 ));
 
                 // Refresh data for the service
-                self.update(Message::refresh(), event_tx).await;
+                self.handle_refresh_data(event_tx);
             }
         }
     }
 
     fn handle_open_profile_switcher(&mut self) {
         if let Some(current) = &self.profile {
-            if let Some(idx) = self.available_profiles.iter().position(|p| p == current) {
-                self.profile_switcher_index = idx;
+            if let Some(idx) = self
+                .profile_switcher
+                .available_profiles
+                .iter()
+                .position(|p| p == current)
+            {
+                self.profile_switcher.profile_switcher_index = idx;
             }
         } else {
-            self.profile_switcher_index = 0;
+            self.profile_switcher.profile_switcher_index = 0;
         }
-        self.pending_read_only = self.read_only;
+        self.profile_switcher.pending_read_only = self.read_only;
         self.input_mode = InputMode::ProfileSwitcherProfile;
     }
 
     fn handle_cancel_profile_switcher(&mut self) {
         self.input_mode = InputMode::Normal;
-        self.pending_profile = None;
-        self.profile_filter.clear();
-        self.region_filter.clear();
-        self.profile_filter_active = false;
-        self.region_filter_active = false;
+        self.profile_switcher.pending_profile = None;
+        self.profile_switcher.reset_filters();
     }
 
-    async fn handle_switch_profile_region(
+    /// Spawn a background task to switch profile/region
+    /// 
+    /// This performs SSO login (if needed) and AWS client creation in a background
+    /// task, then sends a ProfileRegionSwitched event when complete.
+    fn handle_switch_profile_region(
         &mut self,
         profile: Option<String>,
         region: String,
@@ -161,86 +166,84 @@ impl App {
         event_tx: crate::app::EventSender,
     ) {
         self.input_mode = InputMode::Normal;
-
-        // Check if profile uses SSO and run login if needed
+        self.loading = true;
+        
         let profile_name = profile.clone().unwrap_or_else(|| "default".to_string());
-        if crate::utils::aws_profiles::is_sso_profile(&profile_name) {
-            self.action_log
-                .push(format!("Running SSO login for profile: {}", profile_name));
-            let sso_result = tokio::process::Command::new("aws")
-                .args(["sso", "login", "--profile", &profile_name])
-                .output()
-                .await;
+        self.action_log.push(format!(
+            "Switching to profile: {}, region: {}...",
+            profile_name, region
+        ));
+        
+        // Clone values for async task
+        let profile_clone = profile.clone();
+        let region_clone = region.clone();
+        let is_sso = crate::utils::aws_profiles::is_sso_profile(&profile_name);
+        
+        let handle = tokio::spawn(async move {
+            let mut sso_messages = Vec::new();
+            
+            // Check if profile uses SSO and run login if needed
+            if is_sso {
+                sso_messages.push(format!("Running SSO login for profile: {}", profile_name));
+                let sso_result = tokio::process::Command::new("aws")
+                    .args(["sso", "login", "--profile", &profile_name])
+                    .output()
+                    .await;
 
-            match sso_result {
-                Ok(output) => {
-                    if output.status.success() {
-                        self.action_log.push(format!(
-                            "SSO login successful for profile: {}",
-                            profile_name
-                        ));
-                    } else {
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        self.action_log
-                            .push(format!("SSO login warning: {}", stderr.trim()));
+                match sso_result {
+                    Ok(output) => {
+                        if output.status.success() {
+                            sso_messages.push(format!(
+                                "SSO login successful for profile: {}",
+                                profile_name
+                            ));
+                        } else {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            sso_messages.push(format!("SSO login warning: {}", stderr.trim()));
+                        }
+                    }
+                    Err(e) => {
+                        sso_messages.push(format!("SSO login error: {}", e));
                     }
                 }
+            }
+
+            // Create new AWS clients with the new profile and region
+            let new_clients = crate::aws::client::AwsClients::new(
+                profile_clone.as_deref(),
+                Some(region_clone.as_str()),
+                None,
+            )
+            .await;
+
+            match new_clients {
+                Ok(clients) => {
+                    event_tx
+                        .send(Event::Aws(AwsEvent::ProfileRegionSwitched {
+                            clients,
+                            profile: profile_clone,
+                            region: region_clone,
+                            read_only,
+                            sso_messages,
+                        }))
+                        .await
+                        .ok();
+                }
                 Err(e) => {
-                    self.action_log.push(format!("SSO login error: {}", e));
+                    event_tx
+                        .send(Event::Aws(AwsEvent::ProfileRegionSwitchFailed(
+                            e.to_string(),
+                        )))
+                        .await
+                        .ok();
                 }
             }
-        }
-
-        // Create new AWS clients with the new profile and region
-        self.loading = true;
-        let new_clients =
-            crate::aws::client::AwsClients::new(profile.as_deref(), Some(region.as_str()), None)
-                .await;
-
-        match new_clients {
-            Ok(clients) => {
-                self.aws_clients = Some(clients);
-                self.profile = profile;
-                self.region = region.clone();
-                self.read_only = read_only;
-                self.pending_read_only = read_only;
-
-                // Update profile/region indices
-                if let Some(idx) = self.available_profiles.iter().position(|p| {
-                    self.profile
-                        .as_ref()
-                        .map_or(p == "default", |prof| p == prof)
-                }) {
-                    self.profile_switcher_index = idx;
-                }
-                if let Some(idx) = self.available_regions.iter().position(|r| r == &region) {
-                    self.region_switcher_index = idx;
-                }
-
-                // Clear all service data to force refresh
-                self.services = super::super::states::ServiceStates::new();
-
-                let ro_status = if read_only { " [READ-ONLY]" } else { "" };
-                self.action_log.push(format!(
-                    "Switched to profile: {}, region: {}{}",
-                    self.profile.as_deref().unwrap_or("default"),
-                    self.region,
-                    ro_status
-                ));
-
-                // Refresh current service data
-                self.update(Message::refresh(), event_tx).await;
-            }
-            Err(e) => {
-                self.error_message = Some(format!("Failed to switch profile: {}", e));
-                self.action_log
-                    .push(format!("Failed to switch profile: {}", e));
-                self.loading = false;
-            }
-        }
+        });
+        
+        self.tasks.spawn(task_keys::PROFILE_SWITCH, handle);
     }
 
-    pub(super) async fn handle_refresh_data(&mut self, event_tx: crate::app::EventSender) {
+    pub(super) fn handle_refresh_data(&mut self, event_tx: crate::app::EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
         };
@@ -260,7 +263,7 @@ impl App {
             }
             Service::S3 => {
                 let clients = clients.clone();
-                self.handle_refresh_s3(&clients, event_tx).await;
+                self.handle_refresh_s3(&clients, event_tx);
             }
             Service::RDS => {
                 let client = clients.rds.clone();
@@ -456,7 +459,7 @@ impl App {
 
     /// Refresh all services in parallel for global search
     /// This ensures we have data from all services for comprehensive search results
-    async fn refresh_all_services_for_search(&mut self, event_tx: crate::app::EventSender) {
+    fn refresh_all_services_for_search(&mut self, event_tx: crate::app::EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
         };
@@ -591,202 +594,8 @@ impl App {
 
     /// Select a resource by its ID within the appropriate service state
     fn select_resource_by_id(&mut self, service: Service, resource_id: &str) {
-        match service {
-            Service::EC2 => {
-                if let Some(idx) = self
-                    .services
-                    .ec2
-                    .instances
-                    .iter()
-                    .position(|i| i.instance_id == resource_id)
-                {
-                    self.services.ec2.list_state.select(Some(idx));
-                }
-            }
-            Service::S3 => {
-                // For S3, navigate to bucket list and select the bucket
-                self.services.s3.current_bucket = None; // Ensure we're at bucket level
-                if let Some(idx) = self
-                    .services
-                    .s3
-                    .buckets
-                    .iter()
-                    .position(|b| b.name == resource_id)
-                {
-                    self.services.s3.list_state.select(Some(idx));
-                }
-            }
-            Service::RDS => {
-                if let Some(idx) = self
-                    .services
-                    .rds
-                    .instances
-                    .iter()
-                    .position(|i| i.db_instance_identifier == resource_id)
-                {
-                    self.services.rds.list_state.select(Some(idx));
-                }
-            }
-            Service::DynamoDB => {
-                if let Some(idx) = self
-                    .services
-                    .dynamodb
-                    .tables
-                    .iter()
-                    .position(|t| t.table_name == resource_id)
-                {
-                    self.services.dynamodb.list_state.select(Some(idx));
-                }
-            }
-            Service::Lambda => {
-                if let Some(idx) = self
-                    .services
-                    .lambda
-                    .functions
-                    .iter()
-                    .position(|f| f.function_name == resource_id)
-                {
-                    self.services.lambda.list_state.select(Some(idx));
-                }
-            }
-            Service::VPC => {
-                // Need to detect resource type from ID prefix
-                if resource_id.starts_with("vpc-") {
-                    self.services.vpc.view_mode = super::super::VpcViewMode::Vpcs;
-                    if let Some(idx) = self
-                        .services
-                        .vpc
-                        .vpcs
-                        .iter()
-                        .position(|v| v.vpc_id == resource_id)
-                    {
-                        self.services.vpc.list_state.select(Some(idx));
-                    }
-                } else if resource_id.starts_with("subnet-") {
-                    self.services.vpc.view_mode = super::super::VpcViewMode::Subnets;
-                    if let Some(idx) = self
-                        .services
-                        .vpc
-                        .subnets
-                        .iter()
-                        .position(|s| s.subnet_id == resource_id)
-                    {
-                        self.services.vpc.list_state.select(Some(idx));
-                    }
-                } else if resource_id.starts_with("sg-") {
-                    self.services.vpc.view_mode = super::super::VpcViewMode::SecurityGroups;
-                    if let Some(idx) = self
-                        .services
-                        .vpc
-                        .security_groups
-                        .iter()
-                        .position(|s| s.group_id == resource_id)
-                    {
-                        self.services.vpc.list_state.select(Some(idx));
-                    }
-                }
-            }
-            Service::IAM => {
-                // Check users first, then roles, then policies
-                if let Some(idx) = self
-                    .services
-                    .iam
-                    .users
-                    .iter()
-                    .position(|u| u.user_name == resource_id)
-                {
-                    self.services.iam.view_mode = super::super::IamViewMode::Users;
-                    self.services.iam.list_state.select(Some(idx));
-                } else if let Some(idx) = self
-                    .services
-                    .iam
-                    .roles
-                    .iter()
-                    .position(|r| r.role_name == resource_id)
-                {
-                    self.services.iam.view_mode = super::super::IamViewMode::Roles;
-                    self.services.iam.list_state.select(Some(idx));
-                } else if let Some(idx) = self
-                    .services
-                    .iam
-                    .policies
-                    .iter()
-                    .position(|p| p.policy_name == resource_id)
-                {
-                    self.services.iam.view_mode = super::super::IamViewMode::Policies;
-                    self.services.iam.list_state.select(Some(idx));
-                }
-            }
-            Service::Backup => {
-                self.services.backup.view_mode = super::super::BackupViewMode::Vaults;
-                if let Some(idx) = self
-                    .services
-                    .backup
-                    .vaults
-                    .iter()
-                    .position(|v| v.backup_vault_name == resource_id)
-                {
-                    self.services.backup.list_state.select(Some(idx));
-                }
-            }
-            Service::CloudTrail => {
-                self.services.cloudtrail.view_mode = super::super::CloudTrailViewMode::Trails;
-                if let Some(idx) = self
-                    .services
-                    .cloudtrail
-                    .trails
-                    .iter()
-                    .position(|t| t.name == resource_id)
-                {
-                    self.services.cloudtrail.list_state.select(Some(idx));
-                }
-            }
-            Service::SecretsManager => {
-                if let Some(idx) = self
-                    .services
-                    .secretsmanager
-                    .secrets
-                    .iter()
-                    .position(|s| s.name == resource_id)
-                {
-                    self.services.secretsmanager.list_state.select(Some(idx));
-                }
-            }
-            Service::ECS => {
-                // Check clusters first, then services
-                if let Some(idx) = self
-                    .services
-                    .ecs
-                    .clusters
-                    .iter()
-                    .position(|c| c.cluster_name == resource_id)
-                {
-                    self.services.ecs.view_mode = super::super::EcsViewMode::Clusters;
-                    self.services.ecs.list_state.select(Some(idx));
-                } else if let Some(idx) = self
-                    .services
-                    .ecs
-                    .services
-                    .iter()
-                    .position(|s| s.service_name == resource_id)
-                {
-                    self.services.ecs.view_mode = super::super::EcsViewMode::Services;
-                    self.services.ecs.list_state.select(Some(idx));
-                }
-            }
-            Service::ECR => {
-                self.services.ecr.view_mode = super::super::EcrViewMode::Repositories;
-                if let Some(idx) = self
-                    .services
-                    .ecr
-                    .repositories
-                    .iter()
-                    .position(|r| r.repository_name == resource_id)
-                {
-                    self.services.ecr.list_state.select(Some(idx));
-                }
-            }
-        }
+        // Delegate to the service states' select_by_service_and_id method
+        self.services.select_by_service_and_id(service, resource_id);
 
         // Set focus to main pane so user can immediately interact with the selection
         self.focus = super::super::Focus::Main;

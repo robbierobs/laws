@@ -274,6 +274,63 @@ impl App {
                 }
                 self.loading = false;
             }
+            AwsEvent::ProfileRegionSwitched {
+                clients,
+                profile,
+                region,
+                read_only,
+                sso_messages,
+            } => {
+                // Log SSO messages
+                for msg in sso_messages {
+                    self.action_log.push(msg);
+                }
+                
+                // Apply the new clients and state
+                self.aws_clients = Some(clients);
+                self.profile = profile;
+                self.region = region.clone();
+                self.read_only = read_only;
+                self.profile_switcher.pending_read_only = read_only;
+
+                // Update profile/region indices
+                if let Some(idx) = self.profile_switcher.available_profiles.iter().position(|p| {
+                    self.profile
+                        .as_ref()
+                        .map_or(p == "default", |prof| p == prof)
+                }) {
+                    self.profile_switcher.profile_switcher_index = idx;
+                }
+                if let Some(idx) = self
+                    .profile_switcher
+                    .available_regions
+                    .iter()
+                    .position(|r| r == &region)
+                {
+                    self.profile_switcher.region_switcher_index = idx;
+                }
+
+                // Clear all service data to force refresh
+                self.services = super::states::ServiceStates::new();
+
+                let ro_status = if read_only { " [READ-ONLY]" } else { "" };
+                self.action_log.push(format!(
+                    "Switched to profile: {}, region: {}{}",
+                    self.profile.as_deref().unwrap_or("default"),
+                    self.region,
+                    ro_status
+                ));
+
+                // Request a refresh of current service data
+                self.loading = false;
+                self.should_refresh = true;
+            }
+            AwsEvent::ProfileRegionSwitchFailed(error) => {
+                self.loading = false;
+                self.error_message = Some(format!("Failed to switch profile: {}", error));
+                self.action_log
+                    .push(format!("[ERROR] Failed to switch profile: {}", error));
+            }
         }
     }
 }

@@ -9,7 +9,7 @@ use crate::event::{AwsEvent, Event};
 use std::sync::Arc;
 
 impl App {
-    pub(super) async fn handle_refresh_s3(
+    pub(super) fn handle_refresh_s3(
         &mut self,
         clients: &crate::aws::client::AwsClients,
         event_tx: crate::app::EventSender,
@@ -453,8 +453,10 @@ impl App {
             return;
         };
 
-        let mut loading_details = crate::models::s3::S3BucketDetails::default();
-        loading_details.loading = true;
+        let loading_details = crate::models::s3::S3BucketDetails {
+            loading: true,
+            ..Default::default()
+        };
         self.services
             .s3
             .bucket_details

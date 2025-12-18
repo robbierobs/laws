@@ -3,7 +3,7 @@ use crate::app::{App, EventSender};
 use crate::event::{AwsEvent, Event};
 
 impl App {
-    pub async fn handle_ecs_stop_task(
+    pub fn handle_ecs_stop_task(
         &mut self,
         cluster_arn: String,
         task_arn: String,

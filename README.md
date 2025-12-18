@@ -1,261 +1,154 @@
-# LazyAWS
+# LazyAWS 🦥☁️
 
-A terminal user interface (TUI) for managing AWS resources, built with Rust and Ratatui. Inspired by [lazygit](https://github.com/jesseduffield/lazygit).
+A keyboard-driven terminal UI for browsing and managing AWS resources. Think [lazygit](https://github.com/jesseduffield/lazygit), but for AWS.
+
+Built with Rust 🦀 + [Ratatui](https://ratatui.rs/).
 
 ![LazyAWS Demo](docs/demo.gif) <!-- TODO: Add demo gif -->
 
-## Features
+!CRITICAL: This is a work in progress and has largely been vibe coded. While I do have very good confidence in the instructions, specs, and context which I have been injecting into the agents, there is a chance that I, or the AI, have made some mistakes. Please use with caution and report any issues to me.
 
-### Supported AWS Services
+## Why?
 
-| Service | Features |
-|---------|----------|
-| **EC2** | List instances, start/stop/reboot, view details |
-| **S3** | Browse buckets and objects, download/view files, delete objects, auto-load bucket details |
-| **RDS** | List instances, start/stop/reboot |
-| **DynamoDB** | List tables, scan items, delete items |
-| **Lambda** | List functions with runtime/memory details |
-| **VPC** | View VPCs, subnets, security groups, drill into rules |
-| **IAM** | View users/roles/policies, view attached policies and policy documents |
-| **Backup** | View backup vaults, plans, and jobs |
-| **CloudTrail** | View trails and recent events |
-| **Secrets Manager** | List secrets with details (ARN, Description, Dates) |
+The AWS Console is powerful but slow. The CLI is fast but you need to remember a million flags. LazyAWS gives you the best of both worlds - browse your infrastructure visually, take actions with simple keypresses, and never leave the terminal.
 
-### Highlights
+Perfect for:
+- **Quick checks** - "Is that EC2 instance running?"
+- **Exploring** - "What's in this S3 bucket again?"
+- **Operations** - Start/stop instances, invoke lambdas, all with a keypress
+- **Learning** - See your resources laid out, drill into details
 
-- 🎹 **Keyboard-driven** - Full Vim-style navigation (`j/k/h/l`)
-- 🔒 **Read-only mode** - Safely browse production resources without accidental changes
-- ✅ **Confirmation dialogs** - Extra safety for destructive actions
-- 📋 **Action log** - Track all operations with success/error history
-- 🔄 **Profile/Region switcher** - Switch AWS profiles and regions on the fly (`Shift+P`)
-- 🏠 **LocalStack support** - Full compatibility with local AWS development
-- ⚡ **Auto-loading** - S3 bucket details, IAM policies load automatically in background
-- 🎨 **Status coloring** - Visual feedback with color-coded resource states
+---
+
+## What Can It Do?
+
+| Service | Browse | Actions |
+|---------|--------|---------|
+| **EC2** | Instances with state, type, IPs | Start, Stop, Reboot, Terminate |
+| **S3** | Buckets & objects, versioning, encryption | Download, Open, Edit, Delete, Create bucket |
+| **RDS** | Instances with engine, status, endpoint | Start, Stop, Reboot, Delete |
+| **DynamoDB** | Tables with key schema, indexes | Scan items, Delete items |
+| **Lambda** | Functions with runtime, memory, timeout | Invoke, View details |
+| **VPC** | VPCs, Subnets, Security Groups | View rules, Delete SGs |
+| **IAM** | Users, Roles, Policies | View attached policies, policy documents |
+| **ECS** | Clusters, Services, Tasks, Task Defs | Scale services, Force deploy, Stop tasks |
+| **ECR** | Repositories and images | Browse image tags |
+| **Backup** | Vaults, Plans, Jobs, Recovery Points | Browse recovery points |
+| **CloudTrail** | Trails and recent events | View event details |
+| **Secrets Manager** | Secrets with metadata | View secret values |
+
+### The Good Stuff
+
+- 🎹 **Vim keys** - `j/k` to navigate, `Enter` to drill in, `Esc` to go back
+- 🔍 **Global search** - Press `/` to find any resource across all services
+- 🔒 **Read-only mode** - Browse prod safely with `--read-only`
+- 🏠 **LocalStack support** - Test locally with `--endpoint-url`
+- ⚡ **Background loading** - Details load async so the UI stays snappy
+- 📋 **Copy to clipboard** - Press `y` to copy IDs, ARNs, whatever
+- 🔄 **Profile switching** - Press `P` to switch AWS profiles/regions on the fly
 
 ---
 
 ## Getting Started
 
-### Prerequisites
-
-- **Rust 1.75+** (install via [rustup](https://rustup.rs/))
-- **AWS Credentials** configured (`~/.aws/credentials` or environment variables)
-
-### Installation
+### Install
 
 ```bash
-# Clone and build
+# Clone it
 git clone https://github.com/youruser/lazy-aws.git
 cd lazy-aws
+
+# Build it (requires Rust 1.75+)
 cargo build --release
 
-# Run
+# Run it
 ./target/release/lazy-aws
 ```
 
-### Running
+Or just `cargo run` during development.
+
+### Basic Usage
 
 ```bash
-# Standard run - opens profile switcher if no profile set
-cargo run
+# Just run it - opens profile switcher if no profile is set
+lazy-aws
 
-# With explicit profile and region
-cargo run -- --profile my-profile --region us-west-2
+# Specify a profile
+lazy-aws --profile my-profile
 
-# Connect to LocalStack (explicit endpoint)
-cargo run -- --endpoint-url http://localhost:4566
+# Different region
+lazy-aws --profile my-profile --region eu-west-1
 
-# Read-only mode (safer for production)
-cargo run -- --read-only
+# Read-only mode (can't break anything!)
+lazy-aws --profile prod --read-only
 
-# Combine options
-cargo run -- --profile prod --region eu-west-1 --read-only
+# LocalStack
+lazy-aws --endpoint-url http://localhost:4566
 ```
 
-### CLI Options
+### LocalStack Setup
 
-| Option | Description |
-|--------|-------------|
-| `--profile <NAME>` | AWS profile to use |
-| `--region <REGION>` | AWS region (default: us-east-1) |
-| `--endpoint-url <URL>` | Custom AWS endpoint (for LocalStack) |
-| `--read-only` | Prevent all modifying actions |
-
-### LocalStack / Custom Endpoints
-
-The app automatically reads `endpoint_url` from your AWS profile config. For example:
+The easiest way is to add the endpoint to your AWS config:
 
 ```ini
 # ~/.aws/config
 [profile localstack]
 region = us-east-1
-endpoint_url = http://localhost.localstack.cloud:4566
+endpoint_url = http://localhost:4566
 ```
 
-Then simply run:
-```bash
-cargo run -- --profile localstack
-```
-
-**Priority for endpoint URL:** CLI `--endpoint-url` > profile config `endpoint_url` > `AWS_ENDPOINT_URL` env var
-
-### SSO Profiles
-
-SSO profiles are automatically detected. When you switch to an SSO profile, the app will run `aws sso login --profile <name>` for you.
+Then just: `lazy-aws --profile localstack`
 
 ---
 
-## Key Bindings
+## How To Use It
 
-### Global
+### The Basics
 
-| Key | Action |
-|-----|--------|
-| `1-9` | Quick switch to service (1=EC2, 2=S3, ...) |
-| `Tab` | Toggle focus between Sidebar and Main View |
-| `P` | Open profile/region switcher |
+| Key | What it does |
+|-----|--------------|
+| `j` / `k` | Move down/up |
+| `Enter` | Select / drill into |
+| `Esc` | Go back |
+| `Tab` | Switch between sidebar and main view |
+| `/` | Filter current list OR open global search |
+| `r` | Refresh |
 | `q` | Quit |
-| `r` | Refresh current view |
+
+### Quick Navigation
+
+| Key | What it does |
+|-----|--------------|
+| `1-9` | Jump to service (1=EC2, 2=S3, 3=RDS...) |
+| `g` | Go to top of list |
+| `G` | Go to bottom |
+| `P` | Open profile/region switcher |
+
+### Actions
+
+| Key | What it does |
+|-----|--------------|
+| `s` | Start (EC2/RDS) |
+| `S` | Stop (EC2/RDS) |
+| `R` | Reboot (EC2/RDS) |
+| `x` | Terminate/Delete (with confirmation!) |
+| `y` | Copy selected item to clipboard |
+
+### Viewing Details
+
+| Key | What it does |
+|-----|--------------|
 | `d` | Toggle detail panel |
-| `D` | Toggle fullscreen detail panel |
-| `Page Up` | Scroll detail panel up |
-| `Page Down` | Scroll detail panel down |
-| `A` | Toggle action log popup |
-| `/` | Filter items |
-| `Ctrl+c` | Force quit |
+| `D` | Toggle fullscreen detail |
+| `PgUp/PgDn` | Scroll details |
+| `A` | Show action log |
 
-### Profile/Region Switcher
+### Services with Multiple Views (VPC, IAM, ECS...)
 
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Move selection down |
-| `k` / `↑` | Move selection up |
-| `/` | Start filtering (type to search) |
-| `R` | Toggle read-only mode (profiles only) |
-| `Enter` | Select profile → Select region → Confirm |
-| `Esc` | Cancel filter / Cancel and close |
-
-### Navigation
-
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Move selection down |
-| `k` / `↑` | Move selection up |
-| `g` / `Home` | Go to first item |
-| `G` / `End` | Go to last item |
-| `Enter` | Select / Drill down |
-| `Esc` | Back / Cancel / Close |
-
-### Multi-View Services (VPC, IAM, Backup, CloudTrail)
-
-| Key | Action |
-|-----|--------|
+| Key | What it does |
+|-----|--------------|
 | `v` | Cycle through views |
-| `h` / `←` | Previous view |
-| `l` / `→` | Next view |
-
-### Actions (Requires Confirmation)
-
-| Key | Action | Services |
-|-----|--------|----------|
-| `s` | Start | EC2, RDS |
-| `S` | Stop | EC2, RDS |
-| `R` | Reboot | EC2, RDS |
-| `D` | Delete | S3 objects, DynamoDB items |
-| `y` | Confirm action | All |
-| `n` / `Esc` | Cancel action | All |
-
-### S3 Object Actions
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Enter bucket / View object details |
-| `o` | Open object in popup viewer |
-| `w` | Download object to ~/Downloads |
-| `D` | Delete object (requires confirmation) |
-| `Esc` | Leave bucket / Close viewer |
-
-### Object Viewer (Popup)
-
-| Key | Action |
-|-----|--------|
-| `j` / `↓` | Scroll down |
-| `k` / `↑` | Scroll up |
-| `g` / `Home` | Go to top |
-| `G` / `End` | Go to bottom |
-| `PgDown` / `Ctrl+d` | Page down |
-| `PgUp` / `Ctrl+u` | Page up |
-| `Esc` / `q` | Close viewer |
-
----
-
-## Architecture
-
-LazyAWS follows a **hybrid Component + Elm Architecture** pattern:
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        Application Flow                         │
-├────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────┐    ┌──────────────┐    ┌────────────────────────┐  │
-│  │Keyboard │───>│ handle_key() │───>│ update(Message)        │  │
-│  │  Event  │    │   -> Option  │    │   (State Mutation)     │  │
-│  └─────────┘    │   <Message>  │    └───────────┬────────────┘  │
-│                 └──────────────┘                │               │
-│                                                 ▼               │
-│  ┌─────────┐    ┌──────────────┐    ┌────────────────────────┐  │
-│  │  AWS    │<───│handle_aws_  │<───│ tokio::spawn()         │  │
-│  │ Event   │    │  event()    │    │   (Async AWS calls)    │  │
-│  └────┬────┘    └──────────────┘    └────────────────────────┘  │
-│       │                                                         │
-│       ▼                                                         │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    render()                              │    │
-│  │  (Pure function: State -> Terminal Output)               │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                                                                  │
-└────────────────────────────────────────────────────────────────┘
-```
-
-### Directory Structure
-
-```
-src/
-├── main.rs              # Entry point, event loop
-├── config.rs            # CLI argument parsing
-├── event.rs             # Event types and async event handler
-├── error.rs             # Error types
-│
-├── app/                 # Application state machine
-│   ├── messages.rs      # Message, Service, Action enums
-│   ├── state.rs         # App struct and initialization
-│   ├── update.rs        # Message handling (reducer)
-│   ├── input.rs         # Keyboard input handling
-│   ├── events.rs        # AWS event handling
-│   ├── service_state.rs # Per-service state structs
-│   ├── task_manager.rs  # Async task tracking
-│   ├── filtered_list.rs # Filter/search logic
-│   └── view_mode.rs     # ViewMode trait
-│
-├── aws/                 # AWS SDK wrappers
-│   ├── client.rs        # AwsClients initialization
-│   ├── traits.rs        # Service traits
-│   └── <service>.rs     # Per-service SDK wrappers
-│
-├── models/              # Data structures
-│   └── <service>.rs     # Per-service models with from_aws()
-│
-├── ui/                  # Rendering
-│   ├── render.rs        # Main render dispatcher
-│   ├── theme.rs         # Color theme constants
-│   ├── components/      # Reusable widgets (sidebar, modal, etc.)
-│   └── screens/         # Service-specific views
-│
-└── utils/               # Utilities
-    ├── aws_profiles.rs  # Profile/region/SSO detection
-    └── formatting.rs    # Display helpers
-```
+| `h` / `l` | Previous/next view |
 
 ---
 
@@ -264,76 +157,87 @@ src/
 ### Building
 
 ```bash
-# Debug build
-cargo build
-
-# Release build (optimized)
-cargo build --release
-
-# Run with logging
-RUST_LOG=debug cargo run
+cargo build           # Debug
+cargo build --release # Release
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
-cargo test
-
-# Run with output
-cargo test -- --nocapture
+cargo test            # Run all tests
+cargo test -- --nocapture  # With output
 ```
 
-### Contributing
+### Local Development with LocalStack
 
-See [AGENTS.md](AGENTS.md) for detailed development guidelines, architecture documentation, and coding standards.
+There's a seed script to populate LocalStack with sample data:
+
+```bash
+# Start LocalStack
+docker-compose up -d
+
+# Seed some resources
+./scripts/seed_localstack.sh
+
+# Run against it
+cargo run -- --profile localstack
+```
+
+### Project Structure
+
+```
+src/
+├── app/           # Application state, messages, input handling
+│   ├── messages/  # Service enums, action types, view modes
+│   ├── states/    # Per-service state structs
+│   └── update/    # Message handlers (like Redux reducers)
+├── aws/           # AWS SDK wrappers (one file per service)
+├── models/        # Data structures with from_aws() conversions
+├── ui/            # All the rendering
+│   ├── components/  # Reusable widgets (sidebar, modal, etc)
+│   └── screens/     # Per-service screens
+└── utils/         # Helpers (profiles, formatting, errors)
+```
+
+See [AGENTS.md](AGENTS.md) for detailed architecture docs and coding guidelines.
 
 ---
 
 ## Troubleshooting
 
-### "No credentials found"
-Ensure you have AWS credentials configured:
+**"No credentials found"**
 ```bash
-aws configure
-# Or set environment variables:
+aws configure  # Set up credentials
+# Or use environment variables
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
 ```
 
-### "Failed to initialize AWS clients"
-Check that your profile name and region are correct:
-```bash
-# List available profiles
-cat ~/.aws/config | grep '\[profile'
-
-# Test with AWS CLI
-aws sts get-caller-identity --profile your-profile
-```
-
-### SSO login fails
-Ensure you have the AWS CLI v2 installed and your SSO session is valid:
+**SSO login issues**
 ```bash
 aws sso login --profile your-sso-profile
 ```
 
-### LocalStack connection issues
-Verify LocalStack is running and the endpoint is reachable:
+**LocalStack not connecting**
 ```bash
-curl http://localhost:4566/_localstack/health
+curl http://localhost:4566/_localstack/health  # Check if it's running
+```
+OR
+```bash
+curl http://localhost.localstack.cloud:4566/_localstack/health
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] EC2 terminate instance
-- [ ] S3 bucket creation/deletion
-- [ ] Lambda function invocation
-- [ ] Configuration file support
-- [ ] Keyboard shortcut customization
-- [ ] Multi-account support
-- [ ] Resource tagging/search
+Some ideas for the future:
+
+- [ ] Configuration file for custom keybindings
+- [ ] More ECS actions (run task, update task def)
+- [ ] CloudWatch logs viewer
+- [ ] Cost explorer integration
+- [ ] Resource tagging
 
 ---
 
@@ -343,8 +247,12 @@ MIT
 
 ---
 
-## Acknowledgments
+## Thanks
 
-- [Ratatui](https://ratatui.rs/) - Rust TUI framework
-- [lazygit](https://github.com/jesseduffield/lazygit) - Inspiration for the keyboard-driven interface
-- [AWS SDK for Rust](https://aws.amazon.com/sdk-for-rust/) - AWS service clients
+- [Ratatui](https://ratatui.rs/) - Amazing Rust TUI framework
+- [lazygit](https://github.com/jesseduffield/lazygit) - The inspiration
+- [AWS SDK for Rust](https://aws.amazon.com/sdk-for-rust/) - The foundation
+
+---
+
+Built with ☕ and too many late nights. PRs welcome!

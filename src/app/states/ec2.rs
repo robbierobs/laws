@@ -1,6 +1,7 @@
 use ratatui::widgets::TableState;
 use crate::models::ec2::Ec2Instance;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt};
+use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, Service};
+use crate::app::global_search::{AutoSelectable, Searchable, SearchResult};
 use crossterm::event::{KeyCode, KeyEvent};
 
 /// State for EC2 service
@@ -25,6 +26,35 @@ impl Ec2State {
     /// Get the instance ID of the currently selected instance
     pub fn selected_instance_id(&self) -> Option<String> {
         self.selected_instance().map(|i| i.instance_id.clone())
+    }
+}
+
+impl Searchable for Ec2State {
+    fn get_search_results(&self) -> Vec<SearchResult> {
+        let mut results = Vec::new();
+        for instance in &self.instances {
+            let name = instance.name.clone().unwrap_or_default();
+            let mut result = SearchResult::new(Service::EC2, "EC2 Instance", &instance.instance_id);
+            if !name.is_empty() {
+                result = result.with_secondary(name);
+            }
+            if !instance.tags.is_empty() {
+                result = result.with_tags(instance.tags.clone());
+            }
+            results.push(result);
+        }
+        results
+    }
+}
+
+impl AutoSelectable for Ec2State {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        if let Some(idx) = self.instances.iter().position(|i| i.instance_id == resource_id) {
+            self.list_state.select(Some(idx));
+            true
+        } else {
+            false
+        }
     }
 }
 

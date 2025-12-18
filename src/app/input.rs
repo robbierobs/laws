@@ -5,6 +5,7 @@
 use super::{
     App, Focus, GlobalMessage, InputMode, InputResult, Message, Service, ViewMode, VpcViewMode,
 };
+use crate::app::global_search::Searchable;
 use crate::ui::components::Component;
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -32,136 +33,36 @@ impl App {
 
         // Handle S3 object viewer popup
         if self.services.s3.show_object_viewer {
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => {
-                    self.services.s3.show_object_viewer = false;
-                    self.services.s3.opened_object_content = None;
-                    self.services.s3.opened_object_path = None;
-                    self.services.s3.opened_object_key = None;
-                    self.services.s3.opened_object_bytes = None;
-                    self.services.s3.viewer_scroll_offset = 0;
-                    self.services.s3.viewer_mode = crate::app::states::s3::ViewerMode::Text;
-                }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_add(1);
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_sub(1);
-                }
-                KeyCode::Char('g') | KeyCode::Home => {
-                    self.services.s3.viewer_scroll_offset = 0;
-                }
-                KeyCode::Char('G') | KeyCode::End => {
-                    // Scroll to end - approximate based on content length
-                    if let Some(content) = &self.services.s3.opened_object_content {
-                        let line_count = content.lines().count() as u16;
-                        self.services.s3.viewer_scroll_offset = line_count.saturating_sub(10);
-                    }
-                }
-                KeyCode::PageDown => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_add(20);
-                }
-                KeyCode::PageUp => {
-                    self.services.s3.viewer_scroll_offset =
-                        self.services.s3.viewer_scroll_offset.saturating_sub(20);
-                }
-                KeyCode::Tab => {
-                    // Toggle between Text and Hex view
-                    self.services.s3.toggle_viewer_mode();
-                    self.services.s3.viewer_scroll_offset = 0;
-                }
-                _ => {}
-            }
-            return None;
+            return super::input_handlers::handle_s3_viewer_input(&mut self.services.s3, key);
         }
 
         // Handle S3 bucket creation modal
         if self.input_mode == InputMode::S3BucketCreation {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_s3_bucket_creation_input, S3BucketCreationResult};
+            match handle_s3_bucket_creation_input(&mut self.services.s3, key) {
+                S3BucketCreationResult::Continue => {}
+                S3BucketCreationResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.services.s3.reset_create_bucket_modal();
                 }
-                KeyCode::Enter => {
-                    // Sanitize: lowercase, replace whitespace with hyphen, keep only valid chars
-                    let name: String = self
-                        .services
-                        .s3
-                        .create_bucket_input
-                        .trim()
-                        .to_lowercase()
-                        .chars()
-                        .map(|c| if c.is_whitespace() { '-' } else { c })
-                        .filter(|c| {
-                            c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '-' || *c == '.'
-                        })
-                        .collect();
-                    if !name.is_empty() {
-                        self.input_mode = InputMode::Normal;
-                        self.services.s3.show_create_bucket_modal = false;
-                        return Some(Message::s3_create_bucket(name));
-                    }
+                S3BucketCreationResult::Create(name) => {
+                    self.input_mode = InputMode::Normal;
+                    return Some(Message::s3_create_bucket(name));
                 }
-                KeyCode::Backspace => {
-                    self.services.s3.create_bucket_input.pop();
-                }
-                KeyCode::Char(c) => {
-                    // Allow any character, sanitize on submit
-                    self.services.s3.create_bucket_input.push(c);
-                }
-                _ => {}
             }
             return None;
         }
 
         // Handle action log popup navigation
         if self.action_log_expanded {
-            match key.code {
-                KeyCode::Char('A') | KeyCode::Esc => {
-                    self.action_log_expanded = false;
-                    self.action_log_selected_index = 0;
-                    self.action_log_detail_scroll = 0;
-                    return None;
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let max_idx = self.action_log.len().saturating_sub(1);
-                    if self.action_log_selected_index < max_idx {
-                        self.action_log_selected_index += 1;
-                        self.action_log_detail_scroll = 0; // Reset scroll on selection change
-                    }
-                    return None;
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if self.action_log_selected_index > 0 {
-                        self.action_log_selected_index -= 1;
-                        self.action_log_detail_scroll = 0; // Reset scroll on selection change
-                    }
-                    return None;
-                }
-                KeyCode::PageDown => {
-                    self.action_log_detail_scroll =
-                        self.action_log_detail_scroll.saturating_add(10);
-                    return None;
-                }
-                KeyCode::PageUp => {
-                    self.action_log_detail_scroll =
-                        self.action_log_detail_scroll.saturating_sub(10);
-                    return None;
-                }
-                KeyCode::Home | KeyCode::Char('g') => {
-                    self.action_log_detail_scroll = 0;
-                    return None;
-                }
-                KeyCode::Char('G') | KeyCode::End => {
-                    // Large value to scroll to end
-                    self.action_log_detail_scroll = u16::MAX;
-                    return None;
-                }
-                _ => return None,
-            }
+            use super::input_handlers::{handle_action_log_input, ActionLogState};
+            let mut state = ActionLogState {
+                expanded: &mut self.action_log_expanded,
+                selected_index: &mut self.action_log_selected_index,
+                detail_scroll: &mut self.action_log_detail_scroll,
+                log_len: self.action_log.len(),
+            };
+            handle_action_log_input(&mut state, key);
+            return None;
         }
 
         // Handle confirmation modal
@@ -177,86 +78,21 @@ impl App {
 
         // Handle profile switcher - profile selection
         if self.input_mode == InputMode::ProfileSwitcherProfile {
-            // If filter is active, handle text input
-            if self.profile_filter_active {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.profile_filter_active = false;
-                        self.profile_filter.clear();
-                        self.profile_switcher_index = 0;
-                    }
-                    KeyCode::Enter => {
-                        self.profile_filter_active = false;
-                    }
-                    KeyCode::Backspace => {
-                        self.profile_filter.pop();
-                        self.profile_switcher_index = 0;
-                    }
-                    KeyCode::Char(c) => {
-                        self.profile_filter.push(c);
-                        self.profile_switcher_index = 0;
-                    }
-                    _ => {}
-                }
-                return None;
-            }
-
-            // Normal navigation mode
-            match key.code {
-                KeyCode::Esc => {
-                    self.profile_filter.clear();
+            use super::input_handlers::{handle_profile_selection_input, ProfileSwitcherResult};
+            match handle_profile_selection_input(&mut self.profile_switcher, key) {
+                ProfileSwitcherResult::Continue => {}
+                ProfileSwitcherResult::Cancel => {
                     return Some(Message::cancel_profile_switcher());
                 }
-                KeyCode::Char('/') => {
-                    self.profile_filter_active = true;
-                }
-                KeyCode::Char('R') => {
-                    // Toggle read-only mode
-                    self.pending_read_only = !self.pending_read_only;
-                }
-                KeyCode::Enter => {
-                    // Store selected profile and move to region selection
-                    let filtered = self.filtered_profiles();
-                    let selected = filtered
-                        .get(self.profile_switcher_index)
-                        .map(|s| {
-                            if *s == "default" {
-                                None
-                            } else {
-                                Some((*s).clone())
-                            }
-                        })
-                        .unwrap_or(None);
-                    self.pending_profile = selected;
-                    self.profile_filter.clear();
+                ProfileSwitcherResult::ProfileSelected => {
                     self.input_mode = InputMode::ProfileSwitcherRegion;
                     // Pre-select current region in region list
-                    if let Some(idx) = self
-                        .filtered_regions()
-                        .iter()
-                        .position(|r| *r == &self.region)
-                    {
-                        self.region_switcher_index = idx;
+                    let current_region = &self.region;
+                    let filtered = self.profile_switcher.filtered_regions();
+                    if let Some(idx) = filtered.iter().position(|r| *r == current_region) {
+                        self.profile_switcher.region_switcher_index = idx;
                     } else {
-                        self.region_switcher_index = 0;
-                    }
-                    return None;
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let filtered_len = self.filtered_profiles().len();
-                    if filtered_len > 0 {
-                        self.profile_switcher_index =
-                            (self.profile_switcher_index + 1) % filtered_len;
-                    }
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let filtered_len = self.filtered_profiles().len();
-                    if filtered_len > 0 {
-                        self.profile_switcher_index = if self.profile_switcher_index == 0 {
-                            filtered_len - 1
-                        } else {
-                            self.profile_switcher_index - 1
-                        };
+                        self.profile_switcher.region_switcher_index = 0;
                     }
                 }
                 _ => {}
@@ -266,71 +102,18 @@ impl App {
 
         // Handle profile switcher - region selection
         if self.input_mode == InputMode::ProfileSwitcherRegion {
-            // If filter is active, handle text input
-            if self.region_filter_active {
-                match key.code {
-                    KeyCode::Esc => {
-                        self.region_filter_active = false;
-                        self.region_filter.clear();
-                        self.region_switcher_index = 0;
-                    }
-                    KeyCode::Enter => {
-                        self.region_filter_active = false;
-                    }
-                    KeyCode::Backspace => {
-                        self.region_filter.pop();
-                        self.region_switcher_index = 0;
-                    }
-                    KeyCode::Char(c) => {
-                        self.region_filter.push(c);
-                        self.region_switcher_index = 0;
-                    }
-                    _ => {}
-                }
-                return None;
-            }
-
-            // Normal navigation mode
-            match key.code {
-                KeyCode::Esc => {
-                    // Cancel and go back to normal mode
-                    self.pending_profile = None;
-                    self.region_filter.clear();
+            use super::input_handlers::{handle_region_selection_input, ProfileSwitcherResult};
+            match handle_region_selection_input(&mut self.profile_switcher, key) {
+                ProfileSwitcherResult::Continue => {}
+                ProfileSwitcherResult::Cancel => {
                     return Some(Message::cancel_profile_switcher());
                 }
-                KeyCode::Char('/') => {
-                    self.region_filter_active = true;
-                }
-                KeyCode::Enter => {
-                    // Confirm and switch profile/region
-                    let profile = self.pending_profile.clone();
-                    let filtered = self.filtered_regions();
-                    let region = filtered
-                        .get(self.region_switcher_index)
-                        .cloned()
-                        .cloned()
-                        .unwrap_or_else(|| "us-east-1".to_string());
-                    let read_only = self.pending_read_only;
-                    self.pending_profile = None;
-                    self.region_filter.clear();
+                ProfileSwitcherResult::Switch {
+                    profile,
+                    region,
+                    read_only,
+                } => {
                     return Some(Message::switch_profile_region(profile, region, read_only));
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let filtered_len = self.filtered_regions().len();
-                    if filtered_len > 0 {
-                        self.region_switcher_index =
-                            (self.region_switcher_index + 1) % filtered_len;
-                    }
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let filtered_len = self.filtered_regions().len();
-                    if filtered_len > 0 {
-                        self.region_switcher_index = if self.region_switcher_index == 0 {
-                            filtered_len - 1
-                        } else {
-                            self.region_switcher_index - 1
-                        };
-                    }
                 }
                 _ => {}
             }
@@ -361,200 +144,55 @@ impl App {
 
         // Handle ECS service editor modal
         if self.input_mode == InputMode::EcsServiceEditor {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_ecs_service_editor_input, EcsEditorResult};
+            match handle_ecs_service_editor_input(&mut self.services.ecs, key) {
+                EcsEditorResult::Continue => {}
+                EcsEditorResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.services.ecs.reset_service_editor();
                 }
-                KeyCode::Tab | KeyCode::Down => {
-                    // Cycle through fields: 0=task_def, 1=cpu, 2=memory, 3=force_deploy
-                    self.services.ecs.service_editor.active_field =
-                        (self.services.ecs.service_editor.active_field + 1) % 4;
+                EcsEditorResult::Update(msg) => {
+                    self.input_mode = InputMode::Normal;
+                    return Some(msg);
                 }
-                KeyCode::BackTab | KeyCode::Up => {
-                    // Cycle backwards
-                    self.services.ecs.service_editor.active_field =
-                        (self.services.ecs.service_editor.active_field + 3) % 4;
+                EcsEditorResult::Error(err) => {
+                    self.error_message = Some(err);
                 }
-                KeyCode::Char(' ') => {
-                    // Toggle force deploy if on that field
-                    if self.services.ecs.service_editor.active_field == 3 {
-                        self.services.ecs.service_editor.toggle_force_deploy();
-                    }
-                }
-                KeyCode::Backspace => match self.services.ecs.service_editor.active_field {
-                    0 => {
-                        self.services.ecs.service_editor.task_def.pop();
-                    }
-                    1 => {
-                        self.services.ecs.service_editor.cpu.pop();
-                    }
-                    2 => {
-                        self.services.ecs.service_editor.memory.pop();
-                    }
-                    _ => {}
-                },
-                KeyCode::Char(c) => {
-                    match self.services.ecs.service_editor.active_field {
-                        0 => self.services.ecs.service_editor.task_def.push(c),
-                        1 => {
-                            // Only allow digits for CPU
-                            if c.is_ascii_digit() {
-                                self.services.ecs.service_editor.cpu.push(c);
-                            }
-                        }
-                        2 => {
-                            // Only allow digits for memory
-                            if c.is_ascii_digit() {
-                                self.services.ecs.service_editor.memory.push(c);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                KeyCode::Enter => {
-                    // Submit the update
-                    if let (Some(cluster_arn), Some(service_name)) = (
-                        self.services.ecs.selected_cluster_arn.clone(),
-                        self.services.ecs.service_editor.service_name.clone(),
-                    ) {
-                        let task_def = if self.services.ecs.service_editor.task_def.is_empty() {
-                            None
-                        } else {
-                            Some(self.services.ecs.service_editor.task_def.clone())
-                        };
-                        let cpu = if self.services.ecs.service_editor.cpu.is_empty() {
-                            None
-                        } else {
-                            Some(self.services.ecs.service_editor.cpu.clone())
-                        };
-                        let memory = if self.services.ecs.service_editor.memory.is_empty() {
-                            None
-                        } else {
-                            Some(self.services.ecs.service_editor.memory.clone())
-                        };
-                        let force_deploy = self.services.ecs.service_editor.force_deploy;
-
-                        // Only submit if at least one field has a value
-                        if task_def.is_some() || cpu.is_some() || memory.is_some() {
-                            self.input_mode = InputMode::Normal;
-                            self.services.ecs.reset_service_editor();
-                            return Some(Message::ecs_update_service(
-                                cluster_arn,
-                                service_name,
-                                task_def,
-                                cpu,
-                                memory,
-                                force_deploy,
-                            ));
-                        } else {
-                            self.error_message =
-                                Some("Please specify at least one change".to_string());
-                        }
-                    }
-                }
-                _ => {}
             }
             return None;
         }
 
         // Handle ECS task definition selector modal
         if self.input_mode == InputMode::EcsTaskDefSelector {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_ecs_task_def_selector_input, EcsTaskDefSelectorResult};
+            match handle_ecs_task_def_selector_input(&mut self.services.ecs, key) {
+                EcsTaskDefSelectorResult::Continue => {}
+                EcsTaskDefSelectorResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.services.ecs.reset_task_def_selector();
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    self.services.ecs.task_def_selector.nav_down();
+                EcsTaskDefSelectorResult::SelectWithConfirmation(msg) => {
+                    self.input_mode = InputMode::Normal;
+                    // Request confirmation for the task definition change
+                    return self.request_action(msg);
                 }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    self.services.ecs.task_def_selector.nav_up();
-                }
-                KeyCode::Char('f') | KeyCode::Char('F') => {
-                    // Toggle force new deployment
-                    self.services.ecs.task_def_selector.toggle_force_deploy();
-                }
-                KeyCode::PageDown => {
-                    self.services.ecs.task_def_selector.scroll_down(5);
-                }
-                KeyCode::PageUp => {
-                    self.services.ecs.task_def_selector.scroll_up(5);
-                }
-                KeyCode::Char('l') | KeyCode::Right => {
-                    // Scroll detail pane down
-                    self.services.ecs.task_def_selector.scroll_down(1);
-                }
-                KeyCode::Char('h') | KeyCode::Left => {
-                    // Scroll detail pane up
-                    self.services.ecs.task_def_selector.scroll_up(1);
-                }
-                KeyCode::Enter => {
-                    // Submit the selection - request confirmation
-                    if let (Some(cluster_arn), Some(service_name), Some(task_def)) = (
-                        self.services.ecs.selected_cluster_arn.clone(),
-                        self.services.ecs.task_def_selector.service_name.clone(),
-                        self.services
-                            .ecs
-                            .task_def_selector
-                            .selected()
-                            .map(|td| td.task_definition_arn.clone()),
-                    ) {
-                        let force_deploy = self.services.ecs.task_def_selector.force_deploy;
-                        self.input_mode = InputMode::Normal;
-                        self.services.ecs.reset_task_def_selector();
-
-                        // Request confirmation for the task definition change
-                        return self.request_action(Message::ecs_update_service(
-                            cluster_arn,
-                            service_name,
-                            Some(task_def),
-                            None,
-                            None,
-                            force_deploy,
-                        ));
-                    }
-                }
-                _ => {}
             }
             return None;
         }
 
         // Handle global search modal
         if self.input_mode == InputMode::GlobalSearch {
-            match key.code {
-                KeyCode::Esc => {
+            use super::input_handlers::{handle_global_search_input, GlobalSearchInputResult};
+            match handle_global_search_input(&mut self.global_search, key) {
+                GlobalSearchInputResult::Continue => {}
+                GlobalSearchInputResult::Cancel => {
                     self.input_mode = InputMode::Normal;
-                    self.global_search.clear();
                 }
-                KeyCode::Down | KeyCode::Char('j')
-                    if key.modifiers.is_empty() || self.global_search.query.is_empty() =>
-                {
-                    self.global_search.nav_down();
+                GlobalSearchInputResult::Select(service, resource_id) => {
+                    self.input_mode = InputMode::Normal;
+                    return Some(Message::goto_search_result(service, resource_id));
                 }
-                KeyCode::Up | KeyCode::Char('k')
-                    if key.modifiers.is_empty() || self.global_search.query.is_empty() =>
-                {
-                    self.global_search.nav_up();
-                }
-                KeyCode::Enter => {
-                    if let Some(result) = self.global_search.selected() {
-                        let service = result.service;
-                        let resource_id = result.primary_id.clone();
-                        self.input_mode = InputMode::Normal;
-                        self.global_search.clear();
-                        return Some(Message::goto_search_result(service, resource_id));
-                    }
-                }
-                KeyCode::Backspace => {
-                    self.global_search.query.pop();
+                GlobalSearchInputResult::QueryChanged => {
                     self.refresh_global_search();
                 }
-                KeyCode::Char(c) => {
-                    self.global_search.query.push(c);
-                    self.refresh_global_search();
-                }
-                _ => {}
             }
             return None;
         }
@@ -880,163 +518,6 @@ impl App {
 
     /// Collect all searchable resources from all services
     fn collect_all_search_results(&self) -> Vec<super::global_search::SearchResult> {
-        use super::global_search::SearchResult;
-        use super::Service;
-
-        let mut results = Vec::new();
-
-        // EC2 Instances
-        for instance in &self.services.ec2.instances {
-            let name = instance.name.clone().unwrap_or_default();
-            let mut result = SearchResult::new(Service::EC2, "EC2 Instance", &instance.instance_id);
-            if !name.is_empty() {
-                result = result.with_secondary(name);
-            }
-            if !instance.tags.is_empty() {
-                result = result.with_tags(instance.tags.clone());
-            }
-            results.push(result);
-        }
-
-        // S3 Buckets
-        for bucket in &self.services.s3.buckets {
-            results.push(SearchResult::new(Service::S3, "S3 Bucket", &bucket.name));
-        }
-
-        // RDS Instances
-        for instance in &self.services.rds.instances {
-            let mut result = SearchResult::new(
-                Service::RDS,
-                "RDS Instance",
-                &instance.db_instance_identifier,
-            );
-            result = result.with_secondary(instance.engine.clone());
-            results.push(result);
-        }
-
-        // DynamoDB Tables
-        for table in &self.services.dynamodb.tables {
-            results.push(SearchResult::new(
-                Service::DynamoDB,
-                "DynamoDB Table",
-                &table.table_name,
-            ));
-        }
-
-        // Lambda Functions
-        for func in &self.services.lambda.functions {
-            let mut result =
-                SearchResult::new(Service::Lambda, "Lambda Function", &func.function_name);
-            if let Some(ref desc) = func.description {
-                if !desc.is_empty() {
-                    result = result.with_secondary(desc.clone());
-                }
-            }
-            results.push(result);
-        }
-
-        // VPCs
-        for vpc in &self.services.vpc.vpcs {
-            let name = vpc.name.clone().unwrap_or_default();
-            let mut result = SearchResult::new(Service::VPC, "VPC", &vpc.vpc_id);
-            if !name.is_empty() {
-                result = result.with_secondary(name);
-            }
-            results.push(result);
-        }
-
-        // Subnets
-        for subnet in &self.services.vpc.subnets {
-            let name = subnet.name.clone().unwrap_or_default();
-            let mut result = SearchResult::new(Service::VPC, "Subnet", &subnet.subnet_id);
-            if !name.is_empty() {
-                result = result.with_secondary(name);
-            }
-            results.push(result);
-        }
-
-        // Security Groups
-        for sg in &self.services.vpc.security_groups {
-            let mut result = SearchResult::new(Service::VPC, "Security Group", &sg.group_id);
-            result = result.with_secondary(sg.group_name.clone());
-            results.push(result);
-        }
-
-        // IAM Users
-        for user in &self.services.iam.users {
-            results.push(SearchResult::new(Service::IAM, "IAM User", &user.user_name));
-        }
-
-        // IAM Roles
-        for role in &self.services.iam.roles {
-            results.push(SearchResult::new(Service::IAM, "IAM Role", &role.role_name));
-        }
-
-        // IAM Policies
-        for policy in &self.services.iam.policies {
-            results.push(SearchResult::new(
-                Service::IAM,
-                "IAM Policy",
-                &policy.policy_name,
-            ));
-        }
-
-        // Backup Vaults
-        for vault in &self.services.backup.vaults {
-            results.push(SearchResult::new(
-                Service::Backup,
-                "Backup Vault",
-                &vault.backup_vault_name,
-            ));
-        }
-
-        // CloudTrail Trails
-        for trail in &self.services.cloudtrail.trails {
-            results.push(SearchResult::new(
-                Service::CloudTrail,
-                "CloudTrail Trail",
-                &trail.name,
-            ));
-        }
-
-        // Secrets Manager Secrets
-        for secret in &self.services.secretsmanager.secrets {
-            let mut result = SearchResult::new(Service::SecretsManager, "Secret", &secret.name);
-            if let Some(ref desc) = secret.description {
-                if !desc.is_empty() {
-                    result = result.with_secondary(desc.clone());
-                }
-            }
-            results.push(result);
-        }
-
-        // ECS Clusters
-        for cluster in &self.services.ecs.clusters {
-            results.push(SearchResult::new(
-                Service::ECS,
-                "ECS Cluster",
-                &cluster.cluster_name,
-            ));
-        }
-
-        // ECS Services
-        for service in &self.services.ecs.services {
-            results.push(SearchResult::new(
-                Service::ECS,
-                "ECS Service",
-                &service.service_name,
-            ));
-        }
-
-        // ECR Repositories
-        for repo in &self.services.ecr.repositories {
-            results.push(SearchResult::new(
-                Service::ECR,
-                "ECR Repository",
-                &repo.repository_name,
-            ));
-        }
-
-        results
+        self.services.get_search_results()
     }
 }

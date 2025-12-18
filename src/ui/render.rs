@@ -310,31 +310,41 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
 
     // Render profile switcher modal
     if app.input_mode == InputMode::ProfileSwitcherProfile {
-        let filtered: Vec<String> = app.filtered_profiles().into_iter().cloned().collect();
+        let filtered: Vec<String> = app
+            .profile_switcher
+            .filtered_profiles()
+            .into_iter()
+            .cloned()
+            .collect();
         crate::ui::components::modal::render_profile_switcher_modal(
             frame,
             frame.area(),
             &filtered,
-            app.profile_switcher_index,
+            app.profile_switcher.profile_switcher_index,
             app.profile.as_deref(),
-            app.pending_read_only,
-            &app.profile_filter,
-            app.profile_filter_active,
+            app.profile_switcher.pending_read_only,
+            &app.profile_switcher.profile_filter,
+            app.profile_switcher.profile_filter_active,
         );
     }
 
     // Render region switcher modal
     if app.input_mode == InputMode::ProfileSwitcherRegion {
-        let filtered: Vec<String> = app.filtered_regions().into_iter().cloned().collect();
+        let filtered: Vec<String> = app
+            .profile_switcher
+            .filtered_regions()
+            .into_iter()
+            .cloned()
+            .collect();
         crate::ui::components::modal::render_region_switcher_modal(
             frame,
             frame.area(),
             &filtered,
-            app.region_switcher_index,
+            app.profile_switcher.region_switcher_index,
             &app.region,
-            app.pending_profile.as_deref(),
-            &app.region_filter,
-            app.region_filter_active,
+            app.profile_switcher.pending_profile.as_deref(),
+            &app.profile_switcher.region_filter,
+            app.profile_switcher.region_filter_active,
         );
     }
 

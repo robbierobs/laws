@@ -6,7 +6,7 @@ use crate::app::task_manager::task_keys;
 use crate::event::{AwsEvent, Event};
 
 impl App {
-    pub async fn handle_ecr_action(
+    pub fn handle_ecr_action(
         &mut self,
         action: EcrAction,
         event_tx: crate::app::EventSender,

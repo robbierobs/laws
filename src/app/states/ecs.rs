@@ -153,6 +153,52 @@ impl EcsState {
     }
 }
 
+impl crate::app::global_search::Searchable for EcsState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+
+        // ECS Clusters
+        for cluster in &self.clusters {
+            results.push(SearchResult::new(
+                Service::ECS,
+                "ECS Cluster",
+                &cluster.cluster_name,
+            ));
+        }
+
+        // ECS Services
+        for service in &self.services {
+            results.push(SearchResult::new(
+                Service::ECS,
+                "ECS Service",
+                &service.service_name,
+            ));
+        }
+
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for EcsState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        // Check clusters first, then services
+        if let Some(idx) = self.clusters.iter().position(|c| c.cluster_name == resource_id) {
+            self.view_mode = EcsViewMode::Clusters;
+            self.list_state.select(Some(idx));
+            return true;
+        }
+        if let Some(idx) = self.services.iter().position(|s| s.service_name == resource_id) {
+            self.view_mode = EcsViewMode::Services;
+            self.list_state.select(Some(idx));
+            return true;
+        }
+        false
+    }
+}
+
 impl ServiceInputHandler for EcsState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         match self.view_mode {

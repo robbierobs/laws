@@ -38,6 +38,36 @@ impl CloudTrailState {
     }
 }
 
+impl crate::app::global_search::Searchable for CloudTrailState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+        // CloudTrail Trails
+        for trail in &self.trails {
+            results.push(SearchResult::new(
+                Service::CloudTrail,
+                "CloudTrail Trail",
+                &trail.name,
+            ));
+        }
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for CloudTrailState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        self.view_mode = CloudTrailViewMode::Trails;
+        if let Some(idx) = self.trails.iter().position(|t| t.name == resource_id) {
+            self.list_state.select(Some(idx));
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl ServiceInputHandler for CloudTrailState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         if self.show_detail_modal {

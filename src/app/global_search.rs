@@ -4,6 +4,22 @@
 
 use crate::app::Service;
 
+/// Trait for components that can provide search results
+pub trait Searchable {
+    /// Get all search results for this component
+    fn get_search_results(&self) -> Vec<SearchResult>;
+}
+
+/// Trait for components that can auto-select a resource by its ID
+/// 
+/// This is the counterpart to `Searchable` - when a user selects a search result,
+/// the corresponding service state can select the matching resource.
+pub trait AutoSelectable {
+    /// Try to select a resource by its primary ID
+    /// Returns true if the resource was found and selected
+    fn select_by_id(&mut self, resource_id: &str) -> bool;
+}
+
 /// A unified search result that can represent any AWS resource
 #[derive(Debug, Clone)]
 pub struct SearchResult {

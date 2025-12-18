@@ -3,14 +3,31 @@ use crate::models::ec2::Ec2Instance;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ec2::Client;
 
-pub struct Ec2Service {
-    client: Client,
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(Ec2Service, Client);
+
+/// Instance actions that can be performed on EC2 instances
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstanceAction {
+    Start,
+    Stop,
+    Reboot,
+    Terminate,
+}
+
+impl InstanceAction {
+    /// Get the verb form for error messages
+    fn verb(&self) -> &'static str {
+        match self {
+            InstanceAction::Start => "start",
+            InstanceAction::Stop => "stop",
+            InstanceAction::Reboot => "reboot",
+            InstanceAction::Terminate => "terminate",
+        }
+    }
 }
 
 impl Ec2Service {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_instances(&self) -> AppResult<Vec<Ec2Instance>> {
         let response = self.client
@@ -29,47 +46,61 @@ impl Ec2Service {
         Ok(instances)
     }
 
-    pub async fn start_instance(&self, instance_id: &str) -> AppResult<()> {
-        self.client
-            .start_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("EC2", "start", instance_id, e))?;
+    /// Execute an instance action (start, stop, reboot, terminate)
+    pub async fn execute_action(&self, action: InstanceAction, instance_id: &str) -> AppResult<()> {
+        match action {
+            InstanceAction::Start => {
+                self.client
+                    .start_instances()
+                    .instance_ids(instance_id)
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("EC2", action.verb(), instance_id, e))?;
+            }
+            InstanceAction::Stop => {
+                self.client
+                    .stop_instances()
+                    .instance_ids(instance_id)
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("EC2", action.verb(), instance_id, e))?;
+            }
+            InstanceAction::Reboot => {
+                self.client
+                    .reboot_instances()
+                    .instance_ids(instance_id)
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("EC2", action.verb(), instance_id, e))?;
+            }
+            InstanceAction::Terminate => {
+                self.client
+                    .terminate_instances()
+                    .instance_ids(instance_id)
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("EC2", action.verb(), instance_id, e))?;
+            }
+        }
         Ok(())
+    }
+
+    // Convenience methods that delegate to execute_action
+    pub async fn start_instance(&self, instance_id: &str) -> AppResult<()> {
+        self.execute_action(InstanceAction::Start, instance_id).await
     }
 
     pub async fn stop_instance(&self, instance_id: &str) -> AppResult<()> {
-        self.client
-            .stop_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("EC2", "stop", instance_id, e))?;
-        Ok(())
+        self.execute_action(InstanceAction::Stop, instance_id).await
     }
 
     pub async fn reboot_instance(&self, instance_id: &str) -> AppResult<()> {
-        self.client
-            .reboot_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("EC2", "reboot", instance_id, e))?;
-        Ok(())
+        self.execute_action(InstanceAction::Reboot, instance_id).await
     }
 
     pub async fn terminate_instance(&self, instance_id: &str) -> AppResult<()> {
-        self.client
-            .terminate_instances()
-            .instance_ids(instance_id)
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("EC2", "terminate", instance_id, e))?;
-        Ok(())
+        self.execute_action(InstanceAction::Terminate, instance_id).await
     }
-
-
 }
 
 impl crate::aws::traits::AwsService<Ec2Instance> for Ec2Service {

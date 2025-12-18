@@ -3,14 +3,10 @@ use crate::models::secretsmanager::Secret;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_secretsmanager::Client;
 
-pub struct SecretsManagerService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(SecretsManagerService, Client);
 
 impl SecretsManagerService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_secrets(&self) -> AppResult<Vec<Secret>> {
         let mut secrets = Vec::new();

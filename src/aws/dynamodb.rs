@@ -5,14 +5,10 @@ use crate::models::dynamodb::{
 use crate::utils::error::format_sdk_error;
 use aws_sdk_dynamodb::Client;
 
-pub struct DynamoDbService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(DynamoDbService, Client);
 
 impl DynamoDbService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_tables(&self) -> AppResult<Vec<DynamoDbTable>> {
         // First, get the list of table names

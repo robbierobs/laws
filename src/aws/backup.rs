@@ -3,14 +3,10 @@ use crate::models::backup::{BackupJob, BackupPlan, BackupVault};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_backup::Client;
 
-pub struct BackupService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(BackupService, Client);
 
 impl BackupService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_backup_plans(&self) -> AppResult<Vec<BackupPlan>> {
         let response = self

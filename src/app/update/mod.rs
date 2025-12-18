@@ -29,21 +29,22 @@ use super::{App, Message, ServiceAction};
 
 impl App {
     /// Main message handler - processes messages and updates application state
-    pub fn update<'a>(
-        &'a mut self,
+    /// 
+    /// This is now fully synchronous. All I/O operations are spawned as background
+    /// tasks that communicate back via the event channel.
+    pub fn update(
+        &mut self,
         message: Message,
         event_tx: crate::app::EventSender,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
-        Box::pin(async move {
-            match message {
-                Message::Global(global) => self.handle_global_message(global, event_tx).await,
-                Message::Service(service) => self.handle_service_action(service, event_tx).await,
-            }
-        })
+    ) {
+        match message {
+            Message::Global(global) => self.handle_global_message(global, event_tx),
+            Message::Service(service) => self.handle_service_action(service, event_tx),
+        }
     }
 
     /// Handle service-specific actions - dispatches to service modules
-    async fn handle_service_action(
+    fn handle_service_action(
         &mut self,
         action: ServiceAction,
         event_tx: crate::app::EventSender,
@@ -187,7 +188,7 @@ impl App {
                 self.handle_load_function_details(name, event_tx);
             }
             ServiceAction::Backup(action) => {
-                self.handle_backup_action(action, event_tx).await;
+                self.handle_backup_action(action, event_tx);
             }
             ServiceAction::CloudTrail(action) => match action {
                 crate::app::messages::CloudTrailAction::ShowEventDetails(json) => {
@@ -203,10 +204,10 @@ impl App {
                 }
             },
             ServiceAction::Ecs(action) => {
-                self.handle_ecs_action(action, event_tx).await;
+                self.handle_ecs_action(action, event_tx);
             }
             ServiceAction::Ecr(action) => {
-                self.handle_ecr_action(action, event_tx).await;
+                self.handle_ecr_action(action, event_tx);
             }
         }
     }

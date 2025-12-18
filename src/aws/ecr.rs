@@ -3,14 +3,10 @@ use crate::models::ecr::{EcrImage, EcrRepository};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ecr::Client;
 
-pub struct EcrService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(EcrService, Client);
 
 impl EcrService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_repositories(&self) -> AppResult<Vec<EcrRepository>> {
         let response = self

@@ -50,6 +50,79 @@ where
     })
 }
 
+/// Spawns a generic action task that performs an operation on a single resource.
+/// 
+/// This is useful for operations like delete, invoke, get details, etc.
+/// 
+/// # Arguments
+/// * `tx` - Event sender channel
+/// * `action_fn` - Async function that performs the action
+/// * `success_message` - Message to send on success
+/// * `resource_id` - ID of the resource for error reporting
+/// * `report_errors` - If true, sends error events; if false, silently ignores errors
+///
+/// # Returns
+/// A JoinHandle that can be registered with TaskManager
+#[allow(dead_code)] // Infrastructure for future use
+pub fn spawn_action_task<E, F, Fut>(
+    tx: EventSender,
+    action_fn: F,
+    success_message: String,
+    report_errors: bool,
+) -> JoinHandle<()>
+where
+    E: ToString + Send + 'static,
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = Result<(), E>> + Send,
+{
+    tokio::spawn(async move {
+        match action_fn().await {
+            Ok(()) => {
+                tx.send(Event::Aws(AwsEvent::ActionCompleted(success_message)))
+                    .await
+                    .ok();
+            }
+            Err(e) => {
+                if report_errors {
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
+                }
+            }
+        }
+    })
+}
+
+/// Spawns an action task that returns a value (e.g., get secret value, invoke lambda)
+#[allow(dead_code)] // Infrastructure for future use
+pub fn spawn_action_with_result_task<T, E, F, Fut>(
+    tx: EventSender,
+    action_fn: F,
+    event_builder: fn(T) -> AwsEvent,
+    report_errors: bool,
+) -> JoinHandle<()>
+where
+    T: Send + 'static,
+    E: ToString + Send + 'static,
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = Result<T, E>> + Send,
+{
+    tokio::spawn(async move {
+        match action_fn().await {
+            Ok(result) => {
+                tx.send(Event::Aws(event_builder(result))).await.ok();
+            }
+            Err(e) => {
+                if report_errors {
+                    tx.send(Event::Aws(AwsEvent::Error(e.to_string())))
+                        .await
+                        .ok();
+                }
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

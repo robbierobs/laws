@@ -4,7 +4,7 @@ use crate::app::{App, EventSender};
 use crate::event::{AwsEvent, Event};
 
 impl App {
-    pub async fn handle_ecs_view_services(&mut self, cluster_arn: String, event_tx: EventSender) {
+    pub fn handle_ecs_view_services(&mut self, cluster_arn: String, event_tx: EventSender) {
         self.services.ecs.selected_cluster_arn = Some(cluster_arn.clone());
         self.services.ecs.view_mode = EcsViewMode::Services;
         self.services.ecs.services.clear();
@@ -33,7 +33,7 @@ impl App {
         );
     }
 
-    pub async fn handle_ecs_view_tasks(&mut self, service_arn: String, event_tx: EventSender) {
+    pub fn handle_ecs_view_tasks(&mut self, service_arn: String, event_tx: EventSender) {
         // Extract service name from ARN for display
         let service_name = service_arn
             .split('/')
@@ -78,7 +78,7 @@ impl App {
         );
     }
 
-    pub async fn handle_ecs_view_task_definition(
+    pub fn handle_ecs_view_task_definition(
         &mut self,
         task_definition_arn: String,
         event_tx: EventSender,

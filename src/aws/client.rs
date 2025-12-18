@@ -38,6 +38,24 @@ pub struct AwsClients {
     pub ecr: EcrClient,
 }
 
+impl std::fmt::Debug for AwsClients {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AwsClients")
+            .field("ec2", &"<Ec2Client>")
+            .field("s3", &"<S3Client>")
+            .field("rds", &"<RdsClient>")
+            .field("dynamodb", &"<DynamoDbClient>")
+            .field("lambda", &"<LambdaClient>")
+            .field("iam", &"<IamClient>")
+            .field("backup", &"<BackupClient>")
+            .field("cloudtrail", &"<CloudTrailClient>")
+            .field("secretsmanager", &"<SecretsManagerClient>")
+            .field("ecs", &"<EcsClient>")
+            .field("ecr", &"<EcrClient>")
+            .finish()
+    }
+}
+
 impl AwsClients {
     pub async fn new(
         profile: Option<&str>, 

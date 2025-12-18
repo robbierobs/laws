@@ -62,3 +62,45 @@ impl ServiceStates {
         }
     }
 }
+
+impl crate::app::global_search::Searchable for ServiceStates {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        let mut results = Vec::new();
+        results.extend(self.ec2.get_search_results());
+        results.extend(self.s3.get_search_results());
+        results.extend(self.rds.get_search_results());
+        results.extend(self.dynamodb.get_search_results());
+        results.extend(self.lambda.get_search_results());
+        results.extend(self.vpc.get_search_results());
+        results.extend(self.iam.get_search_results());
+        results.extend(self.backup.get_search_results());
+        results.extend(self.cloudtrail.get_search_results());
+        results.extend(self.secretsmanager.get_search_results());
+        results.extend(self.ecs.get_search_results());
+        results.extend(self.ecr.get_search_results());
+        results
+    }
+}
+
+impl ServiceStates {
+    /// Select a resource by service and ID
+    /// Returns true if the resource was found and selected
+    pub fn select_by_service_and_id(&mut self, service: crate::app::Service, resource_id: &str) -> bool {
+        use crate::app::global_search::AutoSelectable;
+
+        match service {
+            crate::app::Service::EC2 => self.ec2.select_by_id(resource_id),
+            crate::app::Service::S3 => self.s3.select_by_id(resource_id),
+            crate::app::Service::RDS => self.rds.select_by_id(resource_id),
+            crate::app::Service::DynamoDB => self.dynamodb.select_by_id(resource_id),
+            crate::app::Service::Lambda => self.lambda.select_by_id(resource_id),
+            crate::app::Service::VPC => self.vpc.select_by_id(resource_id),
+            crate::app::Service::IAM => self.iam.select_by_id(resource_id),
+            crate::app::Service::Backup => self.backup.select_by_id(resource_id),
+            crate::app::Service::CloudTrail => self.cloudtrail.select_by_id(resource_id),
+            crate::app::Service::SecretsManager => self.secretsmanager.select_by_id(resource_id),
+            crate::app::Service::ECS => self.ecs.select_by_id(resource_id),
+            crate::app::Service::ECR => self.ecr.select_by_id(resource_id),
+        }
+    }
+}

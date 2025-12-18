@@ -18,6 +18,7 @@ mod events;
 pub mod filtered_list;
 pub mod global_search;
 mod input;
+mod input_handlers;
 pub mod messages;
 pub mod navigation;
 pub mod states;
@@ -25,6 +26,7 @@ mod state;
 pub mod task_manager;
 pub mod update;
 mod view_mode;
+pub mod profile_switcher;
 
 // Re-export everything needed by other modules
 pub use messages::{

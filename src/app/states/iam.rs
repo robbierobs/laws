@@ -52,6 +52,58 @@ impl IamState {
     }
 }
 
+impl crate::app::global_search::Searchable for IamState {
+    fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
+        use crate::app::Service;
+        use crate::app::global_search::SearchResult;
+
+        let mut results = Vec::new();
+
+        // IAM Users
+        for user in &self.users {
+            results.push(SearchResult::new(Service::IAM, "IAM User", &user.user_name));
+        }
+
+        // IAM Roles
+        for role in &self.roles {
+            results.push(SearchResult::new(Service::IAM, "IAM Role", &role.role_name));
+        }
+
+        // IAM Policies
+        for policy in &self.policies {
+            results.push(SearchResult::new(
+                Service::IAM,
+                "IAM Policy",
+                &policy.policy_name,
+            ));
+        }
+
+        results
+    }
+}
+
+impl crate::app::global_search::AutoSelectable for IamState {
+    fn select_by_id(&mut self, resource_id: &str) -> bool {
+        // Check users first, then roles, then policies
+        if let Some(idx) = self.users.iter().position(|u| u.user_name == resource_id) {
+            self.view_mode = IamViewMode::Users;
+            self.list_state.select(Some(idx));
+            return true;
+        }
+        if let Some(idx) = self.roles.iter().position(|r| r.role_name == resource_id) {
+            self.view_mode = IamViewMode::Roles;
+            self.list_state.select(Some(idx));
+            return true;
+        }
+        if let Some(idx) = self.policies.iter().position(|p| p.policy_name == resource_id) {
+            self.view_mode = IamViewMode::Policies;
+            self.list_state.select(Some(idx));
+            return true;
+        }
+        false
+    }
+}
+
 impl ServiceInputHandler for IamState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
         let len = match self.view_mode {
