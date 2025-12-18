@@ -3,14 +3,10 @@ use crate::models::s3::{S3Bucket, S3BucketDetails};
 use crate::utils::error::{format_s3_error, format_sdk_error};
 use aws_sdk_s3::Client;
 
-pub struct S3Service {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(S3Service, Client);
 
 impl S3Service {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_buckets(&self) -> AppResult<Vec<S3Bucket>> {
         let response = self

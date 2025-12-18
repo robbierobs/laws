@@ -3,9 +3,8 @@ use crate::models::ec2::Ec2Instance;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ec2::Client;
 
-pub struct Ec2Service {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(Ec2Service, Client);
 
 /// Instance actions that can be performed on EC2 instances
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,9 +28,6 @@ impl InstanceAction {
 }
 
 impl Ec2Service {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_instances(&self) -> AppResult<Vec<Ec2Instance>> {
         let response = self.client

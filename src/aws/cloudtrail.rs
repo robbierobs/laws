@@ -3,14 +3,10 @@ use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_cloudtrail::Client;
 
-pub struct CloudTrailService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(CloudTrailService, Client);
 
 impl CloudTrailService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_trails(&self) -> AppResult<Vec<Trail>> {
         let response = self
@@ -63,5 +59,18 @@ impl crate::aws::traits::AwsService<Trail> for CloudTrailService {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<Trail>>> + Send + 'a>>
     {
         Box::pin(self.list_trails())
+    }
+}
+
+impl crate::aws::traits::DeletableResource for CloudTrailService {
+    fn service_name(&self) -> &'static str {
+        "CloudTrail"
+    }
+
+    fn delete<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<()>> + Send + 'a>> {
+        Box::pin(self.delete_trail(id))
     }
 }

@@ -3,14 +3,10 @@ use crate::models::iam::{IamPolicy, IamRole, IamUser};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_iam::Client;
 
-pub struct IamService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(IamService, Client);
 
 impl IamService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_users(&self) -> AppResult<Vec<IamUser>> {
         let mut users = Vec::new();

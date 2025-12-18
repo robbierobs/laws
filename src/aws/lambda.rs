@@ -3,14 +3,10 @@ use crate::models::lambda::LambdaFunction;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_lambda::Client;
 
-pub struct LambdaService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(LambdaService, Client);
 
 impl LambdaService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_functions(&self) -> AppResult<Vec<LambdaFunction>> {
         let mut functions = Vec::new();

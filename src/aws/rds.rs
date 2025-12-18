@@ -3,14 +3,10 @@ use crate::models::rds::RdsInstance;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_rds::Client;
 
-pub struct RdsService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(RdsService, Client);
 
 impl RdsService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_instances(&self) -> AppResult<Vec<RdsInstance>> {
         let response = self.client

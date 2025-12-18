@@ -3,14 +3,10 @@ use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ec2::Client;
 
-pub struct VpcService {
-    client: Client,
-}
+// Use macro to generate struct and constructor
+crate::aws_service_struct!(VpcService, Client);
 
 impl VpcService {
-    pub fn new(client: Client) -> Self {
-        Self { client }
-    }
 
     pub async fn list_vpcs(&self) -> AppResult<Vec<Vpc>> {
         let response = self
