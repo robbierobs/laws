@@ -89,7 +89,7 @@ fn render_repository_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.ecr.images.iter()
+    let rows = app.services.ecr.images.items.iter()
         .filter(|img| {
             if filter.is_empty() { return true; }
             img.matches_filter(&filter)
@@ -126,11 +126,39 @@ fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Row::new(cells).height(1)
         });
 
-    let title = if let Some(repo) = &app.services.ecr.selected_repo_name {
-        format!("Images for {} (Esc to back)", repo)
+    // Build dynamic title with sort, filter, and pagination info
+    let image_count = app.services.ecr.images.len();
+    let sort_field = app.services.ecr.sort_field.label();
+    let sort_dir = app.services.ecr.sort_direction.label();
+    let tag_filter = app.services.ecr.tag_status_filter.label();
+    let has_more = app.services.ecr.images.has_more;
+    let loading_more = app.services.ecr.images.loading_more;
+    
+    let mut title_parts: Vec<String> = vec![];
+    
+    // Repo name or "Images" 
+    if let Some(repo) = &app.services.ecr.selected_repo_name {
+        title_parts.push(format!("{} ({})", repo, image_count));
     } else {
-        "Images (Esc to back)".to_string()
-    };
+        title_parts.push(format!("Images ({})", image_count));
+    }
+    
+    // Filter indicator
+    if app.services.ecr.tag_status_filter != crate::app::states::ecr::TagStatusFilter::Any {
+        title_parts.push(format!(" 🔍{}", tag_filter));
+    }
+    
+    // Pagination indicator
+    if loading_more {
+        title_parts.push(" ⏳".to_string());
+    } else if has_more {
+        title_parts.push(" 📥L".to_string());
+    }
+    
+    // Sort and keybind hints
+    title_parts.push(format!(" ⇅{}{} s:sort F:filter", sort_field, sort_dir));
+    
+    let title = title_parts.join("");
 
     render_table(
         frame,
@@ -197,7 +225,7 @@ fn render_image_details(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.services.ecr.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(img) = app.services.ecr.images.get(idx) {
+        if let Some(img) = app.services.ecr.images.items.get(idx) {
              let size = if let Some(bytes) = img.image_size_in_bytes {
                 if bytes > 1024 * 1024 * 1024 {
                     format!("{:.2} GB ({} bytes)", bytes as f64 / (1024.0 * 1024.0 * 1024.0), bytes)

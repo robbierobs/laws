@@ -1,5 +1,7 @@
 //! CloudTrail-specific actions
 
+use super::super::confirmable::ConfirmableAction;
+
 /// Parameters for CloudTrail event lookup
 #[derive(Debug, Clone, Default)]
 pub struct CloudTrailLookupParams {
@@ -53,4 +55,13 @@ pub enum CloudTrailAction {
     ClearFilters,
     /// Refresh events with current filters
     RefreshEvents,
+}
+
+impl ConfirmableAction for CloudTrailAction {
+    fn confirmation_description(&self) -> String {
+        match self {
+            Self::DeleteTrail(name) => format!("Delete CloudTrail trail {}", name),
+            _ => "CloudTrail operation".to_string(),
+        }
+    }
 }

@@ -106,7 +106,15 @@ pub enum AwsEvent {
         path: String,
     },
     EcrRepositoriesLoaded(Vec<EcrRepository>),
-    EcrImagesLoaded(Vec<EcrImage>),
+    EcrImagesLoaded {
+        images: Vec<EcrImage>,
+        next_token: Option<String>,
+        append: bool,
+    },
+    /// ECR image successfully pulled via docker
+    EcrImagePulled {
+        image_uri: String,
+    },
     /// Profile/region switch completed with new AWS clients
     ProfileRegionSwitched(Box<ProfileRegionSwitchedData>),
     /// Profile/region switch failed

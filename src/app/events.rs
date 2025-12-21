@@ -152,19 +152,16 @@ impl App {
             AwsEvent::CloudTrailEventsLoaded { events, next_token, append } => {
                 if append {
                     // Append to existing events (load more)
-                    self.services.cloudtrail.events.extend(events);
+                    self.services.cloudtrail.events.append(events, next_token);
                 } else {
                     // Replace events (fresh load or filter applied)
-                    self.services.cloudtrail.events = events;
+                    self.services.cloudtrail.events.replace(events, next_token);
                     if !self.services.cloudtrail.events.is_empty() {
                         self.services.cloudtrail.list_state.select(Some(0));
                     }
                 }
                 // Apply current sort settings
                 self.services.cloudtrail.sort_events();
-                self.services.cloudtrail.next_token = next_token.clone();
-                self.services.cloudtrail.has_more_events = next_token.is_some();
-                self.services.cloudtrail.loading_more = false;
                 self.loading = false;
             }
             AwsEvent::SecretsManagerSecretsLoaded(secrets) => {
@@ -284,12 +281,25 @@ impl App {
                 self.loading = false;
                 self.update_global_search_for_event();
             }
-            AwsEvent::EcrImagesLoaded(images) => {
-                self.services.ecr.images = images;
-                if !self.services.ecr.images.is_empty() {
-                    self.services.ecr.list_state.select(Some(0));
+            AwsEvent::EcrImagesLoaded { images, next_token, append } => {
+                if append {
+                    // Append to existing images (load more)
+                    self.services.ecr.images.append(images, next_token);
+                } else {
+                    // Replace images (fresh load or filter applied)
+                    self.services.ecr.images.replace(images, next_token);
+                    if !self.services.ecr.images.is_empty() {
+                        self.services.ecr.list_state.select(Some(0));
+                    }
                 }
+                // Apply current sort settings
+                self.services.ecr.sort_images();
                 self.loading = false;
+            }
+            AwsEvent::EcrImagePulled { image_uri } => {
+                self.loading = false;
+                self.action_log
+                    .push(format!("[SUCCESS] Pulled image: {}", image_uri));
             }
             AwsEvent::ProfileRegionSwitched(data) => {
                 // Log SSO messages

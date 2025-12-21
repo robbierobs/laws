@@ -262,7 +262,7 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
 
 fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.cloudtrail.events.iter()
+    let rows = app.services.cloudtrail.events.items.iter()
         .filter(|e| {
             if filter.is_empty() { return true; }
             e.matches_filter(&filter)
@@ -286,8 +286,8 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     // Build dynamic title with status info
     let event_count = app.services.cloudtrail.events.len();
     let has_filters = !app.services.cloudtrail.current_filters.is_empty();
-    let has_more = app.services.cloudtrail.has_more_events;
-    let loading_more = app.services.cloudtrail.loading_more;
+    let has_more = app.services.cloudtrail.events.has_more;
+    let loading_more = app.services.cloudtrail.events.loading_more;
     let sort_field = app.services.cloudtrail.sort_field.label();
     let sort_dir = app.services.cloudtrail.sort_direction.label();
     
@@ -326,7 +326,7 @@ fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.services.cloudtrail.list_state.selected();
     
     let content: Vec<Line> = if let Some(idx) = selected {
-        if let Some(event) = app.services.cloudtrail.events.get(idx) {
+        if let Some(event) = app.services.cloudtrail.events.items.get(idx) {
             build_event_detail_lines(event)
         } else {
             vec![Line::from("No event selected")]
@@ -490,8 +490,6 @@ fn render_input_field(frame: &mut Frame, area: Rect, label: &str, value: &str, i
         "█" // Cursor indicator
     } else if value.is_empty() {
         ""
-    } else if is_selected {
-        value
     } else {
         value
     };

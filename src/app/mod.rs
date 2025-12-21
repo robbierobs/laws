@@ -21,6 +21,7 @@ mod input;
 mod input_handlers;
 pub mod messages;
 pub mod navigation;
+pub mod pagination;
 pub mod states;
 mod state;
 pub mod task_manager;

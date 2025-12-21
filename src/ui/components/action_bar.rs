@@ -162,8 +162,14 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 }
                 EcrViewMode::Images => {
                     actions.extend_from_slice(&[
-                        ("Esc", "Back"),
+                        ("p", "Pull"),
+                        ("s", "Sort"),
+                        ("F", "Filter"),
                     ]);
+                    if app.services.ecr.images.has_more {
+                        actions.push(("L", "More"));
+                    }
+                    actions.push(("Esc", "Back"));
                 }
             }
         }

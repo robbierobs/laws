@@ -1,7 +1,3 @@
-use crate::app::messages::{
-    CloudTrailAction, DynamoDbAction, Ec2Action, EcsAction, IamAction, LambdaAction, RdsAction,
-    S3Action, SecretsManagerAction, ServiceAction, VpcAction,
-};
 use crate::app::{App, InputMode, Message};
 use crate::ui::components::Component;
 use crate::ui::theme::THEME;
@@ -189,115 +185,12 @@ fn render_modals(frame: &mut Frame, app: &mut App) {
 
     if app.show_confirmation {
         if let Some(action) = &app.pending_action {
+            // Use ConfirmableAction trait for description instead of 110+ line match
             let description = match action {
-                Message::Service(ServiceAction::Ec2(Ec2Action::Start(id))) => {
-                    format!("Start EC2 Instance {}", id)
+                Message::Service(service_action) => {
+                    use crate::app::messages::ConfirmableAction;
+                    service_action.confirmation_description()
                 }
-                Message::Service(ServiceAction::Ec2(Ec2Action::Stop(id))) => {
-                    format!("Stop EC2 Instance {}", id)
-                }
-                Message::Service(ServiceAction::Ec2(Ec2Action::Reboot(id))) => {
-                    format!("Reboot EC2 Instance {}", id)
-                }
-                Message::Service(ServiceAction::Ec2(Ec2Action::Terminate(id))) => {
-                    format!("Terminate EC2 Instance {}", id)
-                }
-
-                Message::Service(ServiceAction::Rds(RdsAction::Start(id))) => {
-                    format!("Start RDS Instance {}", id)
-                }
-                Message::Service(ServiceAction::Rds(RdsAction::Stop(id))) => {
-                    format!("Stop RDS Instance {}", id)
-                }
-                Message::Service(ServiceAction::Rds(RdsAction::Reboot(id))) => {
-                    format!("Reboot RDS Instance {}", id)
-                }
-                Message::Service(ServiceAction::Rds(RdsAction::Delete(id))) => {
-                    format!("Delete RDS Instance {}", id)
-                }
-
-                Message::Service(ServiceAction::S3(S3Action::DeleteObject { bucket, key })) => {
-                    format!("Delete S3 Object s3://{}/{}", bucket, key)
-                }
-                Message::Service(ServiceAction::S3(S3Action::EditObject { bucket, key })) => {
-                    format!("Edit S3 Object s3://{}/{}", bucket, key)
-                }
-                Message::Service(ServiceAction::S3(S3Action::DeleteBucket(name))) => {
-                    format!("Delete S3 Bucket '{}' (must be empty)", name)
-                }
-
-                Message::Service(ServiceAction::DynamoDb(DynamoDbAction::DeleteItem {
-                    table_name,
-                    ..
-                })) => format!("Delete item from DynamoDB table {}", table_name),
-
-                Message::Service(ServiceAction::Lambda(LambdaAction::InvokeFunction(name))) => {
-                    format!("Invoke Lambda Function {}", name)
-                }
-                Message::Service(ServiceAction::Lambda(LambdaAction::DeleteFunction(name))) => {
-                    format!("Delete Lambda Function {}", name)
-                }
-
-                Message::Service(ServiceAction::Vpc(VpcAction::DeleteSecurityGroup(id))) => {
-                    format!("Delete Security Group {}", id)
-                }
-
-                Message::Service(ServiceAction::Iam(IamAction::DeleteUser(name))) => {
-                    format!("Delete IAM User {}", name)
-                }
-                Message::Service(ServiceAction::Iam(IamAction::DeleteRole(name))) => {
-                    format!("Delete IAM Role {}", name)
-                }
-                Message::Service(ServiceAction::Iam(IamAction::DeletePolicy(arn))) => {
-                    format!("Delete IAM Policy {}", arn)
-                }
-
-                Message::Service(ServiceAction::CloudTrail(CloudTrailAction::DeleteTrail(
-                    name,
-                ))) => format!("Delete CloudTrail Trail {}", name),
-
-                Message::Service(ServiceAction::SecretsManager(
-                    SecretsManagerAction::DeleteSecret(arn),
-                )) => format!("Delete Secret {}", arn),
-
-                Message::Service(ServiceAction::Ecs(EcsAction::StopTask { task_arn, .. })) => {
-                    let short_arn = task_arn.split('/').next_back().unwrap_or(task_arn);
-                    format!("Stop ECS Task {}", short_arn)
-                }
-                Message::Service(ServiceAction::Ecs(EcsAction::DeregisterTaskDefinition(arn))) => {
-                    let short_arn = arn.split('/').next_back().unwrap_or(arn);
-                    format!("Deregister Task Definition {}", short_arn)
-                }
-                Message::Service(ServiceAction::Ecs(EcsAction::EditTaskDefinition(arn))) => {
-                    let short_arn = arn.split('/').next_back().unwrap_or(arn);
-                    format!("Edit Task Definition {}", short_arn)
-                }
-                Message::Service(ServiceAction::Ecs(EcsAction::UpdateDesiredCount {
-                    service_name,
-                    desired_count,
-                    ..
-                })) => {
-                    format!("Update {} desired count to {}", service_name, desired_count)
-                }
-                Message::Service(ServiceAction::Ecs(EcsAction::ForceNewDeployment {
-                    service_name,
-                    ..
-                })) => {
-                    format!("Force new deployment for {}", service_name)
-                }
-                Message::Service(ServiceAction::Ecs(EcsAction::UpdateService {
-                    service_name,
-                    task_definition,
-                    ..
-                })) => {
-                    if let Some(td) = task_definition {
-                        let short_td = td.split('/').next_back().unwrap_or(td);
-                        format!("Update {} to use {}", service_name, short_td)
-                    } else {
-                        format!("Update service {}", service_name)
-                    }
-                }
-
                 _ => "Unknown Action".to_string(),
             };
             crate::ui::components::modal::render_confirmation_modal(

@@ -72,6 +72,9 @@ pub struct ConfigFile {
     
     /// Maximum number of CloudTrail events to lookup
     pub max_cloudtrail_events: usize,
+    
+    /// Maximum number of ECR images to load per page
+    pub max_ecr_images: usize,
 }
 
 impl Default for ConfigFile {
@@ -86,6 +89,7 @@ impl Default for ConfigFile {
             max_s3_objects: 1000,
             max_dynamodb_items: 100,
             max_cloudtrail_events: 50,
+            max_ecr_images: 100,
         }
     }
 }
@@ -178,6 +182,9 @@ max_dynamodb_items = 100
 
 # Maximum CloudTrail events to lookup
 max_cloudtrail_events = 50
+
+# Maximum ECR images per page
+max_ecr_images = 100
 "#.to_string()
     }
 }
@@ -216,6 +223,9 @@ pub struct AppConfig {
     /// Maximum number of CloudTrail events to lookup
     pub max_cloudtrail_events: usize,
     
+    /// Maximum number of ECR images to load per page
+    pub max_ecr_images: usize,
+    
     /// Number of buckets to load details for concurrently
     pub s3_detail_concurrency: usize,
     
@@ -241,6 +251,7 @@ impl Default for AppConfig {
             max_s3_objects: 1000,
             max_dynamodb_items: 100,
             max_cloudtrail_events: 50,
+            max_ecr_images: 100,
             s3_detail_concurrency: 3,
             s3_detail_delay_ms: 100,
             sidebar_width: 20,
@@ -278,6 +289,7 @@ impl AppConfig {
             max_s3_objects: file_config.max_s3_objects,
             max_dynamodb_items: file_config.max_dynamodb_items,
             max_cloudtrail_events: file_config.max_cloudtrail_events,
+            max_ecr_images: file_config.max_ecr_images,
             s3_detail_concurrency: 3,
             s3_detail_delay_ms: 100,
             sidebar_width: 20,

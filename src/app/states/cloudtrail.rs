@@ -67,19 +67,12 @@ impl SortDirection {
 #[derive(Default)]
 pub struct CloudTrailState {
     pub trails: Vec<Trail>,
-    pub events: Vec<CloudTrailEvent>,
+    /// Events with pagination handled by PaginatedList
+    pub events: crate::app::pagination::PaginatedList<CloudTrailEvent>,
     pub list_state: TableState,
     pub view_mode: CloudTrailViewMode,
     pub selected_event_detail: Option<String>,
     pub show_detail_modal: bool,
-    
-    // Pagination state
-    /// Token for fetching the next page of events
-    pub next_token: Option<String>,
-    /// Whether there are more events to load
-    pub has_more_events: bool,
-    /// Whether we're currently loading more events
-    pub loading_more: bool,
     
     // Filter state
     /// Current active filters
@@ -183,7 +176,7 @@ impl CloudTrailState {
     /// Get the currently selected event, if any
     pub fn selected_event(&self) -> Option<&CloudTrailEvent> {
         if self.view_mode == CloudTrailViewMode::Events {
-            self.list_state.selected().and_then(|i| self.events.get(i))
+            self.list_state.selected().and_then(|i| self.events.items.get(i))
         } else {
             None
         }
@@ -193,7 +186,7 @@ impl CloudTrailState {
     pub fn sort_events(&mut self) {
         let ascending = self.sort_direction == SortDirection::Ascending;
         
-        self.events.sort_by(|a, b| {
+        self.events.items.sort_by(|a, b| {
             let cmp = match self.sort_field {
                 EventSortField::Time => {
                     // Compare by event_time (string comparison works for ISO dates)
@@ -283,7 +276,7 @@ impl ServiceInputHandler for CloudTrailState {
                 return InputResult::Message(Message::cloudtrail_open_filter_modal());
             }
             // Load more events (Events view only)
-            KeyCode::Char('L') if self.view_mode == CloudTrailViewMode::Events && self.has_more_events => {
+            KeyCode::Char('L') if self.view_mode == CloudTrailViewMode::Events && self.events.has_more => {
                 return InputResult::Message(Message::cloudtrail_load_more_events());
             }
             // Clear filters (Events view only) 
@@ -373,15 +366,11 @@ impl ServiceInternal for CloudTrailState {
 
     fn clear(&mut self) {
         self.trails.clear();
-        self.events.clear();
+        self.events.clear(); // PaginatedList.clear() resets all pagination state
         self.selected_event_detail = None;
         self.show_detail_modal = false;
         self.view_mode = CloudTrailViewMode::Trails;
         self.list_state.select(Some(0));
-        // Reset pagination state
-        self.next_token = None;
-        self.has_more_events = false;
-        self.loading_more = false;
         // Reset filter state
         self.current_filters = CloudTrailLookupParams::default();
         self.show_filter_modal = false;

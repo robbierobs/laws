@@ -75,12 +75,12 @@ impl App {
     }
 
     fn handle_load_more_events(&mut self, event_tx: crate::app::EventSender) {
-        let next_token = match &self.services.cloudtrail.next_token {
+        let next_token = match &self.services.cloudtrail.events.next_token {
             Some(token) => token.clone(),
             None => return, // No more events to load
         };
 
-        self.services.cloudtrail.loading_more = true;
+        self.services.cloudtrail.events.start_loading_more();
         let filters = self.services.cloudtrail.current_filters.clone();
         let max_results = self.config.max_cloudtrail_events as i32;
         
@@ -110,8 +110,6 @@ impl App {
         self.services.cloudtrail.current_filters = params.clone();
         // Clear existing events and pagination state
         self.services.cloudtrail.events.clear();
-        self.services.cloudtrail.next_token = None;
-        self.services.cloudtrail.has_more_events = false;
         self.services.cloudtrail.list_state.select(None);
         
         self.action_log.push("Applying CloudTrail event filters...".to_string());
@@ -124,8 +122,6 @@ impl App {
         self.services.cloudtrail.filter_modal_inputs = FilterModalInputs::default();
         // Clear existing events and pagination state
         self.services.cloudtrail.events.clear();
-        self.services.cloudtrail.next_token = None;
-        self.services.cloudtrail.has_more_events = false;
         self.services.cloudtrail.list_state.select(None);
         
         self.action_log.push("Cleared CloudTrail event filters".to_string());

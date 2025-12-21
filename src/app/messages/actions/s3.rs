@@ -1,5 +1,7 @@
 //! S3-specific actions
 
+use super::super::confirmable::ConfirmableAction;
+
 /// S3-specific actions
 #[derive(Debug, Clone)]
 pub enum S3Action {
@@ -29,4 +31,16 @@ pub enum S3Action {
         key: String,
     },
     LeaveBucket,
+}
+
+impl ConfirmableAction for S3Action {
+    fn confirmation_description(&self) -> String {
+        match self {
+            Self::DeleteObject { bucket, key } => format!("Delete S3 object s3://{}/{}", bucket, key),
+            Self::EditObject { bucket, key } => format!("Edit S3 object s3://{}/{}", bucket, key),
+            Self::DeleteBucket(name) => format!("Delete S3 bucket '{}' (must be empty)", name),
+            // Non-confirmable actions
+            _ => "S3 operation".to_string(),
+        }
+    }
 }

@@ -82,108 +82,84 @@ fn render_instance_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_instance_detail_lines(instance: &Ec2Instance) -> Vec<Line<'_>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
     let state_color = instance.state_color();
-
-    // Use references where possible, only allocate when necessary
     let state_str = instance.state.to_string();
-    let name_str = instance.name.as_deref().unwrap_or("-");
-    let arch_str = instance.architecture.as_deref().unwrap_or("-");
-    let pub_ip_str = instance.public_ip.as_deref().unwrap_or("-");
-    let priv_ip_str = instance.private_ip.as_deref().unwrap_or("-");
-    let vpc_str = instance.vpc_id.as_deref().unwrap_or("-");
-    let subnet_str = instance.subnet_id.as_deref().unwrap_or("-");
-    let az_str = instance.availability_zone.as_deref().unwrap_or("-");
-    let ami_str = instance.ami_id.as_deref().unwrap_or("-");
-    let key_str = instance.key_name.as_deref().unwrap_or("-");
-    let platform_str = instance.platform.as_deref().unwrap_or("Linux/UNIX");
-    let monitoring_str = instance.monitoring_state.as_deref().unwrap_or("-");
-    let launch_str = instance.launch_time.as_deref().unwrap_or("-");
 
-    let mut lines: Vec<Line> = vec![
-        Line::from(vec![
+    // Build base details
+    let mut builder = DetailBuilder::new()
+        // Instance ID + State on same conceptual "row"
+        .raw_line(Line::from(vec![
             Span::styled("Instance ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(instance.instance_id.clone()),
+            Span::raw(instance.instance_id.as_str()),
             Span::raw("   "),
             Span::styled("State: ", Style::default().fg(THEME.primary)),
             Span::styled(state_str, Style::default().fg(state_color)),
-        ]),
-        Line::from(vec![
-            Span::styled("Name: ", Style::default().fg(THEME.primary)),
-            Span::raw(name_str),
-        ]),
-        Line::from(vec![
+        ]))
+        .field("Name", instance.name.as_deref().unwrap_or("-"))
+        // Type + Architecture
+        .raw_line(Line::from(vec![
             Span::styled("Type: ", Style::default().fg(THEME.primary)),
-            Span::raw(instance.instance_type.clone()),
+            Span::raw(instance.instance_type.as_str()),
             Span::raw("   "),
             Span::styled("Architecture: ", Style::default().fg(THEME.primary)),
-            Span::raw(arch_str),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Network ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
+            Span::raw(instance.architecture.as_deref().unwrap_or("-")),
+        ]))
+        .section("Network")
+        // Public + Private IP
+        .raw_line(Line::from(vec![
             Span::styled("Public IP: ", Style::default().fg(THEME.primary)),
-            Span::raw(pub_ip_str),
+            Span::raw(instance.public_ip.as_deref().unwrap_or("-")),
             Span::raw("   "),
             Span::styled("Private IP: ", Style::default().fg(THEME.primary)),
-            Span::raw(priv_ip_str),
-        ]),
-        Line::from(vec![
+            Span::raw(instance.private_ip.as_deref().unwrap_or("-")),
+        ]))
+        // VPC + Subnet
+        .raw_line(Line::from(vec![
             Span::styled("VPC: ", Style::default().fg(THEME.primary)),
-            Span::raw(vpc_str),
+            Span::raw(instance.vpc_id.as_deref().unwrap_or("-")),
             Span::raw("   "),
             Span::styled("Subnet: ", Style::default().fg(THEME.primary)),
-            Span::raw(subnet_str),
-        ]),
-        Line::from(vec![
-            Span::styled("Availability Zone: ", Style::default().fg(THEME.primary)),
-            Span::raw(az_str),
-        ]),
-    ];
+            Span::raw(instance.subnet_id.as_deref().unwrap_or("-")),
+        ]))
+        .field("Availability Zone", instance.availability_zone.as_deref().unwrap_or("-"));
 
-    // Security groups
+    // Security groups (dynamic list)
     if !instance.security_groups.is_empty() {
+        let mut lines = builder.build();
         lines.push(Line::from(vec![
             Span::styled("Security Groups: ", Style::default().fg(THEME.primary)),
         ]));
         for sg in &instance.security_groups {
             lines.push(Line::from(vec![
                 Span::raw("  • "),
-                Span::styled(sg.group_id.clone(), Style::default().fg(THEME.warning)),
+                Span::styled(sg.group_id.as_str(), Style::default().fg(THEME.warning)),
                 Span::raw(" ("),
-                Span::raw(sg.group_name.clone()),
+                Span::raw(sg.group_name.as_str()),
                 Span::raw(")"),
             ]));
         }
+        builder = DetailBuilder::new().lines(lines);
     }
 
-    lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("─── Instance Info ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("AMI ID: ", Style::default().fg(THEME.primary)),
-        Span::raw(ami_str),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Key Name: ", Style::default().fg(THEME.primary)),
-        Span::raw(key_str),
-        Span::raw("   "),
-        Span::styled("Platform: ", Style::default().fg(THEME.primary)),
-        Span::raw(platform_str),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Monitoring: ", Style::default().fg(THEME.primary)),
-        Span::raw(monitoring_str),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("Launch Time: ", Style::default().fg(THEME.primary)),
-        Span::raw(launch_str),
-    ]));
+    builder = builder
+        .section("Instance Info")
+        .field("AMI ID", instance.ami_id.as_deref().unwrap_or("-"))
+        // Key Name + Platform
+        .raw_line(Line::from(vec![
+            Span::styled("Key Name: ", Style::default().fg(THEME.primary)),
+            Span::raw(instance.key_name.as_deref().unwrap_or("-")),
+            Span::raw("   "),
+            Span::styled("Platform: ", Style::default().fg(THEME.primary)),
+            Span::raw(instance.platform.as_deref().unwrap_or("Linux/UNIX")),
+        ]))
+        .field("Monitoring", instance.monitoring_state.as_deref().unwrap_or("-"))
+        .field("Launch Time", instance.launch_time.as_deref().unwrap_or("-"));
 
-    // Tags
+    // Tags (dynamic list)
     if !instance.tags.is_empty() {
+        let mut lines = builder.build();
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled("─── Tags ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
@@ -191,10 +167,11 @@ fn build_instance_detail_lines(instance: &Ec2Instance) -> Vec<Line<'_>> {
         for (key, value) in &instance.tags {
             lines.push(Line::from(vec![
                 Span::styled(format!("{}: ", key), Style::default().fg(THEME.primary)),
-                Span::raw(value),
+                Span::raw(value.as_str()),
             ]));
         }
+        return lines;
     }
 
-    lines
+    builder.build()
 }

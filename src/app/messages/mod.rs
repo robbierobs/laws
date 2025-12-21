@@ -13,6 +13,7 @@ use std::collections::HashMap;
 mod service;
 mod view_modes;
 pub mod actions;
+pub mod confirmable;
 
 // Re-export Service enum
 pub use service::Service;
@@ -28,6 +29,9 @@ pub use actions::{
     BackupAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction, Ec2Action, EcrAction, EcsAction, IamAction,
     LambdaAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
 };
+
+// Re-export confirmable trait
+pub use confirmable::ConfirmableAction;
 
 // ============================================================================
 // Message Hierarchy
@@ -101,6 +105,25 @@ pub enum ServiceAction {
     SecretsManager(SecretsManagerAction),
     Ecs(EcsAction),
     Ecr(EcrAction),
+}
+
+impl ConfirmableAction for ServiceAction {
+    fn confirmation_description(&self) -> String {
+        match self {
+            Self::Ec2(a) => a.confirmation_description(),
+            Self::S3(a) => a.confirmation_description(),
+            Self::Rds(a) => a.confirmation_description(),
+            Self::DynamoDb(a) => a.confirmation_description(),
+            Self::Lambda(a) => a.confirmation_description(),
+            Self::Vpc(a) => a.confirmation_description(),
+            Self::Iam(a) => a.confirmation_description(),
+            Self::Backup(a) => a.confirmation_description(),
+            Self::CloudTrail(a) => a.confirmation_description(),
+            Self::SecretsManager(a) => a.confirmation_description(),
+            Self::Ecs(a) => a.confirmation_description(),
+            Self::Ecr(a) => a.confirmation_description(),
+        }
+    }
 }
 
 /// Main application message type (Elm Architecture style)
@@ -533,6 +556,21 @@ impl Message {
 
     pub fn ecr_back_to_repos() -> Self {
         Message::Service(ServiceAction::Ecr(EcrAction::BackToRepositories))
+    }
+
+    pub fn ecr_pull_image(repository_uri: String, image_tag: String) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::PullImage {
+            repository_uri,
+            image_tag,
+        }))
+    }
+
+    pub fn ecr_load_more_images() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::LoadMoreImages))
+    }
+
+    pub fn ecr_toggle_tag_filter() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::ToggleTagFilter))
     }
 }
 
