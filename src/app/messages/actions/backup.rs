@@ -7,6 +7,14 @@ use super::super::confirmable::ConfirmableAction;
 pub enum BackupAction {
     LoadRecoveryPoints(String),
     LeaveVault,
+    /// Open the filter modal (Jobs view)
+    OpenFilterModal,
+    /// Close the filter modal without applying
+    CloseFilterModal,
+    /// Apply filters from modal
+    ApplyFilters,
+    /// Clear all filters
+    ClearFilters,
 }
 
 impl ConfirmableAction for BackupAction {

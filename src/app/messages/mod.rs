@@ -352,6 +352,22 @@ impl Message {
         Message::Service(ServiceAction::Backup(BackupAction::LeaveVault))
     }
 
+    pub fn backup_open_filter_modal() -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::OpenFilterModal))
+    }
+
+    pub fn backup_close_filter_modal() -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::CloseFilterModal))
+    }
+
+    pub fn backup_apply_filters() -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::ApplyFilters))
+    }
+
+    pub fn backup_clear_filters() -> Self {
+        Message::Service(ServiceAction::Backup(BackupAction::ClearFilters))
+    }
+
     // VPC message constructors
     pub fn vpc_drill_down_sg() -> Self {
         Message::Service(ServiceAction::Vpc(VpcAction::DrillDownSecurityGroup))
@@ -618,6 +634,8 @@ pub enum InputMode {
     CloudTrailEventFilter,
     /// ECR image filter modal
     EcrImageFilter,
+    /// Backup job filter modal
+    BackupJobFilter,
 }
 
 #[cfg(test)]

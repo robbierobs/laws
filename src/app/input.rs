@@ -269,6 +269,38 @@ impl App {
             return None;
         }
 
+        // Handle Backup job filter modal
+        if self.input_mode == InputMode::BackupJobFilter {
+            let config = &self.services.backup.jobs_filter_config;
+            let state = &mut self.services.backup.jobs_filter_modal;
+            let total_fields = config.fields.len();
+            
+            match key.code {
+                KeyCode::Esc => {
+                    state.close();
+                    self.input_mode = InputMode::Normal;
+                }
+                KeyCode::Enter => {
+                    // Apply filters via message
+                    return Some(Message::backup_apply_filters());
+                }
+                KeyCode::Tab | KeyCode::Down => {
+                    state.next_field(total_fields);
+                }
+                KeyCode::BackTab | KeyCode::Up => {
+                    state.prev_field(total_fields);
+                }
+                KeyCode::Char(c) => {
+                    state.handle_char(c, config);
+                }
+                KeyCode::Backspace => {
+                    state.handle_backspace(config);
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         if key.code == KeyCode::Tab {
             self.toggle_focus();
             return None;
@@ -277,6 +309,10 @@ impl App {
         // Route to focused component
         match self.focus {
             Focus::Sidebar => {
+                // Global search is only available from sidebar (S or ?)
+                if matches!(key.code, KeyCode::Char('S') | KeyCode::Char('?')) {
+                    return Some(Message::open_global_search());
+                }
                 if let Some(msg) = self.sidebar.handle_key(key) {
                     return Some(msg);
                 }
@@ -352,7 +388,6 @@ impl App {
             KeyCode::Char('r') => Some(Message::refresh()),
             KeyCode::Char('y') => self.handle_copy(),
             KeyCode::Char('q') => Some(Message::quit()),
-            KeyCode::Char('?') | KeyCode::Char('S') => Some(Message::open_global_search()),
             KeyCode::Char('P') => Some(Message::open_profile_switcher()),
             KeyCode::Char('1') => Some(Message::navigate(Service::EC2)),
             KeyCode::Char('2') => Some(Message::navigate(Service::S3)),

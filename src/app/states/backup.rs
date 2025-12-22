@@ -2,14 +2,133 @@ use ratatui::widgets::TableState;
 use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
 use crate::app::{BackupViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
 use crate::app::states::ServiceInternal;
+use crate::app::filter_modal::{FilterFieldConfig, FilterModalConfig, FilterModalState};
 use crate::aws::client::AwsClients;
 use crate::app::task_manager::{TaskManager, task_keys};
 use crate::aws::backup::BackupService;
 use crate::event::{AwsEvent, Event};
 use crossterm::event::{KeyCode, KeyEvent};
 
+/// Field to sort Backup Jobs by
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum JobSortField {
+    #[default]
+    CreatedAt,
+    State,
+    ResourceType,
+}
+
+impl JobSortField {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::CreatedAt => "Date",
+            Self::State => "State",
+            Self::ResourceType => "Type",
+        }
+    }
+    
+    pub fn next(&self) -> Self {
+        match self {
+            Self::CreatedAt => Self::State,
+            Self::State => Self::ResourceType,
+            Self::ResourceType => Self::CreatedAt,
+        }
+    }
+}
+
+/// Sort direction
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortDirection {
+    #[default]
+    Descending,
+    Ascending,
+}
+
+impl SortDirection {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Ascending => "↑",
+            Self::Descending => "↓",
+        }
+    }
+    
+    pub fn toggle(&self) -> Self {
+        match self {
+            Self::Ascending => Self::Descending,
+            Self::Descending => Self::Ascending,
+        }
+    }
+}
+
+/// Backup Jobs filter field IDs
+pub mod filter_fields {
+    pub const JOB_STATE: &str = "job_state";
+    pub const RESOURCE_TYPE: &str = "resource_type";
+}
+
+/// Get the Backup Jobs filter modal configuration
+pub fn backup_jobs_filter_config() -> FilterModalConfig {
+    FilterModalConfig::new("Backup Job Filters")
+        .field(FilterFieldConfig::cycle(filter_fields::JOB_STATE, "Job State",
+            vec!["All".into(), "COMPLETED".into(), "RUNNING".into(), "FAILED".into(), "PENDING".into()]))
+        .field(FilterFieldConfig::text(filter_fields::RESOURCE_TYPE, "Resource Type")
+            .placeholder("e.g., EBS, RDS, DynamoDB"))
+        .dimensions(50, 35)
+}
+
+/// Filter parameters for Backup Jobs
+#[derive(Default, Clone)]
+pub struct BackupJobFilters {
+    /// Job state: 0 = All, 1+ = specific states
+    pub state_index: usize,
+    /// Resource type search
+    pub resource_type: String,
+}
+
+impl BackupJobFilters {
+    pub fn from_modal_state(state: &FilterModalState) -> Self {
+        Self {
+            state_index: state.get_cycle_index(filter_fields::JOB_STATE),
+            resource_type: state.get_text(filter_fields::RESOURCE_TYPE),
+        }
+    }
+    
+    pub fn state_filter(&self) -> Option<&'static str> {
+        match self.state_index {
+            1 => Some("COMPLETED"),
+            2 => Some("RUNNING"),
+            3 => Some("FAILED"),
+            4 => Some("PENDING"),
+            _ => None,
+        }
+    }
+    
+    pub fn matches(&self, job: &BackupJob) -> bool {
+        // State filter
+        if let Some(expected_state) = self.state_filter() {
+            if job.state.to_uppercase() != expected_state {
+                return false;
+            }
+        }
+        
+        // Resource type filter
+        if !self.resource_type.is_empty() {
+            let search = self.resource_type.to_lowercase();
+            let job_type = job.resource_type.as_deref().unwrap_or("").to_lowercase();
+            if !job_type.contains(&search) {
+                return false;
+            }
+        }
+        
+        true
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.state_index == 0 && self.resource_type.is_empty()
+    }
+}
+
 /// State for AWS Backup service
-#[derive(Default)]
 pub struct BackupState {
     pub vaults: Vec<BackupVault>,
     pub plans: Vec<BackupPlan>,
@@ -17,11 +136,61 @@ pub struct BackupState {
     pub recovery_points: Vec<RecoveryPoint>,
     pub list_state: TableState,
     pub view_mode: BackupViewMode,
+    
+    // Sort state for Jobs
+    pub job_sort_field: JobSortField,
+    pub job_sort_direction: SortDirection,
+    
+    // Filter state for Jobs (using generic filter modal)
+    pub jobs_filter_config: FilterModalConfig,
+    pub jobs_filter_modal: FilterModalState,
+    pub jobs_current_filters: BackupJobFilters,
+}
+
+impl Default for BackupState {
+    fn default() -> Self {
+        let config = backup_jobs_filter_config();
+        let modal_state = FilterModalState::new(&config);
+        Self {
+            vaults: Vec::new(),
+            plans: Vec::new(),
+            jobs: Vec::new(),
+            recovery_points: Vec::new(),
+            list_state: TableState::default(),
+            view_mode: BackupViewMode::default(),
+            job_sort_field: JobSortField::default(),
+            job_sort_direction: SortDirection::default(),
+            jobs_filter_config: config,
+            jobs_filter_modal: modal_state,
+            jobs_current_filters: BackupJobFilters::default(),
+        }
+    }
 }
 
 impl BackupState {
     pub fn new() -> Self {
         Self::default()
+    }
+    
+    /// Sort jobs based on current sort field and direction
+    pub fn sort_jobs(&mut self) {
+        let ascending = self.job_sort_direction == SortDirection::Ascending;
+        
+        self.jobs.sort_by(|a, b| {
+            let cmp = match self.job_sort_field {
+                JobSortField::CreatedAt => {
+                    a.creation_date.cmp(&b.creation_date)
+                }
+                JobSortField::State => {
+                    a.state.cmp(&b.state)
+                }
+                JobSortField::ResourceType => {
+                    a.resource_type.cmp(&b.resource_type)
+                }
+            };
+            
+            if ascending { cmp } else { cmp.reverse() }
+        });
     }
 
     /// Get the currently selected vault, if any
@@ -117,6 +286,24 @@ impl ServiceInputHandler for BackupState {
                     return InputResult::Message(Message::backup_leave_vault());
                 }
             }
+            // Cycle sort field (Jobs view only)
+            KeyCode::Char('s') if self.view_mode == BackupViewMode::Jobs => {
+                self.job_sort_field = self.job_sort_field.next();
+                self.sort_jobs();
+            }
+            // Toggle sort direction (Jobs view only)
+            KeyCode::Char('S') if self.view_mode == BackupViewMode::Jobs => {
+                self.job_sort_direction = self.job_sort_direction.toggle();
+                self.sort_jobs();
+            }
+            // Open filter modal (Jobs view only)
+            KeyCode::Char('F') if self.view_mode == BackupViewMode::Jobs => {
+                return InputResult::Message(Message::backup_open_filter_modal());
+            }
+            // Clear filters (Jobs view only, when filters active)
+            KeyCode::Char('c') if self.view_mode == BackupViewMode::Jobs && !self.jobs_current_filters.is_empty() => {
+                return InputResult::Message(Message::backup_clear_filters());
+            }
             _ => {}
         }
         InputResult::None
@@ -183,6 +370,13 @@ impl ServiceInternal for BackupState {
         self.recovery_points.clear();
         self.view_mode = BackupViewMode::Vaults;
         self.list_state.select(Some(0));
+        // Reset sort state
+        self.job_sort_field = JobSortField::default();
+        self.job_sort_direction = SortDirection::default();
+        // Reset filter state
+        self.jobs_filter_modal.close();
+        self.jobs_filter_modal.clear_all();
+        self.jobs_current_filters = BackupJobFilters::default();
     }
 
     fn auto_select_first(&mut self) {

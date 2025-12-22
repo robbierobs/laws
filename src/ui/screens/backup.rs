@@ -45,6 +45,17 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             BackupViewMode::RecoveryPoints => render_recovery_point_details(frame, area, app),
         }
     }
+
+    // Render filter modal if open (Jobs view)
+    if app.services.backup.jobs_filter_modal.visible {
+        use crate::ui::components::filter_modal::render_filter_modal;
+        render_filter_modal(
+            frame,
+            frame.area(),
+            &app.services.backup.jobs_filter_config,
+            &app.services.backup.jobs_filter_modal,
+        );
+    }
 }
 
 use crate::models::Filterable;
@@ -275,10 +286,16 @@ fn build_plan_detail_lines(plan: &BackupPlan) -> Vec<Line<'_>> {
 
 fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
+    let current_filters = &app.services.backup.jobs_current_filters;
+    
     let rows = app.services.backup.jobs.iter()
         .filter(|j| {
-            if filter.is_empty() { return true; }
-            j.matches_filter(&filter)
+            // Apply local text filter first
+            if !filter.is_empty() && !j.matches_filter(&filter) {
+                return false;
+            }
+            // Apply modal filters
+            current_filters.matches(j)
         })
         .map(|job| {
             let state_color = job.state_color();
@@ -297,6 +314,36 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Row::new(cells).height(1)
         });
 
+    // Build dynamic title with sort, filter info (standardized format)
+    let job_count = app.services.backup.jobs.len();
+    let sort_field = app.services.backup.job_sort_field.label();
+    let sort_dir = app.services.backup.job_sort_direction.label();
+    let has_filters = !current_filters.is_empty();
+    
+    let mut title_parts: Vec<String> = vec![format!("Backup Jobs ({})", job_count)];
+    
+    // Filter indicator
+    if has_filters {
+        let state_labels = ["All", "COMPLETED", "RUNNING", "FAILED", "PENDING"];
+        let state = state_labels.get(current_filters.state_index).unwrap_or(&"All");
+        if current_filters.state_index != 0 {
+            title_parts.push(format!(" 🔍{}", state));
+        }
+        if !current_filters.resource_type.is_empty() {
+            title_parts.push(" 🔎".to_string());
+        }
+    }
+    
+    // Sort indicator and keybind hints (standardized format)
+    title_parts.push(format!(" ⇅{}{}", sort_field, sort_dir));
+    title_parts.push(" [s:sort S:dir F:filter".to_string());
+    if has_filters {
+        title_parts.push(" c:clear".to_string());
+    }
+    title_parts.push("]".to_string());
+    
+    let title = title_parts.join("");
+
     render_table(
         frame,
         area,
@@ -309,7 +356,7 @@ fn render_job_list(frame: &mut Frame, area: Rect, app: &mut App) {
             Constraint::Length(12), // Percent Done
             Constraint::Min(15),    // Created
         ],
-        "Backup Jobs (v/h/l to switch view)",
+        &title,
         matches!(app.focus, crate::app::Focus::Main),
         &mut app.services.backup.list_state,
     );
