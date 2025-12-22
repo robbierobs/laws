@@ -302,181 +302,76 @@ fn render_sg_rule_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_vpc_detail_lines<'a>(vpc: &Vpc, app: &App) -> Vec<Line<'a>> {
+fn build_vpc_detail_lines(vpc: &Vpc, app: &App) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
     let state_color = vpc.state_color();
-    let name = vpc.name.clone().unwrap_or_else(|| "(unnamed)".to_string());
-    let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
-    let owner = vpc.owner_id.clone().unwrap_or_else(|| "-".to_string());
-    let tenancy = vpc.instance_tenancy.clone().unwrap_or_else(|| "default".to_string());
-    let dhcp = vpc.dhcp_options_id.clone().unwrap_or_else(|| "-".to_string());
-
+    
     // Count related resources
     let subnet_count = app.services.vpc.subnets.iter().filter(|s| s.vpc_id.as_deref() == Some(&vpc.vpc_id)).count();
     let sg_count = app.services.vpc.security_groups.iter().filter(|sg| sg.vpc_id.as_deref() == Some(&vpc.vpc_id)).count();
 
-    vec![
-        Line::from(vec![
-            Span::styled("VPC ID: ", Style::default().fg(THEME.primary)),
-            Span::styled(vpc.vpc_id.clone(), Style::default().fg(THEME.selection_fg)),
-            Span::raw("   "),
-            Span::styled("State: ", Style::default().fg(THEME.primary)),
-            Span::styled(vpc.state.clone(), Style::default().fg(state_color)),
-        ]),
-        Line::from(vec![
-            Span::styled("Name: ", Style::default().fg(THEME.primary)),
-            Span::raw(name),
-        ]),
-        Line::from(vec![
-            Span::styled("CIDR Block: ", Style::default().fg(THEME.primary)),
-            Span::raw(cidr),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Default VPC: ", Style::default().fg(THEME.primary)),
-            if vpc.is_default {
-                Span::styled("Yes", Style::default().fg(THEME.success))
-            } else {
-                Span::styled("No", Style::default().fg(THEME.muted))
-            },
-        ]),
-        Line::from(vec![
-            Span::styled("Instance Tenancy: ", Style::default().fg(THEME.primary)),
-            Span::raw(tenancy),
-        ]),
-        Line::from(vec![
-            Span::styled("DHCP Options Set: ", Style::default().fg(THEME.primary)),
-            Span::raw(dhcp),
-        ]),
-        Line::from(vec![
-            Span::styled("Owner ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(owner),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Related Resources ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Subnets: ", Style::default().fg(THEME.primary)),
-            Span::raw(subnet_count.to_string()),
-        ]),
-        Line::from(vec![
-            Span::styled("Security Groups: ", Style::default().fg(THEME.primary)),
-            Span::raw(sg_count.to_string()),
-        ]),
-    ]
+    // Complex header line with ID and State
+    let header = Line::from(vec![
+        Span::styled("VPC ID: ", Style::default().fg(THEME.primary)),
+        Span::styled(vpc.vpc_id.clone(), Style::default().fg(THEME.selection_fg)),
+        Span::raw("   "),
+        Span::styled("State: ", Style::default().fg(THEME.primary)),
+        Span::styled(vpc.state.clone(), Style::default().fg(state_color)),
+    ]);
+
+    DetailBuilder::new()
+        .raw_line(header)
+        .field_owned("Name", vpc.name.clone().unwrap_or_else(|| "(unnamed)".into()))
+        .field_owned("CIDR Block", vpc.cidr_block.clone().unwrap_or_else(|| "-".into()))
+        .section("Configuration")
+        .bool_field("Default VPC", vpc.is_default, "Yes", "No")
+        .field_owned("Instance Tenancy", vpc.instance_tenancy.clone().unwrap_or_else(|| "default".into()))
+        .field_owned("DHCP Options Set", vpc.dhcp_options_id.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Owner ID", vpc.owner_id.clone().unwrap_or_else(|| "-".into()))
+        .section("Related Resources")
+        .field_owned("Subnets", subnet_count.to_string())
+        .field_owned("Security Groups", sg_count.to_string())
+        .build()
 }
 
-fn build_subnet_detail_lines(subnet: &Subnet) -> Vec<Line<'_>> {
-    let name = subnet.name.clone().unwrap_or_else(|| "(unnamed)".to_string());
-    let vpc_id = subnet.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-    let cidr = subnet.cidr_block.clone().unwrap_or_else(|| "-".to_string());
-    let az = subnet.availability_zone.clone().unwrap_or_else(|| "-".to_string());
-    let ips = subnet.available_ip_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
-
-    vec![
-        Line::from(vec![
-            Span::styled("Subnet ID: ", Style::default().fg(THEME.primary)),
-            Span::styled(subnet.subnet_id.clone(), Style::default().fg(THEME.selection_fg)),
-        ]),
-        Line::from(vec![
-            Span::styled("Name: ", Style::default().fg(THEME.primary)),
-            Span::raw(name),
-        ]),
-        Line::from(vec![
-            Span::styled("VPC ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(vpc_id),
-        ]),
-        Line::from(vec![
-            Span::styled("CIDR Block: ", Style::default().fg(THEME.primary)),
-            Span::raw(cidr),
-        ]),
-        Line::from(vec![
-            Span::styled("Availability Zone: ", Style::default().fg(THEME.primary)),
-            Span::raw(az),
-        ]),
-        Line::from(vec![
-            Span::styled("Available IPs: ", Style::default().fg(THEME.primary)),
-            Span::raw(ips),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Default for AZ: ", Style::default().fg(THEME.primary)),
-            if subnet.is_default {
-                Span::styled("Yes", Style::default().fg(THEME.success))
-            } else {
-                Span::styled("No", Style::default().fg(THEME.muted))
-            },
-        ]),
-        Line::from(vec![
-            Span::styled("Auto-assign Public IP: ", Style::default().fg(THEME.primary)),
-            if subnet.map_public_ip {
-                Span::styled("Yes", Style::default().fg(THEME.success))
-            } else {
-                Span::styled("No", Style::default().fg(THEME.muted))
-            },
-        ]),
-    ]
+fn build_subnet_detail_lines(subnet: &Subnet) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
+    DetailBuilder::new()
+        .header_field("Subnet ID", subnet.subnet_id.clone())
+        .field_owned("Name", subnet.name.clone().unwrap_or_else(|| "(unnamed)".into()))
+        .field_owned("VPC ID", subnet.vpc_id.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("CIDR Block", subnet.cidr_block.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Availability Zone", subnet.availability_zone.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Available IPs", subnet.available_ip_count.map(|c| c.to_string()).unwrap_or_else(|| "-".into()))
+        .section("Configuration")
+        .bool_field("Default for AZ", subnet.is_default, "Yes", "No")
+        .bool_field("Auto-assign Public IP", subnet.map_public_ip, "Yes", "No")
+        .build()
 }
 
-fn build_security_group_detail_lines(sg: &SecurityGroup) -> Vec<Line<'_>> {
-    let vpc_id = sg.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-    let description = sg.description.clone().unwrap_or_else(|| "-".to_string());
-
-    vec![
-        Line::from(vec![
-            Span::styled("Group ID: ", Style::default().fg(THEME.primary)),
-            Span::styled(sg.group_id.clone(), Style::default().fg(THEME.selection_fg)),
-        ]),
-        Line::from(vec![
-            Span::styled("Name: ", Style::default().fg(THEME.primary)),
-            Span::raw(sg.group_name.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("VPC ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(vpc_id),
-        ]),
-        Line::from(vec![
-            Span::styled("Description: ", Style::default().fg(THEME.primary)),
-            Span::raw(description),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Rules ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Inbound Rules: ", Style::default().fg(THEME.primary)),
-            Span::raw(sg.inbound_rules_count.to_string()),
-        ]),
-        Line::from(vec![
-            Span::styled("Outbound Rules: ", Style::default().fg(THEME.primary)),
-            Span::raw(sg.outbound_rules_count.to_string()),
-        ]),
-    ]
+fn build_security_group_detail_lines(sg: &SecurityGroup) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
+    DetailBuilder::new()
+        .header_field("Group ID", sg.group_id.clone())
+        .field_owned("Name", sg.group_name.clone())
+        .field_owned("VPC ID", sg.vpc_id.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Description", sg.description.clone().unwrap_or_else(|| "-".into()))
+        .section("Rules")
+        .field_owned("Inbound Rules", sg.inbound_rules_count.to_string())
+        .field_owned("Outbound Rules", sg.outbound_rules_count.to_string())
+        .build()
 }
 
-fn build_sg_rule_detail_lines(rule: &SecurityGroupRule) -> Vec<Line<'_>> {
-    vec![
-        Line::from(vec![
-            Span::styled("Protocol: ", Style::default().fg(THEME.primary)),
-            Span::styled(rule.protocol.clone(), Style::default().fg(THEME.selection_fg)),
-        ]),
-        Line::from(vec![
-            Span::styled("Port Range: ", Style::default().fg(THEME.primary)),
-            Span::raw(rule.port_range.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("Source: ", Style::default().fg(THEME.primary)),
-            Span::raw(rule.source.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("Description: ", Style::default().fg(THEME.primary)),
-            Span::raw(rule.description.clone().unwrap_or_else(|| "-".to_string())),
-        ]),
-    ]
+fn build_sg_rule_detail_lines(rule: &SecurityGroupRule) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
+    DetailBuilder::new()
+        .header_field("Protocol", rule.protocol.clone())
+        .field_owned("Port Range", rule.port_range.clone())
+        .field_owned("Source", rule.source.clone())
+        .field_owned("Description", rule.description.clone().unwrap_or_else(|| "-".into()))
+        .build()
 }

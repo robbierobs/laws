@@ -40,11 +40,19 @@ impl<'a> DetailBuilder<'a> {
     }
 
     /// Add a labeled field with an owned value (for computed values)
-    #[allow(dead_code)] // Infrastructure for future screen migrations
     pub fn field_owned(mut self, label: &'static str, value: String) -> Self {
         self.lines.push(Line::from(vec![
             Span::styled(format!("{}: ", label), Style::default().fg(THEME.primary)),
             Span::raw(value),
+        ]));
+        self
+    }
+
+    /// Add a header field with a styled (highlighted) value - used for primary identifiers
+    pub fn header_field(mut self, label: &'static str, value: String) -> Self {
+        self.lines.push(Line::from(vec![
+            Span::styled(format!("{}: ", label), Style::default().fg(THEME.primary)),
+            Span::styled(value, Style::default().fg(THEME.selection_fg)),
         ]));
         self
     }
@@ -92,7 +100,6 @@ impl<'a> DetailBuilder<'a> {
     }
 
     /// Add a raw styled line (for custom formatting)
-    #[allow(dead_code)] // Infrastructure for future screen migrations
     pub fn raw_line(mut self, line: Line<'a>) -> Self {
         self.lines.push(line);
         self

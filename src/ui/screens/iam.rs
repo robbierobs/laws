@@ -135,45 +135,25 @@ fn render_user_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'_>> {
-    let path = user.path.clone().unwrap_or_else(|| "/".to_string());
-    let created = user.create_date.clone().unwrap_or_else(|| "-".to_string());
-    let pwd_last_used = user.password_last_used.clone().unwrap_or_else(|| "Never".to_string());
-    let arn = user.arn.clone().unwrap_or_else(|| "-".to_string());
-
-    vec![
-        Line::from(vec![
-            Span::styled("User Name: ", Style::default().fg(THEME.primary)),
-            Span::styled(user.user_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("User ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(user.user_id.clone()),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Path: ", Style::default().fg(THEME.primary)),
-            Span::raw(path),
-        ]),
-        Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(THEME.primary)),
-            Span::raw(created),
-        ]),
-        Line::from(vec![
-            Span::styled("Password Last Used: ", Style::default().fg(THEME.primary)),
-            Span::raw(pwd_last_used),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
-        ]),
-        Line::from(vec![
-            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
-        ]),
-    ]
+fn build_user_detail_lines(user: &IamUser) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
+    // ARN on separate line with styled value
+    let arn_line = Line::from(vec![
+        Span::styled(user.arn.clone().unwrap_or_else(|| "-".into()), Style::default().fg(THEME.selection_fg)),
+    ]);
+    
+    DetailBuilder::new()
+        .header_field("User Name", user.user_name.clone())
+        .field_owned("User ID", user.user_id.clone())
+        .section("Details")
+        .field_owned("Path", user.path.clone().unwrap_or_else(|| "/".into()))
+        .field_owned("Created", user.create_date.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Password Last Used", user.password_last_used.clone().unwrap_or_else(|| "Never".into()))
+        .blank()
+        .field("ARN", "")
+        .raw_line(arn_line)
+        .build()
 }
 
 fn render_role_list(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -244,52 +224,30 @@ fn render_role_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'_>> {
-    let path = role.path.clone().unwrap_or_else(|| "/".to_string());
-    let created = role.create_date.clone().unwrap_or_else(|| "-".to_string());
-    let desc = role.description.clone().unwrap_or_else(|| "(no description)".to_string());
+fn build_role_detail_lines(role: &IamRole) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
     let max_session = role.max_session_duration
         .map(|d| format!("{} seconds ({} hours)", d, d / 3600))
-        .unwrap_or_else(|| "-".to_string());
-    let arn = role.arn.clone().unwrap_or_else(|| "-".to_string());
-
-    vec![
-        Line::from(vec![
-            Span::styled("Role Name: ", Style::default().fg(THEME.primary)),
-            Span::styled(role.role_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Role ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(role.role_id.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("Description: ", Style::default().fg(THEME.primary)),
-            Span::raw(desc),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Path: ", Style::default().fg(THEME.primary)),
-            Span::raw(path),
-        ]),
-        Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(THEME.primary)),
-            Span::raw(created),
-        ]),
-        Line::from(vec![
-            Span::styled("Max Session Duration: ", Style::default().fg(THEME.primary)),
-            Span::raw(max_session),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
-        ]),
-        Line::from(vec![
-            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
-        ]),
-    ]
+        .unwrap_or_else(|| "-".into());
+    
+    // ARN on separate line with styled value
+    let arn_line = Line::from(vec![
+        Span::styled(role.arn.clone().unwrap_or_else(|| "-".into()), Style::default().fg(THEME.selection_fg)),
+    ]);
+    
+    DetailBuilder::new()
+        .header_field("Role Name", role.role_name.clone())
+        .field_owned("Role ID", role.role_id.clone())
+        .field_owned("Description", role.description.clone().unwrap_or_else(|| "(no description)".into()))
+        .section("Details")
+        .field_owned("Path", role.path.clone().unwrap_or_else(|| "/".into()))
+        .field_owned("Created", role.create_date.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Max Session Duration", max_session)
+        .blank()
+        .field("ARN", "")
+        .raw_line(arn_line)
+        .build()
 }
 
 fn render_policy_list(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -360,53 +318,26 @@ fn render_policy_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'_>> {
-    let created = policy.create_date.clone().unwrap_or_else(|| "-".to_string());
-    let updated = policy.update_date.clone().unwrap_or_else(|| "-".to_string());
-    let arn = policy.arn.clone().unwrap_or_else(|| "-".to_string());
-    let attachments = policy.attachment_count.unwrap_or(0).to_string();
-
-    vec![
-        Line::from(vec![
-            Span::styled("Policy Name: ", Style::default().fg(THEME.primary)),
-            Span::styled(policy.policy_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Policy ID: ", Style::default().fg(THEME.primary)),
-            Span::raw(policy.policy_id.clone().unwrap_or_default()),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Details ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("Attachment Count: ", Style::default().fg(THEME.primary)),
-            Span::raw(attachments),
-        ]),
-        Line::from(vec![
-            Span::styled("Is Attachable: ", Style::default().fg(THEME.primary)),
-            if policy.is_attachable {
-                Span::styled("Yes", Style::default().fg(THEME.success))
-            } else {
-                Span::styled("No", Style::default().fg(THEME.muted))
-            },
-        ]),
-        Line::from(vec![
-            Span::styled("Created: ", Style::default().fg(THEME.primary)),
-            Span::raw(created),
-        ]),
-        Line::from(vec![
-            Span::styled("Updated: ", Style::default().fg(THEME.primary)),
-            Span::raw(updated),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("ARN: ", Style::default().fg(THEME.primary)),
-        ]),
-        Line::from(vec![
-            Span::styled(arn, Style::default().fg(THEME.selection_fg)),
-        ]),
-    ]
+fn build_policy_detail_lines(policy: &IamPolicy) -> Vec<Line<'static>> {
+    use crate::ui::components::detail_builder::DetailBuilder;
+    
+    // ARN on separate line with styled value
+    let arn_line = Line::from(vec![
+        Span::styled(policy.arn.clone().unwrap_or_else(|| "-".into()), Style::default().fg(THEME.selection_fg)),
+    ]);
+    
+    DetailBuilder::new()
+        .header_field("Policy Name", policy.policy_name.clone())
+        .field_owned("Policy ID", policy.policy_id.clone().unwrap_or_default())
+        .section("Details")
+        .field_owned("Attachment Count", policy.attachment_count.unwrap_or(0).to_string())
+        .bool_field("Is Attachable", policy.is_attachable, "Yes", "No")
+        .field_owned("Created", policy.create_date.clone().unwrap_or_else(|| "-".into()))
+        .field_owned("Updated", policy.update_date.clone().unwrap_or_else(|| "-".into()))
+        .blank()
+        .field("ARN", "")
+        .raw_line(arn_line)
+        .build()
 }
 
 fn render_attached_policies_list(frame: &mut Frame, area: Rect, app: &mut App) {

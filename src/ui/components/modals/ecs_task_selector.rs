@@ -1,7 +1,8 @@
-//! ECS service editor and task definition selector modals
+//! ECS task definition selector modal
+//!
+//! Modal for browsing and selecting ECS task definitions with detail view.
 
 #![allow(clippy::too_many_arguments)]
-#![allow(clippy::if_same_then_else)] // Scroll offset calculations intentionally follow same pattern
 #![allow(clippy::vec_init_then_push)] // Readable line-by-line building
 
 use ratatui::{
@@ -13,177 +14,10 @@ use ratatui::{
 };
 use crate::models::ecs::EcsTaskDefinition;
 use crate::ui::theme::THEME;
-use super::helpers::{centered_rect, centered_rect_fixed};
-
-/// Render the ECS service editor modal for modifying task definition, CPU, and memory
-pub fn render_service_editor(
-    frame: &mut Frame,
-    area: Rect,
-    service_name: &str,
-    task_def: &str,
-    cpu: &str,
-    memory: &str,
-    force_deploy: bool,
-    active_field: usize,
-) {
-    let title = format!(" Edit Service: {} ", service_name);
-    let block = Block::default()
-        .title(title)
-        .title_style(
-            Style::default()
-                .fg(THEME.primary)
-                .add_modifier(Modifier::BOLD),
-        )
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(THEME.primary));
-
-    let popup_area = centered_rect_fixed(70, 16, area);
-    let inner_area = block.inner(popup_area);
-
-    frame.render_widget(Clear, popup_area);
-    frame.render_widget(block, popup_area);
-
-    // Layout
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(2), // Help line
-            Constraint::Length(1), // Separator
-            Constraint::Length(2), // Task definition field
-            Constraint::Length(2), // CPU field
-            Constraint::Length(2), // Memory field
-            Constraint::Length(2), // Force deploy checkbox
-            Constraint::Length(1), // Separator
-            Constraint::Length(2), // Submit hint
-        ])
-        .split(inner_area);
-
-    // Help line
-    let help = Line::from(vec![
-        Span::styled(
-            "Tab/↓↑",
-            Style::default()
-                .fg(THEME.secondary)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" navigate  ", Style::default().fg(THEME.muted)),
-        Span::styled(
-            "Enter",
-            Style::default()
-                .fg(THEME.success)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" submit  ", Style::default().fg(THEME.muted)),
-        Span::styled(
-            "Esc",
-            Style::default()
-                .fg(THEME.error)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" cancel", Style::default().fg(THEME.muted)),
-    ]);
-    frame.render_widget(Paragraph::new(help), chunks[0]);
-
-    // Separator
-    let sep = Line::from(Span::styled(
-        "─".repeat(chunks[1].width as usize),
-        Style::default().fg(THEME.border),
-    ));
-    frame.render_widget(Paragraph::new(sep.clone()), chunks[1]);
-
-    // Task definition field
-    let td_style = if active_field == 0 {
-        Style::default()
-            .fg(THEME.selection_fg)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(THEME.fg)
-    };
-    let cursor = if active_field == 0 { "▏" } else { "" };
-    let td_line = Line::from(vec![
-        Span::styled("Task Definition: ", Style::default().fg(THEME.secondary)),
-        Span::styled(format!("{}{}", task_def, cursor), td_style),
-    ]);
-    frame.render_widget(Paragraph::new(td_line), chunks[2]);
-
-    // CPU field
-    let cpu_style = if active_field == 1 {
-        Style::default()
-            .fg(THEME.selection_fg)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(THEME.fg)
-    };
-    let cursor = if active_field == 1 { "▏" } else { "" };
-    let cpu_text = if cpu.is_empty() && active_field != 1 {
-        "(unchanged)"
-    } else {
-        cpu
-    };
-    let cpu_line = Line::from(vec![
-        Span::styled("CPU (vCPU units): ", Style::default().fg(THEME.secondary)),
-        Span::styled(format!("{}{}", cpu_text, cursor), cpu_style),
-    ]);
-    frame.render_widget(Paragraph::new(cpu_line), chunks[3]);
-
-    // Memory field
-    let mem_style = if active_field == 2 {
-        Style::default()
-            .fg(THEME.selection_fg)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(THEME.fg)
-    };
-    let cursor = if active_field == 2 { "▏" } else { "" };
-    let mem_text = if memory.is_empty() && active_field != 2 {
-        "(unchanged)"
-    } else {
-        memory
-    };
-    let mem_line = Line::from(vec![
-        Span::styled("Memory (MiB):     ", Style::default().fg(THEME.secondary)),
-        Span::styled(format!("{}{}", mem_text, cursor), mem_style),
-    ]);
-    frame.render_widget(Paragraph::new(mem_line), chunks[4]);
-
-    // Force deploy checkbox
-    let fd_style = if active_field == 3 {
-        Style::default()
-            .fg(THEME.selection_fg)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(THEME.fg)
-    };
-    let checkbox = if force_deploy { "[✓]" } else { "[ ]" };
-    let fd_line = Line::from(vec![
-        Span::styled(checkbox, fd_style),
-        Span::styled(" Force new deployment", fd_style),
-        if active_field == 3 {
-            Span::styled("  (Space to toggle)", Style::default().fg(THEME.muted))
-        } else {
-            Span::raw("")
-        },
-    ]);
-    frame.render_widget(Paragraph::new(fd_line), chunks[5]);
-
-    // Separator
-    frame.render_widget(Paragraph::new(sep), chunks[6]);
-
-    // Submit hint
-    let hint = Line::from(vec![
-        Span::styled("💡 ", Style::default()),
-        Span::styled(
-            "Changing CPU/Memory creates a new task definition revision",
-            Style::default()
-                .fg(THEME.muted)
-                .add_modifier(Modifier::ITALIC),
-        ),
-    ]);
-    frame.render_widget(Paragraph::new(hint), chunks[7]);
-}
+use super::helpers::centered_rect;
 
 /// Render the ECS task definition selector modal with list and detail panes
-pub fn render_task_def_selector(
+pub fn render(
     frame: &mut Frame,
     area: Rect,
     service_name: &str,
@@ -272,80 +106,10 @@ pub fn render_task_def_selector(
         .split(main_chunks[1]);
 
     // Render task definition list
-    let list_block = Block::default()
-        .title(" Task Definitions ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(THEME.border));
-    let list_inner = list_block.inner(content_chunks[0]);
-    frame.render_widget(list_block, content_chunks[0]);
-
-    if loading {
-        let loading_text = Paragraph::new("Loading task definitions...")
-            .style(Style::default().fg(THEME.muted))
-            .alignment(Alignment::Center);
-        frame.render_widget(loading_text, list_inner);
-    } else if task_defs.is_empty() {
-        let no_items = Paragraph::new("No task definitions found")
-            .style(Style::default().fg(THEME.muted))
-            .alignment(Alignment::Center);
-        frame.render_widget(no_items, list_inner);
-    } else {
-        let list_height = list_inner.height as usize;
-        let total_items = task_defs.len();
-
-        // Calculate scroll offset
-        let scroll_offset = if total_items <= list_height {
-            0
-        } else if selected_index < list_height / 2 {
-            0
-        } else if selected_index >= total_items.saturating_sub(list_height / 2) {
-            total_items.saturating_sub(list_height)
-        } else {
-            selected_index.saturating_sub(list_height / 2)
-        };
-
-        let mut lines: Vec<Line> = Vec::new();
-        for (i, td) in task_defs
-            .iter()
-            .enumerate()
-            .skip(scroll_offset)
-            .take(list_height)
-        {
-            let is_selected = i == selected_index;
-            let prefix = if is_selected { "▶ " } else { "  " };
-            let display = td.short_name();
-
-            let style = if is_selected {
-                Style::default()
-                    .fg(THEME.selection_fg)
-                    .add_modifier(Modifier::BOLD)
-            } else if td.status == "ACTIVE" {
-                Style::default().fg(THEME.success)
-            } else {
-                Style::default().fg(THEME.muted)
-            };
-
-            lines.push(Line::from(Span::styled(
-                format!("{}{}", prefix, display),
-                style,
-            )));
-        }
-        frame.render_widget(Paragraph::new(lines), list_inner);
-    }
+    render_task_list(frame, content_chunks[0], task_defs, selected_index, loading);
 
     // Render details pane
-    let detail_block = Block::default()
-        .title(" Details ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(THEME.border));
-    let detail_inner = detail_block.inner(content_chunks[1]);
-    frame.render_widget(detail_block, content_chunks[1]);
-
-    if let Some(td) = task_defs.get(selected_index) {
-        let detail_lines = build_task_def_detail_lines(td);
-        let paragraph = Paragraph::new(detail_lines).scroll((detail_scroll as u16, 0));
-        frame.render_widget(paragraph, detail_inner);
-    }
+    render_detail_pane(frame, content_chunks[1], task_defs, selected_index, detail_scroll);
 
     // Force deploy toggle
     let checkbox = if force_deploy { "[✓]" } else { "[ ]" };
@@ -391,6 +155,100 @@ pub fn render_task_def_selector(
         Paragraph::new(status).alignment(Alignment::Right),
         main_chunks[3],
     );
+}
+
+fn render_task_list(
+    frame: &mut Frame,
+    area: Rect,
+    task_defs: &[EcsTaskDefinition],
+    selected_index: usize,
+    loading: bool,
+) {
+    let list_block = Block::default()
+        .title(" Task Definitions ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.border));
+    let list_inner = list_block.inner(area);
+    frame.render_widget(list_block, area);
+
+    if loading {
+        let loading_text = Paragraph::new("Loading task definitions...")
+            .style(Style::default().fg(THEME.muted))
+            .alignment(Alignment::Center);
+        frame.render_widget(loading_text, list_inner);
+        return;
+    }
+
+    if task_defs.is_empty() {
+        let no_items = Paragraph::new("No task definitions found")
+            .style(Style::default().fg(THEME.muted))
+            .alignment(Alignment::Center);
+        frame.render_widget(no_items, list_inner);
+        return;
+    }
+
+    let list_height = list_inner.height as usize;
+    let total_items = task_defs.len();
+
+    // Calculate scroll offset
+    let scroll_offset = if total_items <= list_height {
+        0
+    } else if selected_index < list_height / 2 {
+        0
+    } else if selected_index >= total_items.saturating_sub(list_height / 2) {
+        total_items.saturating_sub(list_height)
+    } else {
+        selected_index.saturating_sub(list_height / 2)
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+    for (i, td) in task_defs
+        .iter()
+        .enumerate()
+        .skip(scroll_offset)
+        .take(list_height)
+    {
+        let is_selected = i == selected_index;
+        let prefix = if is_selected { "▶ " } else { "  " };
+        let display = td.short_name();
+
+        let style = if is_selected {
+            Style::default()
+                .fg(THEME.selection_fg)
+                .add_modifier(Modifier::BOLD)
+        } else if td.status == "ACTIVE" {
+            Style::default().fg(THEME.success)
+        } else {
+            Style::default().fg(THEME.muted)
+        };
+
+        lines.push(Line::from(Span::styled(
+            format!("{}{}", prefix, display),
+            style,
+        )));
+    }
+    frame.render_widget(Paragraph::new(lines), list_inner);
+}
+
+fn render_detail_pane(
+    frame: &mut Frame,
+    area: Rect,
+    task_defs: &[EcsTaskDefinition],
+    selected_index: usize,
+    detail_scroll: usize,
+) {
+    let detail_block = Block::default()
+        .title(" Details ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(THEME.border));
+    let detail_inner = detail_block.inner(area);
+    frame.render_widget(detail_block, area);
+
+    if let Some(td) = task_defs.get(selected_index) {
+        let detail_lines = build_task_def_detail_lines(td);
+        let paragraph = Paragraph::new(detail_lines).scroll((detail_scroll as u16, 0));
+        frame.render_widget(paragraph, detail_inner);
+    }
 }
 
 /// Build detail lines for a task definition
