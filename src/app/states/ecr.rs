@@ -132,6 +132,11 @@ impl EcrImageFilters {
     pub fn has_local_filters(&self) -> bool {
         !self.tag_search.is_empty() || !self.digest_search.is_empty()
     }
+    
+    /// Check if any filters are active (including API-level tag status)
+    pub fn is_empty(&self) -> bool {
+        self.tag_status_index == 0 && self.tag_search.is_empty() && self.digest_search.is_empty()
+    }
 }
 
 /// State for ECR service
@@ -323,6 +328,10 @@ impl ServiceInputHandler for EcrState {
             // Open filter modal (Images view only)
             KeyCode::Char('F') if self.view_mode == EcrViewMode::Images => {
                 return InputResult::Message(Message::ecr_open_filter_modal());
+            }
+            // Clear filters (Images view only, when filters active)
+            KeyCode::Char('c') if self.view_mode == EcrViewMode::Images && !self.current_filters.is_empty() => {
+                return InputResult::Message(Message::ecr_clear_filters());
             }
             _ => {}
         }

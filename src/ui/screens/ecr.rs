@@ -152,7 +152,7 @@ fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
     
     let mut title_parts: Vec<String> = vec![];
     
-    // Repo name or "Images" 
+    // Repo name or "Images" with count
     if let Some(repo) = &app.services.ecr.selected_repo_name {
         title_parts.push(format!("{} ({})", repo, image_count));
     } else {
@@ -162,6 +162,7 @@ fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
     // Filter indicator (show tag status or local filter markers)
     let tag_status_labels = ["All", "Tagged", "Untagged"];
     let tag_status = tag_status_labels.get(current_filters.tag_status_index).unwrap_or(&"All");
+    let has_filters = !current_filters.is_empty();
     if current_filters.tag_status_index != 0 {
         title_parts.push(format!(" 🔍{}", tag_status));
     }
@@ -173,11 +174,19 @@ fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
     if loading_more {
         title_parts.push(" ⏳".to_string());
     } else if has_more {
-        title_parts.push(" 📥L".to_string());
+        title_parts.push(" 📥".to_string());
     }
     
-    // Sort and keybind hints
-    title_parts.push(format!(" ⇅{}{} s:sort F:filter", sort_field, sort_dir));
+    // Sort indicator and keybind hints (standardized format)
+    title_parts.push(format!(" ⇅{}{}", sort_field, sort_dir));
+    title_parts.push(" [s:sort S:dir F:filter".to_string());
+    if has_more && !loading_more {
+        title_parts.push(" L:more".to_string());
+    }
+    if has_filters {
+        title_parts.push(" c:clear".to_string());
+    }
+    title_parts.push("]".to_string());
     
     let title = title_parts.join("");
 

@@ -63,6 +63,18 @@ impl App {
                     self.load_ecr_images(repo_name, None, false, event_tx);
                 }
             }
+            EcrAction::ClearFilters => {
+                // Clear all filters
+                self.services.ecr.filter_modal.clear_all();
+                self.services.ecr.current_filters = EcrImageFilters::default();
+                
+                // Reload images without filters
+                if let Some(repo_name) = self.services.ecr.selected_repo_name.clone() {
+                    self.services.ecr.images.clear();
+                    self.loading = true;
+                    self.load_ecr_images(repo_name, None, false, event_tx);
+                }
+            }
         }
     }
 

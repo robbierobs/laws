@@ -580,6 +580,10 @@ impl Message {
     pub fn ecr_apply_filters() -> Self {
         Message::Service(ServiceAction::Ecr(EcrAction::ApplyFilters))
     }
+
+    pub fn ecr_clear_filters() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::ClearFilters))
+    }
 }
 
 // ============================================================================

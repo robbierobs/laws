@@ -21,6 +21,8 @@ pub enum EcrAction {
     CloseFilterModal,
     /// Apply filters from modal
     ApplyFilters,
+    /// Clear all filters
+    ClearFilters,
 }
 
 impl ConfirmableAction for EcrAction {

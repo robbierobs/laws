@@ -297,17 +297,31 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let sort_field = app.services.cloudtrail.sort_field.label();
     let sort_dir = app.services.cloudtrail.sort_direction.label();
     
-    let mut title_parts = vec![format!("CloudTrail Events ({}", event_count)];
+    let mut title_parts: Vec<String> = vec![format!("CloudTrail Events ({})", event_count)];
+    
+    // Filter indicator
     if has_filters {
         title_parts.push(" 🔍".to_string());
     }
+    
+    // Pagination indicator
     if loading_more {
         title_parts.push(" ⏳".to_string());
     } else if has_more {
-        title_parts.push(" 📥L".to_string());
+        title_parts.push(" 📥".to_string());
     }
-    // Show sort info
-    title_parts.push(format!(") ⇅{}{}  s:sort S:dir F:filter", sort_field, sort_dir));
+    
+    // Sort indicator and keybind hints (standardized format)
+    title_parts.push(format!(" ⇅{}{}", sort_field, sort_dir));
+    title_parts.push(" [s:sort S:dir F:filter".to_string());
+    if has_more && !loading_more {
+        title_parts.push(" L:more".to_string());
+    }
+    if has_filters {
+        title_parts.push(" c:clear".to_string());
+    }
+    title_parts.push("]".to_string());
+    
     let title = title_parts.join("");
 
     render_table(
