@@ -3,6 +3,7 @@ use crate::models::ecr::{EcrImage, EcrRepository};
 use crate::app::{EcrViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
 use crate::app::states::ServiceInternal;
 use crate::app::pagination::PaginatedList;
+use crate::app::filter_modal::{FilterFieldConfig, FilterModalConfig, FilterModalState};
 use crate::aws::client::AwsClients;
 use crate::app::task_manager::{TaskManager, task_keys};
 use crate::app::update::refresh::spawn_list_task;
@@ -60,43 +61,80 @@ impl ImageSortDirection {
     }
 }
 
-/// Tag status filter for ECR images
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum TagStatusFilter {
-    #[default]
-    Any,
-    Tagged,
-    Untagged,
+/// ECR filter field IDs (for type-safe access)
+pub mod filter_fields {
+    pub const TAG_STATUS: &str = "tag_status";
+    pub const TAG_SEARCH: &str = "tag_search";
+    pub const DIGEST_SEARCH: &str = "digest_search";
 }
 
-impl TagStatusFilter {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Any => "All",
-            Self::Tagged => "Tagged",
-            Self::Untagged => "Untagged",
+/// Get the ECR filter modal configuration
+pub fn ecr_filter_config() -> FilterModalConfig {
+    FilterModalConfig::new("ECR Image Filters")
+        .field(FilterFieldConfig::cycle(filter_fields::TAG_STATUS, "Tag Status",
+            vec!["All".into(), "Tagged".into(), "Untagged".into()]))
+        .field(FilterFieldConfig::text(filter_fields::TAG_SEARCH, "Tag Contains")
+            .placeholder("e.g., latest, v1.0"))
+        .field(FilterFieldConfig::text(filter_fields::DIGEST_SEARCH, "Digest Contains")
+            .placeholder("e.g., sha256:abc"))
+        .dimensions(50, 40)
+}
+
+/// Convert filter modal state to filter parameters
+#[derive(Default, Clone)]
+pub struct EcrImageFilters {
+    /// Tag status: 0 = All, 1 = Tagged, 2 = Untagged
+    pub tag_status_index: usize,
+    /// Optional tag search string
+    pub tag_search: String,
+    /// Optional digest search string
+    pub digest_search: String,
+}
+
+impl EcrImageFilters {
+    pub fn from_modal_state(state: &FilterModalState) -> Self {
+        Self {
+            tag_status_index: state.get_cycle_index(filter_fields::TAG_STATUS),
+            tag_search: state.get_text(filter_fields::TAG_SEARCH),
+            digest_search: state.get_text(filter_fields::DIGEST_SEARCH),
         }
     }
     
-    pub fn next(&self) -> Self {
-        match self {
-            Self::Any => Self::Tagged,
-            Self::Tagged => Self::Untagged,
-            Self::Untagged => Self::Any,
+    pub fn tag_status_api_value(&self) -> Option<&'static str> {
+        match self.tag_status_index {
+            1 => Some("TAGGED"),
+            2 => Some("UNTAGGED"),
+            _ => None,
         }
     }
     
-    pub fn as_api_value(&self) -> Option<&'static str> {
-        match self {
-            Self::Any => None, // Don't send filter for "Any"
-            Self::Tagged => Some("TAGGED"),
-            Self::Untagged => Some("UNTAGGED"),
+    /// Check if an image matches the local filters (tag/digest search)
+    pub fn matches(&self, image: &EcrImage) -> bool {
+        // Tag search filter
+        if !self.tag_search.is_empty() {
+            let search = self.tag_search.to_lowercase();
+            if !image.image_tags.iter().any(|t| t.to_lowercase().contains(&search)) {
+                return false;
+            }
         }
+        
+        // Digest search filter
+        if !self.digest_search.is_empty() {
+            let search = self.digest_search.to_lowercase();
+            if !image.image_digest.to_lowercase().contains(&search) {
+                return false;
+            }
+        }
+        
+        true
+    }
+    
+    pub fn has_local_filters(&self) -> bool {
+        !self.tag_search.is_empty() || !self.digest_search.is_empty()
     }
 }
 
 /// State for ECR service
-#[derive(Default)]
 pub struct EcrState {
     pub repositories: Vec<EcrRepository>,
     /// Paginated list of images in the selected repository
@@ -111,9 +149,32 @@ pub struct EcrState {
     /// Sort direction for images
     pub sort_direction: ImageSortDirection,
     
-    // Filter state
-    /// Tag status filter
-    pub tag_status_filter: TagStatusFilter,
+    // Filter state (using generic filter modal)
+    /// Filter modal configuration
+    pub filter_config: FilterModalConfig,
+    /// Filter modal runtime state
+    pub filter_modal: FilterModalState,
+    /// Current active filters (cached from modal)
+    pub current_filters: EcrImageFilters,
+}
+
+impl Default for EcrState {
+    fn default() -> Self {
+        let config = ecr_filter_config();
+        let modal_state = FilterModalState::new(&config);
+        Self {
+            repositories: Vec::new(),
+            images: PaginatedList::default(),
+            list_state: TableState::default(),
+            view_mode: EcrViewMode::default(),
+            selected_repo_name: None,
+            sort_field: ImageSortField::default(),
+            sort_direction: ImageSortDirection::default(),
+            filter_config: config,
+            filter_modal: modal_state,
+            current_filters: EcrImageFilters::default(),
+        }
+    }
 }
 
 impl EcrState {
@@ -259,9 +320,9 @@ impl ServiceInputHandler for EcrState {
             KeyCode::Char('L') if self.view_mode == EcrViewMode::Images && self.images.has_more => {
                 return InputResult::Message(Message::ecr_load_more_images());
             }
-            // Toggle tag status filter (Images view only)
+            // Open filter modal (Images view only)
             KeyCode::Char('F') if self.view_mode == EcrViewMode::Images => {
-                return InputResult::Message(Message::ecr_toggle_tag_filter());
+                return InputResult::Message(Message::ecr_open_filter_modal());
             }
             _ => {}
         }
@@ -313,7 +374,9 @@ impl ServiceInternal for EcrState {
         self.sort_field = ImageSortField::default();
         self.sort_direction = ImageSortDirection::default();
         // Reset filter state
-        self.tag_status_filter = TagStatusFilter::default();
+        self.filter_modal.close();
+        self.filter_modal.clear_all();
+        self.current_filters = EcrImageFilters::default();
     }
 
     fn auto_select_first(&mut self) {

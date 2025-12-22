@@ -5,7 +5,7 @@
 use super::super::task_manager::task_keys;
 use super::super::App;
 use crate::app::messages::{CloudTrailAction, CloudTrailLookupParams};
-use crate::app::states::cloudtrail::FilterModalInputs;
+use crate::app::states::cloudtrail::params_to_filter_state;
 use crate::event::{AwsEvent, Event};
 
 impl App {
@@ -32,14 +32,15 @@ impl App {
             }
             CloudTrailAction::OpenFilterModal => {
                 // Initialize modal inputs from current filters
-                self.services.cloudtrail.filter_modal_inputs = 
-                    FilterModalInputs::from_params(&self.services.cloudtrail.current_filters);
-                self.services.cloudtrail.filter_modal_selected_field = 0;
-                self.services.cloudtrail.show_filter_modal = true;
+                params_to_filter_state(
+                    &self.services.cloudtrail.current_filters,
+                    &mut self.services.cloudtrail.filter_modal,
+                );
+                self.services.cloudtrail.filter_modal.open();
                 self.input_mode = crate::app::InputMode::CloudTrailEventFilter;
             }
             CloudTrailAction::CloseFilterModal => {
-                self.services.cloudtrail.show_filter_modal = false;
+                self.services.cloudtrail.filter_modal.close();
                 self.input_mode = crate::app::InputMode::Normal;
             }
             CloudTrailAction::ApplyFilters(params) => {
@@ -119,7 +120,7 @@ impl App {
     fn handle_clear_filters(&mut self, event_tx: crate::app::EventSender) {
         // Clear filters
         self.services.cloudtrail.current_filters = CloudTrailLookupParams::default();
-        self.services.cloudtrail.filter_modal_inputs = FilterModalInputs::default();
+        self.services.cloudtrail.filter_modal.clear_all();
         // Clear existing events and pagination state
         self.services.cloudtrail.events.clear();
         self.services.cloudtrail.list_state.select(None);

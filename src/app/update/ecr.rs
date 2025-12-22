@@ -3,6 +3,7 @@ use crate::app::{
     App,
 };
 use crate::app::task_manager::task_keys;
+use crate::app::states::ecr::EcrImageFilters;
 use crate::event::{AwsEvent, Event};
 
 impl App {
@@ -27,7 +28,8 @@ impl App {
                 self.services.ecr.images.clear();
                 self.services.ecr.list_state.select(None);
                 // Reset filter
-                self.services.ecr.tag_status_filter = crate::app::states::ecr::TagStatusFilter::default();
+                self.services.ecr.filter_modal.clear_all();
+                self.services.ecr.current_filters = EcrImageFilters::default();
             }
             EcrAction::PullImage { repository_uri, image_tag } => {
                 self.handle_pull_image(repository_uri, image_tag, event_tx);
@@ -40,9 +42,20 @@ impl App {
                     }
                 }
             }
-            EcrAction::ToggleTagFilter => {
-                // Cycle through filter options
-                self.services.ecr.tag_status_filter = self.services.ecr.tag_status_filter.next();
+            EcrAction::OpenFilterModal => {
+                self.services.ecr.filter_modal.open();
+                self.input_mode = crate::app::InputMode::EcrImageFilter;
+            }
+            EcrAction::CloseFilterModal => {
+                self.services.ecr.filter_modal.close();
+                self.input_mode = crate::app::InputMode::Normal;
+            }
+            EcrAction::ApplyFilters => {
+                // Update current filters from modal state
+                self.services.ecr.current_filters = EcrImageFilters::from_modal_state(&self.services.ecr.filter_modal);
+                self.services.ecr.filter_modal.close();
+                self.input_mode = crate::app::InputMode::Normal;
+                
                 // Reload images with new filter
                 if let Some(repo_name) = self.services.ecr.selected_repo_name.clone() {
                     self.services.ecr.images.clear();
@@ -67,7 +80,7 @@ impl App {
 
         let client = clients.ecr.clone();
         let tx = event_tx.clone();
-        let tag_filter = self.services.ecr.tag_status_filter.as_api_value().map(|s| s.to_string());
+        let tag_filter = self.services.ecr.current_filters.tag_status_api_value().map(|s| s.to_string());
         let max_results = self.config.max_ecr_images as i32;
 
         let handle = tokio::spawn(async move {

@@ -16,6 +16,7 @@
 pub mod ecs_modals;
 mod events;
 pub mod filtered_list;
+pub mod filter_modal;
 pub mod global_search;
 mod input;
 mod input_handlers;

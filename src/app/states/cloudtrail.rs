@@ -3,6 +3,7 @@ use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::app::{CloudTrailViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
 use crate::app::states::ServiceInternal;
 use crate::app::messages::CloudTrailLookupParams;
+use crate::app::filter_modal::{FilterFieldConfig, FilterModalConfig, FilterModalState};
 use crate::aws::client::AwsClients;
 use crate::app::task_manager::{TaskManager, task_keys};
 use crate::app::update::refresh::spawn_list_task;
@@ -63,8 +64,36 @@ impl SortDirection {
     }
 }
 
+/// CloudTrail filter field IDs (for type-safe access)
+pub mod filter_fields {
+    pub const START_DATE: &str = "start_date";
+    pub const START_TIME: &str = "start_time";
+    pub const END_DATE: &str = "end_date";
+    pub const END_TIME: &str = "end_time";
+    pub const EVENT_SOURCE: &str = "event_source";
+    pub const EVENT_NAME: &str = "event_name";
+    pub const USERNAME: &str = "username";
+    pub const READ_ONLY: &str = "read_only";
+}
+
+/// Get the CloudTrail filter modal configuration
+pub fn cloudtrail_filter_config() -> FilterModalConfig {
+    FilterModalConfig::new("CloudTrail Event Filters")
+        .field(FilterFieldConfig::date(filter_fields::START_DATE, "Start Date"))
+        .field(FilterFieldConfig::time(filter_fields::START_TIME, "Start Time"))
+        .field(FilterFieldConfig::date(filter_fields::END_DATE, "End Date"))
+        .field(FilterFieldConfig::time(filter_fields::END_TIME, "End Time"))
+        .field(FilterFieldConfig::text(filter_fields::EVENT_SOURCE, "Event Source")
+            .placeholder("e.g., s3.amazonaws.com"))
+        .field(FilterFieldConfig::text(filter_fields::EVENT_NAME, "Event Name")
+            .placeholder("e.g., CreateBucket"))
+        .field(FilterFieldConfig::text(filter_fields::USERNAME, "Username"))
+        .field(FilterFieldConfig::cycle(filter_fields::READ_ONLY, "Read Only",
+            vec!["All".into(), "Read Only".into(), "Write Only".into()]))
+        .dimensions(60, 80)
+}
+
 /// State for CloudTrail service
-#[derive(Default)]
 pub struct CloudTrailState {
     pub trails: Vec<Trail>,
     /// Events with pagination handled by PaginatedList
@@ -74,15 +103,13 @@ pub struct CloudTrailState {
     pub selected_event_detail: Option<String>,
     pub show_detail_modal: bool,
     
-    // Filter state
+    // Filter state (using generic filter modal)
     /// Current active filters
     pub current_filters: CloudTrailLookupParams,
-    /// Whether the filter modal is open
-    pub show_filter_modal: bool,
-    /// Filter modal input state - which field is selected (0-7)
-    pub filter_modal_selected_field: usize,
-    /// Filter modal input buffers
-    pub filter_modal_inputs: FilterModalInputs,
+    /// Filter modal configuration (static)
+    pub filter_config: FilterModalConfig,
+    /// Filter modal runtime state
+    pub filter_modal: FilterModalState,
     
     // Sort state
     /// Current sort field
@@ -91,72 +118,111 @@ pub struct CloudTrailState {
     pub sort_direction: SortDirection,
 }
 
-/// Input buffers for the filter modal
-#[derive(Default, Clone)]
-pub struct FilterModalInputs {
-    pub start_date: String,      // YYYY-MM-DD format
-    pub start_time: String,      // HH:MM format
-    pub end_date: String,        // YYYY-MM-DD format
-    pub end_time: String,        // HH:MM format
-    pub event_source: String,
-    pub event_name: String,
-    pub username: String,
-    pub read_only: Option<bool>, // None = all, Some(true) = read-only, Some(false) = write
+impl Default for CloudTrailState {
+    fn default() -> Self {
+        let config = cloudtrail_filter_config();
+        let modal_state = FilterModalState::new(&config);
+        Self {
+            trails: Vec::new(),
+            events: Default::default(),
+            list_state: TableState::default(),
+            view_mode: CloudTrailViewMode::default(),
+            selected_event_detail: None,
+            show_detail_modal: false,
+            current_filters: CloudTrailLookupParams::default(),
+            filter_config: config,
+            filter_modal: modal_state,
+            sort_field: EventSortField::default(),
+            sort_direction: SortDirection::default(),
+        }
+    }
 }
 
-impl FilterModalInputs {
-    pub fn to_params(&self) -> CloudTrailLookupParams {
-        CloudTrailLookupParams {
-            start_time: self.build_iso_time(&self.start_date, &self.start_time),
-            end_time: self.build_iso_time(&self.end_date, &self.end_time),
-            event_source: if self.event_source.is_empty() { None } else { Some(self.event_source.clone()) },
-            event_name: if self.event_name.is_empty() { None } else { Some(self.event_name.clone()) },
-            username: if self.username.is_empty() { None } else { Some(self.username.clone()) },
-            resource_type: None,
-            resource_name: None,
-            read_only: self.read_only,
-        }
-    }
+/// Convert filter modal state to CloudTrailLookupParams
+pub fn filter_state_to_params(state: &FilterModalState) -> CloudTrailLookupParams {
+    let start_date = state.get_text(filter_fields::START_DATE);
+    let start_time = state.get_text(filter_fields::START_TIME);
+    let end_date = state.get_text(filter_fields::END_DATE);
+    let end_time = state.get_text(filter_fields::END_TIME);
     
-    fn build_iso_time(&self, date: &str, time: &str) -> Option<String> {
-        if date.is_empty() {
-            return None;
-        }
-        let time_part = if time.is_empty() { "00:00" } else { time };
-        Some(format!("{}T{}:00Z", date, time_part))
-    }
+    let start_iso = build_iso_time(&start_date, &start_time);
+    let end_iso = build_iso_time(&end_date, &end_time);
     
-    pub fn from_params(params: &CloudTrailLookupParams) -> Self {
-        let (start_date, start_time) = Self::parse_iso_time(params.start_time.as_deref());
-        let (end_date, end_time) = Self::parse_iso_time(params.end_time.as_deref());
-        
-        Self {
-            start_date,
-            start_time,
-            end_date,
-            end_time,
-            event_source: params.event_source.clone().unwrap_or_default(),
-            event_name: params.event_name.clone().unwrap_or_default(),
-            username: params.username.clone().unwrap_or_default(),
-            read_only: params.read_only,
-        }
-    }
+    let event_source = state.get_text(filter_fields::EVENT_SOURCE);
+    let event_name = state.get_text(filter_fields::EVENT_NAME);
+    let username = state.get_text(filter_fields::USERNAME);
     
-    fn parse_iso_time(iso: Option<&str>) -> (String, String) {
-        match iso {
-            Some(s) if s.contains('T') => {
-                let parts: Vec<&str> = s.split('T').collect();
-                let date = parts[0].to_string();
-                let time = parts.get(1)
-                    .map(|t| t.trim_end_matches('Z').trim_end_matches(":00"))
-                    .unwrap_or("")
-                    .to_string();
-                (date, time)
-            }
-            _ => (String::new(), String::new()),
-        }
+    // Cycle: 0 = All, 1 = Read Only, 2 = Write Only
+    let read_only = match state.get_cycle_index(filter_fields::READ_ONLY) {
+        1 => Some(true),
+        2 => Some(false),
+        _ => None,
+    };
+    
+    CloudTrailLookupParams {
+        start_time: start_iso,
+        end_time: end_iso,
+        event_source: if event_source.is_empty() { None } else { Some(event_source) },
+        event_name: if event_name.is_empty() { None } else { Some(event_name) },
+        username: if username.is_empty() { None } else { Some(username) },
+        resource_type: None,
+        resource_name: None,
+        read_only,
     }
 }
+
+/// Populate filter modal state from CloudTrailLookupParams
+pub fn params_to_filter_state(params: &CloudTrailLookupParams, state: &mut FilterModalState) {
+    if let Some(ref start) = params.start_time {
+        let (date, time) = parse_iso_time(start);
+        state.set_text(filter_fields::START_DATE, date);
+        state.set_text(filter_fields::START_TIME, time);
+    }
+    if let Some(ref end) = params.end_time {
+        let (date, time) = parse_iso_time(end);
+        state.set_text(filter_fields::END_DATE, date);
+        state.set_text(filter_fields::END_TIME, time);
+    }
+    if let Some(ref source) = params.event_source {
+        state.set_text(filter_fields::EVENT_SOURCE, source.clone());
+    }
+    if let Some(ref name) = params.event_name {
+        state.set_text(filter_fields::EVENT_NAME, name.clone());
+    }
+    if let Some(ref user) = params.username {
+        state.set_text(filter_fields::USERNAME, user.clone());
+    }
+    // Set cycle index: None = 0 (All), Some(true) = 1 (Read), Some(false) = 2 (Write)
+    let read_only_idx = match params.read_only {
+        None => 0,
+        Some(true) => 1,
+        Some(false) => 2,
+    };
+    state.set_cycle_index(filter_fields::READ_ONLY, read_only_idx);
+}
+
+fn build_iso_time(date: &str, time: &str) -> Option<String> {
+    if date.is_empty() {
+        return None;
+    }
+    let time_part = if time.is_empty() { "00:00" } else { time };
+    Some(format!("{}T{}:00Z", date, time_part))
+}
+
+fn parse_iso_time(iso: &str) -> (String, String) {
+    if iso.contains('T') {
+        let parts: Vec<&str> = iso.split('T').collect();
+        let date = parts[0].to_string();
+        let time = parts.get(1)
+            .map(|t| t.trim_end_matches('Z').trim_end_matches(":00"))
+            .unwrap_or("")
+            .to_string();
+        (date, time)
+    } else {
+        (String::new(), String::new())
+    }
+}
+
 
 impl CloudTrailState {
     pub fn new() -> Self {
@@ -373,9 +439,8 @@ impl ServiceInternal for CloudTrailState {
         self.list_state.select(Some(0));
         // Reset filter state
         self.current_filters = CloudTrailLookupParams::default();
-        self.show_filter_modal = false;
-        self.filter_modal_selected_field = 0;
-        self.filter_modal_inputs = FilterModalInputs::default();
+        self.filter_modal.close();
+        self.filter_modal.clear_all();
     }
 
     fn auto_select_first(&mut self) {

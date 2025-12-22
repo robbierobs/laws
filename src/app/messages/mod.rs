@@ -569,8 +569,16 @@ impl Message {
         Message::Service(ServiceAction::Ecr(EcrAction::LoadMoreImages))
     }
 
-    pub fn ecr_toggle_tag_filter() -> Self {
-        Message::Service(ServiceAction::Ecr(EcrAction::ToggleTagFilter))
+    pub fn ecr_open_filter_modal() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::OpenFilterModal))
+    }
+
+    pub fn ecr_close_filter_modal() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::CloseFilterModal))
+    }
+
+    pub fn ecr_apply_filters() -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::ApplyFilters))
     }
 }
 
@@ -604,6 +612,8 @@ pub enum InputMode {
     S3BucketCreation,
     /// CloudTrail event filter modal
     CloudTrailEventFilter,
+    /// ECR image filter modal
+    EcrImageFilter,
 }
 
 #[cfg(test)]

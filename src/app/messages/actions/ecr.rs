@@ -15,8 +15,12 @@ pub enum EcrAction {
     },
     /// Load more images (pagination)
     LoadMoreImages,
-    /// Toggle the tag status filter (All -> Tagged -> Untagged -> All)
-    ToggleTagFilter,
+    /// Open the filter modal
+    OpenFilterModal,
+    /// Close the filter modal without applying
+    CloseFilterModal,
+    /// Apply filters from modal
+    ApplyFilters,
 }
 
 impl ConfirmableAction for EcrAction {

@@ -10,6 +10,7 @@ pub mod tabs;
 pub mod action_log;
 pub mod table;
 pub mod detail_builder;
+pub mod filter_modal;
 
 // Re-export modal functions for backwards compatibility
 // This allows existing code to use `modal::render_*` without changes

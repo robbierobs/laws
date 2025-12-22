@@ -44,6 +44,17 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             EcrViewMode::Images => render_image_details(frame, area, app),
         }
     }
+
+    // Render filter modal if open
+    if app.services.ecr.filter_modal.visible {
+        use crate::ui::components::filter_modal::render_filter_modal;
+        render_filter_modal(
+            frame,
+            frame.area(),
+            &app.services.ecr.filter_config,
+            &app.services.ecr.filter_modal,
+        );
+    }
 }
 
 use crate::models::Filterable;
@@ -89,10 +100,16 @@ fn render_repository_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
+    let current_filters = &app.services.ecr.current_filters;
+    
     let rows = app.services.ecr.images.items.iter()
         .filter(|img| {
-            if filter.is_empty() { return true; }
-            img.matches_filter(&filter)
+            // Apply local text filter first
+            if !filter.is_empty() && !img.matches_filter(&filter) {
+                return false;
+            }
+            // Apply modal filters (tag/digest search)
+            current_filters.matches(img)
         })
         .map(|img| {
             let pushed = img.image_pushed_at.clone()
@@ -130,7 +147,6 @@ fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let image_count = app.services.ecr.images.len();
     let sort_field = app.services.ecr.sort_field.label();
     let sort_dir = app.services.ecr.sort_direction.label();
-    let tag_filter = app.services.ecr.tag_status_filter.label();
     let has_more = app.services.ecr.images.has_more;
     let loading_more = app.services.ecr.images.loading_more;
     
@@ -143,9 +159,14 @@ fn render_image_list(frame: &mut Frame, area: Rect, app: &mut App) {
         title_parts.push(format!("Images ({})", image_count));
     }
     
-    // Filter indicator
-    if app.services.ecr.tag_status_filter != crate::app::states::ecr::TagStatusFilter::Any {
-        title_parts.push(format!(" 🔍{}", tag_filter));
+    // Filter indicator (show tag status or local filter markers)
+    let tag_status_labels = ["All", "Tagged", "Untagged"];
+    let tag_status = tag_status_labels.get(current_filters.tag_status_index).unwrap_or(&"All");
+    if current_filters.tag_status_index != 0 {
+        title_parts.push(format!(" 🔍{}", tag_status));
+    }
+    if current_filters.has_local_filters() {
+        title_parts.push(" 🔎".to_string());
     }
     
     // Pagination indicator
