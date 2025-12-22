@@ -69,17 +69,14 @@ fn render_vpc_list(frame: &mut Frame, area: Rect, app: &mut App) {
         })
         .map(|vpc| {
             let state_color = vpc.state_color();
-            let name = vpc.name.clone().unwrap_or_else(|| "-".to_string());
-            let cidr = vpc.cidr_block.clone().unwrap_or_else(|| "-".to_string());
-            let tenancy = vpc.instance_tenancy.clone().unwrap_or_else(|| "default".to_string());
             
             let cells = vec![
                 Cell::from(vpc.vpc_id.clone()),
-                Cell::from(name),
-                Cell::from(cidr),
+                Cell::from(vpc.name.clone().unwrap_or_else(|| "-".into())),
+                Cell::from(vpc.cidr_block.clone().unwrap_or_else(|| "-".into())),
                 Cell::from(vpc.state.clone()).style(Style::default().fg(state_color)),
                 Cell::from(if vpc.is_default { "Yes" } else { "No" }),
-                Cell::from(tenancy),
+                Cell::from(vpc.instance_tenancy.clone().unwrap_or_else(|| "default".into())),
             ];
             
             Row::new(cells).height(1)
@@ -112,19 +109,13 @@ fn render_subnet_list(frame: &mut Frame, area: Rect, app: &mut App) {
             s.matches_filter(&filter)
         })
         .map(|subnet| {
-            let name = subnet.name.clone().unwrap_or_else(|| "-".to_string());
-            let vpc_id = subnet.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-            let cidr = subnet.cidr_block.clone().unwrap_or_else(|| "-".to_string());
-            let az = subnet.availability_zone.clone().unwrap_or_else(|| "-".to_string());
-            let ips = subnet.available_ip_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
-            
             let cells = vec![
                 Cell::from(subnet.subnet_id.clone()),
-                Cell::from(name),
-                Cell::from(vpc_id),
-                Cell::from(cidr),
-                Cell::from(az),
-                Cell::from(ips),
+                Cell::from(subnet.name.clone().unwrap_or_else(|| "-".into())),
+                Cell::from(subnet.vpc_id.clone().unwrap_or_else(|| "-".into())),
+                Cell::from(subnet.cidr_block.clone().unwrap_or_else(|| "-".into())),
+                Cell::from(subnet.availability_zone.clone().unwrap_or_else(|| "-".into())),
+                Cell::from(subnet.available_ip_count.map(|c| c.to_string()).unwrap_or_else(|| "-".into())),
             ];
             
             Row::new(cells).height(1)
@@ -157,12 +148,10 @@ fn render_security_group_list(frame: &mut Frame, area: Rect, app: &mut App) {
             sg.matches_filter(&filter)
         })
         .map(|sg| {
-            let vpc_id = sg.vpc_id.clone().unwrap_or_else(|| "-".to_string());
-            
             let cells = vec![
                 Cell::from(sg.group_id.clone()),
                 Cell::from(sg.group_name.clone()),
-                Cell::from(vpc_id),
+                Cell::from(sg.vpc_id.clone().unwrap_or_else(|| "-".into())),
                 Cell::from(sg.inbound_rules_count.to_string()),
                 Cell::from(sg.outbound_rules_count.to_string()),
             ];
