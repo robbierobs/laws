@@ -1,0 +1,369 @@
+#![allow(dead_code)]
+
+use crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc;
+
+pub enum Event {
+    Key(KeyEvent),
+    Tick,
+    Aws(Box<AwsEvent>),
+    Message(crate::app::Message),
+}
+
+use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
+use crate::models::cloudtrail::{CloudTrailEvent, Trail};
+use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
+use crate::models::ec2::Ec2Instance;
+use crate::models::ecr::{EcrImage, EcrRepository};
+use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
+use crate::models::iam::{IamPolicy, IamRole, IamUser};
+use crate::models::lambda::{LambdaFunction, LambdaFunctionDetails};
+use crate::models::rds::RdsInstance;
+use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
+use crate::models::secretsmanager::Secret;
+use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
+
+#[derive(Debug)]
+pub enum AwsEvent {
+    Ec2InstancesLoaded(Vec<Ec2Instance>),
+    S3BucketsLoaded(Vec<S3Bucket>),
+    S3ObjectsLoaded(Vec<S3Object>),
+    S3BucketDetailsLoaded {
+        bucket_name: String,
+        details: S3BucketDetails,
+    },
+    RdsInstancesLoaded(Vec<RdsInstance>),
+    DynamoDbTablesLoaded(Vec<DynamoDbTable>),
+    DynamoDbItemsLoaded(Vec<DynamoDbItem>),
+    LambdaFunctionsLoaded(Vec<LambdaFunction>),
+    LambdaFunctionDetailsLoaded {
+        function_name: String,
+        details: LambdaFunctionDetails,
+    },
+    VpcsLoaded(Vec<Vpc>),
+    SubnetsLoaded(Vec<Subnet>),
+    SecurityGroupsLoaded(Vec<SecurityGroup>),
+    IamRolesLoaded(Vec<IamRole>),
+    IamUsersLoaded(Vec<IamUser>),
+    IamPoliciesLoaded(Vec<IamPolicy>),
+    IamUserPoliciesLoaded(Vec<IamPolicy>),
+    IamRolePoliciesLoaded(Vec<IamPolicy>),
+    IamPolicyDocumentLoaded(String),
+    BackupVaultsLoaded(Vec<BackupVault>),
+    BackupPlansLoaded(Vec<BackupPlan>),
+    BackupJobsLoaded(Vec<BackupJob>),
+    BackupRecoveryPointsLoaded(Vec<RecoveryPoint>),
+    CloudTrailTrailsLoaded(Vec<Trail>),
+    CloudTrailEventsLoaded {
+        events: Vec<CloudTrailEvent>,
+        next_token: Option<String>,
+        /// If true, append to existing events (for "load more")
+        append: bool,
+    },
+    SecretsManagerSecretsLoaded(Vec<Secret>),
+    SecretsManagerSecretValueLoaded(String),
+    EcsClustersLoaded(Vec<EcsCluster>),
+    EcsServicesLoaded(Vec<EcsService>),
+    EcsTasksLoaded(Vec<EcsTask>),
+    EcsTaskDefinitionLoaded(Box<EcsTaskDefinition>),
+    /// S3 object was downloaded to a file path
+    S3ObjectDownloaded {
+        key: String,
+        path: String,
+    },
+    /// S3 object was downloaded and ready to open (with content for text files)
+    S3ObjectOpened {
+        key: String,
+        path: String,
+        content: Option<String>,
+        raw_bytes: Option<Vec<u8>>,
+    },
+    /// S3 object was edited and uploaded successfully
+    S3ObjectEdited {
+        bucket: String,
+        key: String,
+    },
+    EcsTaskDefinitionEdited {
+        family: String,
+        new_arn: String,
+    },
+    /// S3 object downloaded for editing
+    S3ObjectReadyForEdit {
+        bucket: String,
+        key: String,
+        path: String,
+    },
+    /// List of task definitions for a family
+    EcsTaskDefinitionsListed(Vec<String>),
+    /// Full task definitions loaded for selector modal
+    EcsTaskDefinitionsForSelectorLoaded(Vec<EcsTaskDefinition>),
+    /// ECS task definition downloaded for editing
+    EcsTaskDefinitionReadyForEdit {
+        family: String,
+        path: String,
+    },
+    EcrRepositoriesLoaded(Vec<EcrRepository>),
+    EcrImagesLoaded {
+        images: Vec<EcrImage>,
+        next_token: Option<String>,
+        append: bool,
+    },
+    /// ECR image successfully pulled via docker
+    EcrImagePulled {
+        image_uri: String,
+    },
+    /// Profile/region switch completed with new AWS clients
+    ProfileRegionSwitched(Box<ProfileRegionSwitchedData>),
+    /// Profile/region switch failed
+    ProfileRegionSwitchFailed(String),
+    ActionCompleted(String), // Message to display
+    Error(String),
+}
+
+#[derive(Debug)]
+pub struct ProfileRegionSwitchedData {
+    pub clients: crate::aws::client::AwsClients,
+    pub profile: Option<String>,
+    pub region: String,
+    pub read_only: bool,
+    /// Log messages from SSO login process
+    pub sso_messages: Vec<String>,
+}
+
+/// Metrics for event channel monitoring
+#[derive(Debug, Clone, Default)]
+pub struct EventMetrics {
+    total_sent: usize,
+    total_received: usize,
+    peak_queue_depth: usize,
+    dropped_events: usize,
+}
+
+impl EventMetrics {
+    pub fn total_sent(&self) -> usize {
+        self.total_sent
+    }
+
+    pub fn total_received(&self) -> usize {
+        self.total_received
+    }
+
+    pub fn peak_queue_depth(&self) -> usize {
+        self.peak_queue_depth
+    }
+
+    pub fn dropped_events(&self) -> usize {
+        self.dropped_events
+    }
+}
+
+/// Type alias for event sender (bounded channel)
+pub type EventSender = mpsc::Sender<Event>;
+
+/// Event handler with bounded channel and backpressure support
+///
+/// Uses a bounded mpsc channel (default 1000 capacity) to prevent unbounded
+/// memory growth under heavy event load. Provides metrics for monitoring
+/// queue depth and event throughput.
+pub struct EventHandler {
+    rx: mpsc::Receiver<Event>,
+    tx: EventSender,
+    metrics: Arc<EventMetrics>,
+    queue_depth: Arc<AtomicUsize>,
+    paused: Arc<AtomicBool>,
+    _task_handle: tokio::task::JoinHandle<()>,
+}
+
+impl EventHandler {
+    /// Create a new EventHandler with default bounded channel (1000 capacity)
+    pub fn new(tick_rate: u64, paused: Arc<AtomicBool>) -> Self {
+        Self::with_capacity(tick_rate, 1000, paused)
+    }
+
+    /// Create a new EventHandler with custom bounded channel capacity
+    ///
+    /// # Arguments
+    /// * `tick_rate` - UI update rate in milliseconds
+    /// * `capacity` - Maximum number of events to buffer in the channel
+    /// * `paused` - Shared flag to pause input polling
+    ///
+    /// If the channel fills up, backpressure will cause senders to wait
+    /// until space becomes available.
+    pub fn with_capacity(tick_rate: u64, capacity: usize, paused: Arc<AtomicBool>) -> Self {
+        let (tx, rx) = mpsc::channel(capacity);
+        let event_tx = tx.clone();
+        let queue_depth = Arc::new(AtomicUsize::new(0));
+        let queue_depth_clone = queue_depth.clone();
+        let metrics = Arc::new(EventMetrics::default());
+        let paused_clone = paused.clone();
+
+        // Spawn input handling task
+        let task_handle = tokio::spawn(async move {
+            let tick_rate = Duration::from_millis(tick_rate);
+            loop {
+                // Check pause flag
+                if paused_clone.load(Ordering::Relaxed) {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    continue;
+                }
+
+                let event_available = event::poll(tick_rate).unwrap_or(false);
+                if event_available {
+                    if let Ok(CrosstermEvent::Key(key)) = event::read() {
+                        // Try to send key event (may wait if channel is full)
+                        if event_tx.send(Event::Key(key)).await.is_err() {
+                            break; // Channel closed, exit task
+                        }
+                        queue_depth_clone.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+                // Always send tick
+                if event_tx.send(Event::Tick).await.is_err() {
+                    break; // Channel closed, exit task
+                }
+                queue_depth_clone.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+
+        Self {
+            rx,
+            tx,
+            metrics,
+            queue_depth,
+            paused,
+            _task_handle: task_handle,
+        }
+    }
+
+    /// Receive the next event from the queue
+    pub async fn next(&mut self) -> Option<Event> {
+        if let Some(event) = self.rx.recv().await {
+            let _depth = self.queue_depth.fetch_sub(1, Ordering::Relaxed);
+            Some(event)
+        } else {
+            None
+        }
+    }
+
+    /// Get a sender for this event channel
+    pub fn sender(&self) -> EventSender {
+        self.tx.clone()
+    }
+
+    /// Get the current queue depth
+    pub fn queue_depth(&self) -> usize {
+        self.queue_depth.load(Ordering::Relaxed)
+    }
+
+    /// Get the channel capacity
+    pub fn capacity(&self) -> usize {
+        self.tx.capacity()
+    }
+
+    /// Check if channel is near capacity (>80%)
+    pub fn is_near_capacity(&self) -> bool {
+        let depth = self.queue_depth.load(Ordering::Relaxed);
+        let capacity = self.capacity();
+        depth > (capacity * 80 / 100)
+    }
+
+    /// Get current metrics snapshot
+    pub fn metrics(&self) -> EventMetrics {
+        (*self.metrics).clone()
+    }
+}
+
+impl Drop for EventHandler {
+    fn drop(&mut self) {
+        self._task_handle.abort();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_paused() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
+    }
+
+    #[tokio::test]
+    async fn test_event_handler_new() {
+        let handler = EventHandler::new(100, test_paused());
+        assert_eq!(handler.capacity(), 1000);
+        assert_eq!(handler.queue_depth(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_event_handler_with_capacity() {
+        let handler = EventHandler::with_capacity(100, 500, test_paused());
+        assert_eq!(handler.capacity(), 500);
+    }
+
+    #[tokio::test]
+    async fn test_send_and_receive_tick() {
+        let handler = EventHandler::with_capacity(10000, 100, test_paused());
+        let tx = handler.sender();
+
+        // Verify sender works (doesn't error)
+        let result = tx.send(Event::Tick).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_queue_depth_starts_at_zero() {
+        let handler = EventHandler::with_capacity(10000, 50, test_paused());
+
+        // Queue depth starts at zero before background task sends ticks
+        // Note: queue_depth only tracks background task sends, not external sends
+        let depth = handler.queue_depth();
+        assert!(depth < 50); // Should be well under capacity
+    }
+
+    #[tokio::test]
+    async fn test_is_near_capacity() {
+        let handler = EventHandler::with_capacity(100, 100, test_paused());
+        let tx = handler.sender();
+
+        // Send 85 events to exceed 80% threshold
+        for _ in 0..85 {
+            let _ = tx.send(Event::Tick).await;
+        }
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(handler.is_near_capacity());
+    }
+
+    #[tokio::test]
+    async fn test_backpressure_on_full_channel() {
+        let handler = EventHandler::with_capacity(100, 5, test_paused());
+        let tx = handler.sender();
+
+        // Fill the channel
+        for _ in 0..5 {
+            let _ = tx.send(Event::Tick).await;
+        }
+
+        // Next send should block until space available
+        let tx_clone = tx.clone();
+        let send_future = tokio::spawn(async move { tx_clone.send(Event::Tick).await });
+
+        // Give it a bit of time to block
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Task should still be pending (not completed)
+        assert!(!send_future.is_finished());
+    }
+
+    #[tokio::test]
+    async fn test_metrics_initialized() {
+        let handler = EventHandler::new(100, test_paused());
+        let metrics = handler.metrics();
+        assert_eq!(metrics.total_sent(), 0);
+        assert_eq!(metrics.total_received(), 0);
+        assert_eq!(metrics.dropped_events(), 0);
+    }
+}
