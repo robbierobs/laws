@@ -1,7 +1,7 @@
 //! Application configuration
 //!
 //! Provides CLI argument parsing and config file support.
-//! Configuration is loaded from `~/.config/lazy-aws/config.toml`.
+//! Configuration is loaded from `~/.config/laws/config.toml`.
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -9,9 +9,9 @@ use std::path::PathBuf;
 
 use crate::ui::theme::ThemePreset;
 
-/// LazyAWS - A TUI for managing AWS resources
+/// laws - A TUI for managing AWS resources
 #[derive(Parser, Debug)]
-#[command(name = "lazy-aws")]
+#[command(name = "laws")]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     /// AWS profile to use (overrides AWS_PROFILE env var)
@@ -98,7 +98,7 @@ impl Default for ConfigFile {
 impl ConfigFile {
     /// Get the config file path
     pub fn config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|p| p.join("lazy-aws").join("config.toml"))
+        dirs::config_dir().map(|p| p.join("laws").join("config.toml"))
     }
     
     /// Load config from file, returning defaults if file doesn't exist
@@ -151,8 +151,8 @@ impl ConfigFile {
     
     /// Generate example config content
     pub fn example_config() -> String {
-        r#"# LazyAWS Configuration
-# Place this file at ~/.config/lazy-aws/config.toml
+        r#"# laws Configuration
+# Place this file at ~/.config/laws/config.toml
 
 # Theme: dark, light, monokai, nord
 theme = "dark"

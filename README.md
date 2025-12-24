@@ -1,4 +1,4 @@
-# LazyAWS 🦥☁️
+# laws 🦥☁️
 
 A keyboard-driven terminal UI for browsing and managing AWS resources. Think [lazygit](https://github.com/jesseduffield/lazygit), but for AWS.
 
@@ -9,7 +9,7 @@ Built with Rust 🦀 + [Ratatui](https://ratatui.rs/).
 
 ## Why?
 
-The AWS Console is powerful but slow. The CLI is fast but you need to remember a million flags. LazyAWS gives you the best of both worlds - browse your infrastructure visually, take actions with simple keypresses, and never leave the terminal.
+The AWS Console is powerful but slow. The CLI is fast but you need to remember a million flags. laws gives you the best of both worlds - browse your infrastructure visually, take actions with simple keypresses, and never leave the terminal.
 
 Perfect for:
 - **Quick checks** - "Is that EC2 instance running?"
@@ -44,7 +44,7 @@ Perfect for:
 - 🏠 **LocalStack support** - Test locally with `--endpoint-url`
 - ⚡ **Background loading** - Details load async so the UI stays snappy
 - 📋 **Copy to clipboard** - Press `y` to copy IDs, ARNs, whatever
-- 🔄 **Profile switching** - Press `P` to switch AWS profiles/regions on the fly
+- 🔄 **Profile switching** - Press `P` to switch AWS profiles/region on the fly
 
 ---
 
@@ -54,14 +54,14 @@ Perfect for:
 
 ```bash
 # Clone it
-git clone https://github.com/youruser/lazy-aws.git
-cd lazy-aws
+git clone https://github.com/youruser/laws.git
+cd laws
 
 # Build it (requires Rust 1.75+)
 cargo build --release
 
 # Run it
-./target/release/lazy-aws
+./target/release/laws
 ```
 
 Or just `cargo run` during development.
@@ -70,19 +70,19 @@ Or just `cargo run` during development.
 
 ```bash
 # Just run it - opens profile switcher if no profile is set
-lazy-aws
+laws
 
 # Specify a profile
-lazy-aws --profile my-profile
+laws --profile my-profile
 
 # Different region
-lazy-aws --profile my-profile --region eu-west-1
+laws --profile my-profile --region eu-west-1
 
 # Read-only mode (can't break anything!)
-lazy-aws --profile prod --read-only
+laws --profile prod --read-only
 
 # LocalStack
-lazy-aws --endpoint-url http://localhost:4566
+laws --endpoint-url http://localhost:4566
 ```
 
 ### LocalStack Setup
@@ -96,7 +96,7 @@ region = us-east-1
 endpoint_url = http://localhost:4566
 ```
 
-Then just: `lazy-aws --profile localstack`
+Then just: `laws --profile localstack`
 
 ---
 

@@ -73,7 +73,7 @@ mod tests {
     fn test_open_in_editor_with_cat() {
         // Create a temporary file
         let temp_dir = env::temp_dir();
-        let test_file = temp_dir.join("lazy_aws_editor_test.txt");
+        let test_file = temp_dir.join("laws_editor_test.txt");
         
         // Write some content
         let mut file = fs::File::create(&test_file).unwrap();
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_open_in_editor_with_nonexistent_editor() {
         let temp_dir = env::temp_dir();
-        let test_file = temp_dir.join("lazy_aws_editor_test2.txt");
+        let test_file = temp_dir.join("laws_editor_test2.txt");
         
         // Write some content
         let mut file = fs::File::create(&test_file).unwrap();

@@ -20,7 +20,7 @@ impl App {
             move |clients, tx| async move {
                 let ecs_client = crate::aws::ecs::EcsClient::new(clients.ecs.clone());
                 match ecs_client
-                    .stop_task(&cluster, &task, "Stopped by LazyAWS user")
+                    .stop_task(&cluster, &task, "Stopped by laws user")
                     .await
                 {
                     Ok(()) => {

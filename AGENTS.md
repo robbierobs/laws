@@ -1,12 +1,12 @@
-# LazyAWS - Agent Guide
+# laws - Agent Guide
 
-This document defines the personas, workflows, and standards for AI agents working on the **LazyAWS** project.
+This document defines the personas, workflows, and standards for AI agents working on the **laws** project.
 
 ---
 
 ## 1. Project Context
 
-**LazyAWS** is a terminal user interface (TUI) for managing AWS resources, built with **Rust** and **Ratatui**. It aims to be a keyboard-driven, fast, and responsive alternative to the AWS Console, inspired by `lazygit`.
+**laws** is a terminal user interface (TUI) for managing AWS resources, built with **Rust** and **Ratatui**. It aims to be a keyboard-driven, fast, and responsive alternative to the AWS Console, inspired by `lazygit`.
 
 ### 1.1 Project Statistics
 - **~25,000 lines** of Rust code

@@ -222,7 +222,7 @@ impl App {
 
             // Write to temp file
             let filename = key.split('/').next_back().unwrap_or(&key).to_string();
-            let temp_dir = std::env::temp_dir().join("lazy_aws");
+            let temp_dir = std::env::temp_dir().join("laws");
             if let Err(e) = std::fs::create_dir_all(&temp_dir) {
                 tx.send(Event::Aws(Box::new(AwsEvent::Error(format!(
                     "Failed to create temp directory: {}",
@@ -350,7 +350,7 @@ impl App {
         let filename = key.split('/').next_back().unwrap_or(&key).to_string();
 
         let target_dir = if open_mode {
-            std::env::temp_dir().join("lazy_aws")
+            std::env::temp_dir().join("laws")
         } else {
             dirs::download_dir().unwrap_or_else(|| {
                 dirs::home_dir()

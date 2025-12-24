@@ -42,13 +42,13 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     let header_text = if let Some(ref err) = app.error_message {
         format!(
-            "LazyAWS - {:?} {} | Error: {}",
+            "laws - {:?} {} | Error: {}",
             app.current_service, aws_info, err
         )
     } else {
         let read_only_status = if app.read_only { " [READ-ONLY]" } else { "" };
         format!(
-            "LazyAWS - {:?} {}{}{}{}",
+            "laws - {:?} {}{}{}{}",
             app.current_service, aws_info, status, filter_status, read_only_status
         )
     };
@@ -80,7 +80,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Block::default()
             .borders(Borders::ALL)
             .border_style(block_style)
-            .title("LazyAWS")
+            .title("laws")
             .title_style(Style::default().fg(if app.read_only {
                 Color::Black
             } else {
