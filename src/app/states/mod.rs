@@ -10,6 +10,7 @@ pub mod cloudtrail;
 pub mod secretsmanager;
 pub mod ecs;
 pub mod ecr;
+pub mod budgets;
 pub mod traits;
 
 pub use self::traits::ServiceInternal;
@@ -27,6 +28,7 @@ use self::cloudtrail::CloudTrailState;
 use self::secretsmanager::SecretsManagerState;
 use self::ecs::EcsState;
 use self::ecr::EcrState;
+use self::budgets::BudgetsState;
 
 /// Container for all service-specific states
 ///
@@ -46,6 +48,7 @@ pub struct ServiceStates {
     pub secretsmanager: SecretsManagerState,
     pub ecs: EcsState,
     pub ecr: EcrState,
+    pub budgets: BudgetsState,
 }
 
 impl ServiceStates {
@@ -63,6 +66,7 @@ impl ServiceStates {
             secretsmanager: SecretsManagerState::new(),
             ecs: EcsState::new(),
             ecr: EcrState::new(),
+            budgets: BudgetsState::new(),
         }
     }
 }
@@ -82,6 +86,7 @@ impl crate::app::global_search::Searchable for ServiceStates {
         results.extend(self.secretsmanager.get_search_results());
         results.extend(self.ecs.get_search_results());
         results.extend(self.ecr.get_search_results());
+        results.extend(self.budgets.get_search_results());
         results
     }
 }
@@ -115,6 +120,7 @@ impl ServiceStates {
             &mut self.secretsmanager,
             &mut self.ecs,
             &mut self.ecr,
+            &mut self.budgets,
         ]
     }
 
@@ -136,6 +142,7 @@ impl ServiceStates {
             Service::SecretsManager => &mut self.secretsmanager,
             Service::ECS => &mut self.ecs,
             Service::ECR => &mut self.ecr,
+            Service::Budgets => &mut self.budgets,
         }
     }
 
@@ -156,6 +163,7 @@ impl ServiceStates {
             Service::SecretsManager => &self.secretsmanager,
             Service::ECS => &self.ecs,
             Service::ECR => &self.ecr,
+            Service::Budgets => &self.budgets,
         }
     }
 }

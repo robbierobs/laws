@@ -72,7 +72,7 @@ fn render_clusters_view(
             ],
             "ECS Clusters",
             matches!(app.focus, Focus::Main),
-            &mut app.services.ecs.list_state.clone(),
+            &mut app.services.ecs.list_state,
         );
     }
 
@@ -220,7 +220,7 @@ fn render_services_view(
             ],
             &title,
             matches!(app.focus, Focus::Main),
-            &mut app.services.ecs.list_state.clone(),
+            &mut app.services.ecs.list_state,
         );
     }
 
@@ -400,7 +400,7 @@ fn render_tasks_view(
             ],
             &title,
             matches!(app.focus, Focus::Main),
-            &mut app.services.ecs.list_state.clone(),
+            &mut app.services.ecs.list_state,
         );
     }
 

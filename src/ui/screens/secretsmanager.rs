@@ -1,90 +1,88 @@
-use ratatui::{
-    layout::{Constraint, Rect, Layout, Direction},
-    style::Style,
-    text::{Line, Span},
-    widgets::{Cell, Row, Paragraph, Wrap, Block, Borders},
-    Frame,
-};
 use crate::app::App;
 use crate::models::secretsmanager::Secret;
+use crate::models::Filterable;
 use crate::ui::components::detail_panel::render_detail_panel_with_selection;
+use crate::ui::components::modals::helpers::centered_rect;
 use crate::ui::components::table::render_table;
 use crate::ui::theme::THEME;
-use crate::models::Filterable;
+use ratatui::{
+    layout::{Constraint, Rect},
+    style::Style,
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Wrap},
+    Frame,
+};
 
-pub fn render_secretsmanager_screen(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+pub fn render_secretsmanager_screen(
+    frame: &mut Frame,
+    list_area: Option<Rect>,
+    detail_area: Option<Rect>,
+    app: &mut App,
+) {
     if let Some(area) = list_area {
         render_secret_list(frame, area, app);
     }
-    
+
     if let Some(area) = detail_area {
         render_secret_details(frame, area, app);
     }
 
     if app.services.secretsmanager.show_secret_modal {
         if let Some(value) = &app.services.secretsmanager.secret_value {
-            render_secret_value_modal(frame, frame.area(), &app.services.secretsmanager.selected_secret().map_or("Unknown".to_string(), |s| s.name.clone()), value);
+            render_secret_value_modal(
+                frame,
+                frame.area(),
+                &app.services
+                    .secretsmanager
+                    .selected_secret()
+                    .map_or("Unknown".to_string(), |s| s.name.clone()),
+                value,
+            );
         }
     }
 }
 
 fn render_secret_value_modal(frame: &mut Frame, area: Rect, secret_name: &str, secret_value: &str) {
-    let popup_area = centered_rect(area, 60, 40);
-    
+    let popup_area = centered_rect(60, 40, area);
+
     let block = Block::default()
         .title(format!(" Secret Value: {} ", secret_name))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.secondary));
-        
+
     let paragraph = Paragraph::new(secret_value)
         .block(block)
         .wrap(Wrap { trim: false })
         .style(Style::default().fg(THEME.fg));
-        
+
     // Clear area under popup
     frame.render_widget(ratatui::widgets::Clear, popup_area);
     frame.render_widget(paragraph, popup_area);
 }
 
-/// Helper to create a centered rect
-fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}
-
-
 fn render_secret_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.secretsmanager.secrets.iter()
+    let rows = app
+        .services
+        .secretsmanager
+        .secrets
+        .iter()
         .filter(|s| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             s.matches_filter(&filter)
         })
         .map(|secret| {
-             let cells = vec![
-                 Cell::from(secret.name.clone()),
-                 Cell::from(secret.description.clone().unwrap_or_default()),
-                 Cell::from(secret.created_date.clone().unwrap_or_default()),
-                 Cell::from(secret.last_changed_date.clone().unwrap_or_default()),
-             ];
-             Row::new(cells).height(1)
+            let cells = vec![
+                Cell::from(secret.name.clone()),
+                Cell::from(secret.description.clone().unwrap_or_default()),
+                Cell::from(secret.created_date.clone().unwrap_or_default()),
+                Cell::from(secret.last_changed_date.clone().unwrap_or_default()),
+            ];
+            Row::new(cells).height(1)
         });
-        
+
     render_table(
         frame,
         area,
@@ -116,7 +114,7 @@ fn render_secret_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_secret_detail_lines(secret: &Secret) -> Vec<Line<'_>> {
-     let mut lines = vec![
+    let mut lines = vec![
         Line::from(vec![
             Span::styled("Name: ", Style::default().fg(THEME.primary)),
             Span::raw(secret.name.clone()),
@@ -130,28 +128,31 @@ fn build_secret_detail_lines(secret: &Secret) -> Vec<Line<'_>> {
             Span::raw(secret.description.clone().unwrap_or_default()),
         ]),
         Line::from(vec![
-             Span::styled("Created: ", Style::default().fg(THEME.primary)),
-             Span::raw(secret.created_date.clone().unwrap_or_default()),
-             Span::raw("   "),
-             Span::styled("Last Changed: ", Style::default().fg(THEME.primary)),
-             Span::raw(secret.last_changed_date.clone().unwrap_or_default()),
+            Span::styled("Created: ", Style::default().fg(THEME.primary)),
+            Span::raw(secret.created_date.clone().unwrap_or_default()),
+            Span::raw("   "),
+            Span::styled("Last Changed: ", Style::default().fg(THEME.primary)),
+            Span::raw(secret.last_changed_date.clone().unwrap_or_default()),
         ]),
         Line::from(vec![
-             Span::styled("Last Accessed: ", Style::default().fg(THEME.primary)),
-             Span::raw(secret.last_accessed_date.clone().unwrap_or_default()),
+            Span::styled("Last Accessed: ", Style::default().fg(THEME.primary)),
+            Span::raw(secret.last_accessed_date.clone().unwrap_or_default()),
         ]),
-     ];
-     
-     if let Some(deleted) = &secret.deleted_date {
-         lines.push(Line::from(vec![
-             Span::styled("Deleted Date: ", Style::default().fg(THEME.error)),
-             Span::raw(deleted),
-         ]));
-     }
+    ];
 
-     if let Some(versions) = &secret.secret_versions_to_stages {
+    if let Some(deleted) = &secret.deleted_date {
+        lines.push(Line::from(vec![
+            Span::styled("Deleted Date: ", Style::default().fg(THEME.error)),
+            Span::raw(deleted),
+        ]));
+    }
+
+    if let Some(versions) = &secret.secret_versions_to_stages {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled("Versions:", Style::default().fg(THEME.secondary))));
+        lines.push(Line::from(Span::styled(
+            "Versions:",
+            Style::default().fg(THEME.secondary),
+        )));
         for (version_id, stages) in versions {
             lines.push(Line::from(vec![
                 Span::raw("  "),
@@ -160,7 +161,7 @@ fn build_secret_detail_lines(secret: &Secret) -> Vec<Line<'_>> {
                 Span::raw(stages.join(", ")),
             ]));
         }
-     }
-     
-     lines
+    }
+
+    lines
 }

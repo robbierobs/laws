@@ -30,7 +30,7 @@ pub struct DynamoDbTable {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyAttribute {
     pub name: String,
-    pub key_type: String, // HASH or RANGE
+    pub key_type: String,       // HASH or RANGE
     pub attribute_type: String, // S, N, B
 }
 
@@ -46,15 +46,20 @@ impl DynamoDbItem {
     pub fn get(&self, key: &str) -> Option<&String> {
         self.attributes.get(key)
     }
-    
+
     /// Get the first few attribute values for display
     #[allow(dead_code)]
     pub fn preview(&self, max_attrs: usize) -> String {
-        let mut parts: Vec<String> = self.attributes
+        let mut parts: Vec<String> = self
+            .attributes
             .iter()
             .take(max_attrs)
             .map(|(k, v)| {
-                let truncated = if v.len() > 30 { format!("{}...", &v[..27]) } else { v.clone() };
+                let truncated = if v.len() > 30 {
+                    format!("{}...", &v[..27])
+                } else {
+                    v.clone()
+                };
                 format!("{}={}", k, truncated)
             })
             .collect();
@@ -124,6 +129,8 @@ impl crate::models::Filterable for DynamoDbTable {
 impl crate::models::Filterable for DynamoDbItem {
     fn matches_filter(&self, filter: &str) -> bool {
         // Filter across all attribute values
-        self.attributes.values().any(|v| v.to_lowercase().contains(filter))
+        self.attributes
+            .values()
+            .any(|v| v.to_lowercase().contains(filter))
     }
 }

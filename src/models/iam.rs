@@ -75,22 +75,32 @@ impl IamPolicy {
 
 impl crate::models::Filterable for IamUser {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.user_name.to_lowercase().contains(filter) ||
-        self.user_id.to_lowercase().contains(filter)
+        self.user_name.to_lowercase().contains(filter)
+            || self.user_id.to_lowercase().contains(filter)
     }
 }
 
 impl crate::models::Filterable for IamRole {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.role_name.to_lowercase().contains(filter) ||
-        self.role_id.to_lowercase().contains(filter) ||
-        self.description.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.role_name.to_lowercase().contains(filter)
+            || self.role_id.to_lowercase().contains(filter)
+            || self
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }
 
 impl crate::models::Filterable for IamPolicy {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.policy_name.to_lowercase().contains(filter) ||
-        self.policy_id.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.policy_name.to_lowercase().contains(filter)
+            || self
+                .policy_id
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }

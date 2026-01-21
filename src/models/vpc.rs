@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
 use aws_sdk_ec2::types::IpPermission;
+use serde::{Deserialize, Serialize};
+
+use crate::models::find_name_tag;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vpc {
@@ -15,16 +17,15 @@ pub struct Vpc {
 
 impl Vpc {
     pub fn from_aws(vpc: &aws_sdk_ec2::types::Vpc) -> Self {
-        let name = vpc.tags()
-            .iter()
-            .find(|t| t.key() == Some("Name"))
-            .and_then(|t| t.value())
-            .map(|s| s.to_string());
+        let name = find_name_tag(vpc.tags().iter());
 
         Self {
             vpc_id: vpc.vpc_id().unwrap_or_default().to_string(),
             cidr_block: vpc.cidr_block().map(|s| s.to_string()),
-            state: vpc.state().map(|s| s.as_str().to_string()).unwrap_or_default(),
+            state: vpc
+                .state()
+                .map(|s| s.as_str().to_string())
+                .unwrap_or_default(),
             is_default: vpc.is_default().unwrap_or(false),
             name,
             owner_id: vpc.owner_id().map(|s| s.to_string()),
@@ -57,11 +58,7 @@ pub struct Subnet {
 
 impl Subnet {
     pub fn from_aws(subnet: &aws_sdk_ec2::types::Subnet) -> Self {
-        let name = subnet.tags()
-            .iter()
-            .find(|t| t.key() == Some("Name"))
-            .and_then(|t| t.value())
-            .map(|s| s.to_string());
+        let name = find_name_tag(subnet.tags().iter());
 
         Self {
             subnet_id: subnet.subnet_id().unwrap_or_default().to_string(),
@@ -105,8 +102,16 @@ impl SecurityGroup {
             vpc_id: sg.vpc_id().map(|s| s.to_string()),
             inbound_rules_count: sg.ip_permissions().len(),
             outbound_rules_count: sg.ip_permissions_egress().len(),
-            inbound_rules: sg.ip_permissions().iter().flat_map(SecurityGroupRule::from_aws).collect(),
-            outbound_rules: sg.ip_permissions_egress().iter().flat_map(SecurityGroupRule::from_aws).collect(),
+            inbound_rules: sg
+                .ip_permissions()
+                .iter()
+                .flat_map(SecurityGroupRule::from_aws)
+                .collect(),
+            outbound_rules: sg
+                .ip_permissions_egress()
+                .iter()
+                .flat_map(SecurityGroupRule::from_aws)
+                .collect(),
         }
     }
 }
@@ -154,10 +159,10 @@ impl SecurityGroupRule {
                 description: pair.description().map(|s| s.to_string()),
             });
         }
-        
+
         // Prefix List Ids
         for prefix in perm.prefix_list_ids() {
-             rules.push(Self {
+            rules.push(Self {
                 protocol: protocol.clone(),
                 port_range: port_range.clone(),
                 source: prefix.prefix_list_id().unwrap_or("-").to_string(),
@@ -168,39 +173,69 @@ impl SecurityGroupRule {
         // If no specific source, but protocol is present (e.g. all traffic allowed implicitly or explicitly without ranges?)
         // Usually there is at least one range or group. If empty, it might mean no rules?
         // But IpPermission usually groups by protocol/port.
-        
+
         rules
     }
 }
 
 impl crate::models::Filterable for Vpc {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.vpc_id.to_lowercase().contains(filter) ||
-        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.cidr_block.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.vpc_id.to_lowercase().contains(filter)
+            || self
+                .name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self
+                .cidr_block
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }
 
 impl crate::models::Filterable for Subnet {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.subnet_id.to_lowercase().contains(filter) ||
-        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.cidr_block.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.subnet_id.to_lowercase().contains(filter)
+            || self
+                .name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self
+                .cidr_block
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }
 
 impl crate::models::Filterable for SecurityGroup {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.group_id.to_lowercase().contains(filter) ||
-        self.group_name.to_lowercase().contains(filter) ||
-        self.description.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.group_id.to_lowercase().contains(filter)
+            || self.group_name.to_lowercase().contains(filter)
+            || self
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }
 
 impl crate::models::Filterable for SecurityGroupRule {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.protocol.to_lowercase().contains(filter) ||
-        self.source.to_lowercase().contains(filter) ||
-        self.description.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.protocol.to_lowercase().contains(filter)
+            || self.source.to_lowercase().contains(filter)
+            || self
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }

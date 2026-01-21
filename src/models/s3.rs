@@ -60,4 +60,3 @@ impl crate::models::Filterable for S3Object {
         self.key.to_lowercase().contains(filter)
     }
 }
-

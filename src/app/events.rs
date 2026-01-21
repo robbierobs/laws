@@ -301,6 +301,22 @@ impl App {
                 self.action_log
                     .push(format!("[SUCCESS] Pulled image: {}", image_uri));
             }
+            AwsEvent::BudgetsLoaded(budgets) => {
+                self.services.budgets.budgets = budgets;
+                self.loading = false;
+                self.update_global_search_for_event();
+            }
+            AwsEvent::BudgetNotificationsLoaded { budget_name, notifications } => {
+                self.services.budgets.notifications = notifications;
+                self.services.budgets.selected_budget = Some(budget_name);
+                self.services.budgets.view_mode = crate::app::BudgetsViewMode::Notifications;
+                self.services.budgets.list_state.select(Some(0));
+                self.loading = false;
+            }
+            AwsEvent::BillingViewsLoaded(views) => {
+                self.services.budgets.billing_views = views;
+                self.loading = false;
+            }
             AwsEvent::ProfileRegionSwitched(data) => {
                 // Log SSO messages
                 for msg in data.sso_messages {

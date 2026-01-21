@@ -185,6 +185,7 @@ impl TaskManager {
             task_keys::SECRETSMANAGER_REFRESH,
             task_keys::ECS_REFRESH,
             task_keys::ECR_REFRESH,
+            task_keys::BUDGETS_REFRESH,
         ];
         REFRESH_KEYS
             .iter()
@@ -308,6 +309,8 @@ pub mod task_keys {
     pub const ECR_REFRESH: &str = "ecr:refresh";
     pub const ECR_IMAGES: &str = "ecr:images";
     pub const ECR_ACTION: &str = "ecr:action";
+    pub const BUDGETS_REFRESH: &str = "budgets:refresh";
+    pub const BUDGETS_NOTIFICATIONS: &str = "budgets:notifications";
     
     // Global tasks
     pub const PROFILE_SWITCH: &str = "global:profile_switch";

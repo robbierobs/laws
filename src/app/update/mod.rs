@@ -14,6 +14,7 @@ mod lambda;
 mod rds;
 
 mod backup;
+mod budgets;
 mod ecr;
 mod ecs;
 pub mod refresh;
@@ -62,6 +63,7 @@ impl App {
             ServiceAction::SecretsManager(action) => self.handle_secretsmanager_action(action, event_tx),
             ServiceAction::Ecs(action) => self.handle_ecs_action(action, event_tx),
             ServiceAction::Ecr(action) => self.handle_ecr_action(action, event_tx),
+            ServiceAction::Budgets(action) => self.handle_budgets_action(action, event_tx),
         }
     }
 }

@@ -32,7 +32,7 @@ pub mod profile_switcher;
 
 // Re-export everything needed by other modules
 pub use messages::{
-    BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, EcsViewMode, EcrViewMode, Focus, GlobalMessage,
+    BackupViewMode, BudgetsViewMode, CloudTrailViewMode, DynamoDbViewMode, EcsViewMode, EcrViewMode, Focus, GlobalMessage,
     IamViewMode, InputMode, Message, Service, ServiceAction, VpcViewMode,
 };
 pub use state::App;

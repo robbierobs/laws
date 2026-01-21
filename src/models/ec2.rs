@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
-use ratatui::style::Color;
+use crate::models::{collect_tags, find_name_tag};
 use crate::ui::theme::THEME;
+use ratatui::style::Color;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ec2Instance {
@@ -80,27 +81,17 @@ impl Ec2Instance {
     }
 
     pub fn from_aws(instance: aws_sdk_ec2::types::Instance) -> Self {
-        let name = instance.tags().iter().find(|t| t.key() == Some("Name")).and_then(|t| t.value().map(|v| v.to_string()));
-        
-        let mut tags: Vec<(String, String)> = instance.tags()
-            .iter()
-            .filter_map(|t| {
-                if let (Some(k), Some(v)) = (t.key(), t.value()) {
-                    Some((k.to_string(), v.to_string()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        // Sort tags by key for consistent display
-        tags.sort_by(|a, b| a.0.cmp(&b.0));
+        let name = find_name_tag(instance.tags().iter());
+        let tags = collect_tags(instance.tags().iter());
 
-        let state = instance.state()
+        let state = instance
+            .state()
             .and_then(|s| s.name())
             .map(|n| InstanceState::from(n.clone()))
             .unwrap_or(InstanceState::Unknown("unknown".to_string()));
 
-        let security_groups = instance.security_groups()
+        let security_groups = instance
+            .security_groups()
             .iter()
             .map(|sg| SecurityGroupInfo {
                 group_id: sg.group_id().unwrap_or_default().to_string(),
@@ -112,19 +103,27 @@ impl Ec2Instance {
             instance_id: instance.instance_id().unwrap_or_default().to_string(),
             name,
             state,
-            instance_type: instance.instance_type().map(|t| t.as_str().to_string()).unwrap_or_default(),
+            instance_type: instance
+                .instance_type()
+                .map(|t| t.as_str().to_string())
+                .unwrap_or_default(),
             public_ip: instance.public_ip_address().map(|s| s.to_string()),
             private_ip: instance.private_ip_address().map(|s| s.to_string()),
             launch_time: instance.launch_time().map(|t| t.to_string()),
             subnet_id: instance.subnet_id().map(|s| s.to_string()),
             vpc_id: instance.vpc_id().map(|s| s.to_string()),
             security_groups,
-            availability_zone: instance.placement().and_then(|p| p.availability_zone().map(|s| s.to_string())),
+            availability_zone: instance
+                .placement()
+                .and_then(|p| p.availability_zone().map(|s| s.to_string())),
             platform: instance.platform().map(|p| p.as_str().to_string()),
             architecture: instance.architecture().map(|a| a.as_str().to_string()),
             ami_id: instance.image_id().map(|s| s.to_string()),
             key_name: instance.key_name().map(|s| s.to_string()),
-            monitoring_state: instance.monitoring().and_then(|m| m.state()).map(|s| s.as_str().to_string()),
+            monitoring_state: instance
+                .monitoring()
+                .and_then(|m| m.state())
+                .map(|s| s.as_str().to_string()),
             tags,
         }
     }
@@ -132,9 +131,19 @@ impl Ec2Instance {
 
 impl crate::models::Filterable for Ec2Instance {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.instance_id.to_lowercase().contains(filter) ||
-        self.name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.public_ip.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.instance_id.to_lowercase().contains(filter)
+            || self
+                .name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self
+                .public_ip
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }
 
@@ -181,7 +190,7 @@ mod tests {
             InstanceState::Stopped,
             InstanceState::Unknown("test".to_string()),
         ];
-        
+
         for state in states {
             let display = state.to_string();
             assert!(!display.is_empty());
@@ -235,7 +244,6 @@ mod tests {
             monitoring_state: None,
             tags: vec![],
         };
-
 
         assert!(instance.matches_filter("production"));
         assert!(instance.matches_filter("web"));

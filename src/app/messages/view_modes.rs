@@ -341,3 +341,51 @@ impl ViewMode for EcrViewMode {
         }
     }
 }
+
+// ============================================================================
+// Budgets View Mode
+// ============================================================================
+
+/// View mode for Budgets service
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum BudgetsViewMode {
+    #[default]
+    Budgets = 0,
+    Notifications = 1,
+    BillingViews = 2,
+}
+
+impl ViewMode for BudgetsViewMode {
+    fn all() -> &'static [Self] {
+        &[Self::Budgets, Self::Notifications, Self::BillingViews]
+    }
+
+    fn main_tabs() -> &'static [Self] {
+        &[Self::Budgets, Self::BillingViews]
+    }
+
+    fn index(&self) -> usize {
+        *self as usize
+    }
+
+    fn from_index(i: usize) -> Self {
+        match i {
+            0 => Self::Budgets,
+            1 => Self::Notifications,
+            2 => Self::BillingViews,
+            _ => Self::Budgets,
+        }
+    }
+
+    fn is_main_tab(&self) -> bool {
+        matches!(self, Self::Budgets | Self::BillingViews)
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Budgets => "Budgets",
+            Self::Notifications => "Alerts",
+            Self::BillingViews => "Billing Views",
+        }
+    }
+}

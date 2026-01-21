@@ -15,6 +15,8 @@ use aws_sdk_cloudtrail::Client as CloudTrailClient;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use aws_sdk_ecs::Client as EcsClient;
 use aws_sdk_ecr::Client as EcrClient;
+use aws_sdk_budgets::Client as BudgetsClient;
+use aws_sdk_billing::Client as BillingClient;
 use std::time::Duration;
 
 /// Default maximum retry attempts for AWS API calls
@@ -36,6 +38,8 @@ pub struct AwsClients {
     pub secretsmanager: SecretsManagerClient,
     pub ecs: EcsClient,
     pub ecr: EcrClient,
+    pub budgets: BudgetsClient,
+    pub billing: BillingClient,
 }
 
 impl std::fmt::Debug for AwsClients {
@@ -52,6 +56,8 @@ impl std::fmt::Debug for AwsClients {
             .field("secretsmanager", &"<SecretsManagerClient>")
             .field("ecs", &"<EcsClient>")
             .field("ecr", &"<EcrClient>")
+            .field("budgets", &"<BudgetsClient>")
+            .field("billing", &"<BillingClient>")
             .finish()
     }
 }
@@ -136,6 +142,8 @@ impl AwsClients {
             secretsmanager: SecretsManagerClient::new(&config),
             ecs: EcsClient::new(&config),
             ecr: EcrClient::new(&config),
+            budgets: BudgetsClient::new(&config),
+            billing: BillingClient::new(&config),
         })
     }
 }

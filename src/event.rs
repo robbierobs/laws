@@ -25,6 +25,8 @@ use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
+use crate::models::budgets::{Budget, BudgetNotification};
+use crate::models::billing::BillingView;
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -121,6 +123,13 @@ pub enum AwsEvent {
     ProfileRegionSwitchFailed(String),
     ActionCompleted(String), // Message to display
     Error(String),
+    // Budgets events
+    BudgetsLoaded(Vec<Budget>),
+    BudgetNotificationsLoaded {
+        budget_name: String,
+        notifications: Vec<BudgetNotification>,
+    },
+    BillingViewsLoaded(Vec<BillingView>),
 }
 
 #[derive(Debug)]
@@ -210,7 +219,13 @@ impl EventHandler {
                     continue;
                 }
 
-                let event_available = event::poll(tick_rate).unwrap_or(false);
+                let event_available = match event::poll(tick_rate) {
+                    Ok(available) => available,
+                    Err(e) => {
+                        tracing::warn!("Failed to poll for events: {}", e);
+                        false
+                    }
+                };
                 if event_available {
                     if let Ok(CrosstermEvent::Key(key)) = event::read() {
                         // Try to send key event (may wait if channel is full)

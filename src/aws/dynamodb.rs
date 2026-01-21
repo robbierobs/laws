@@ -24,8 +24,11 @@ impl DynamoDbService {
 
         // For each table, get detailed information
         for table_name in table_names {
-            if let Ok(table) = self.describe_table(table_name).await {
-                tables.push(table);
+            match self.describe_table(table_name).await {
+                Ok(table) => tables.push(table),
+                Err(e) => {
+                    tracing::warn!("Failed to describe table {}: {}", table_name, e);
+                }
             }
         }
 

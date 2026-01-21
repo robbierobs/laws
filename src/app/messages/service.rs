@@ -18,6 +18,7 @@ pub enum Service {
     SecretsManager,
     ECS,
     ECR,
+    Budgets,
 }
 
 impl Service {
@@ -35,6 +36,7 @@ impl Service {
             Service::SecretsManager => "SecretsManager",
             Service::ECS => "ECS",
             Service::ECR => "ECR",
+            Service::Budgets => "Budgets",
         }
     }
 
@@ -52,6 +54,7 @@ impl Service {
             Self::SecretsManager,
             Self::ECS,
             Self::ECR,
+            Self::Budgets,
         ]
         .iter()
         .copied()

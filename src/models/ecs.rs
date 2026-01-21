@@ -1,6 +1,7 @@
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
+use crate::models::collect_tags;
 use crate::ui::theme::THEME;
 
 // ============================================================================
@@ -394,11 +395,7 @@ impl EcsTask {
                         .collect(),
                 })
                 .collect(),
-            tags: task
-                .tags()
-                .iter()
-                .filter_map(|t| Some((t.key()?.to_string(), t.value()?.to_string())))
-                .collect(),
+            tags: collect_tags(task.tags().iter()),
         }
     }
 

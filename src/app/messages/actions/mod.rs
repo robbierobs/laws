@@ -14,6 +14,7 @@ mod cloudtrail;
 mod secretsmanager;
 mod ecs;
 mod ecr;
+mod budgets;
 
 pub use ec2::Ec2Action;
 pub use s3::S3Action;
@@ -27,3 +28,4 @@ pub use cloudtrail::{CloudTrailAction, CloudTrailLookupParams};
 pub use secretsmanager::SecretsManagerAction;
 pub use ecs::EcsAction;
 pub use ecr::EcrAction;
+pub use budgets::BudgetsAction;

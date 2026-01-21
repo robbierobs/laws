@@ -65,7 +65,10 @@ impl BackupJob {
             backup_vault_name: job.backup_vault_name().map(|s| s.to_string()),
             resource_arn: job.resource_arn().map(|s| s.to_string()),
             resource_type: job.resource_type().map(|s| s.to_string()),
-            state: job.state().map(|s| s.as_str().to_string()).unwrap_or_default(),
+            state: job
+                .state()
+                .map(|s| s.as_str().to_string())
+                .unwrap_or_default(),
             creation_date: job.creation_date().map(|d| d.to_string()),
             completion_date: job.completion_date().map(|d| d.to_string()),
             percent_done: job.percent_done().map(|s| s.to_string()),
@@ -85,8 +88,8 @@ impl BackupJob {
 
 impl crate::models::Filterable for BackupPlan {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.backup_plan_name.to_lowercase().contains(filter) ||
-        self.backup_plan_id.to_lowercase().contains(filter)
+        self.backup_plan_name.to_lowercase().contains(filter)
+            || self.backup_plan_id.to_lowercase().contains(filter)
     }
 }
 
@@ -98,9 +101,14 @@ impl crate::models::Filterable for BackupVault {
 
 impl crate::models::Filterable for BackupJob {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.backup_job_id.to_lowercase().contains(filter) ||
-        self.resource_type.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.state.to_lowercase().contains(filter)
+        self.backup_job_id.to_lowercase().contains(filter)
+            || self
+                .resource_type
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self.state.to_lowercase().contains(filter)
     }
 }
 
@@ -150,8 +158,18 @@ impl RecoveryPoint {
 
 impl crate::models::Filterable for RecoveryPoint {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.recovery_point_arn.to_lowercase().contains(filter) ||
-        self.resource_type.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.status.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.recovery_point_arn.to_lowercase().contains(filter)
+            || self
+                .resource_type
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self
+                .status
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }

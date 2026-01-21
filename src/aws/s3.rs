@@ -54,55 +54,70 @@ impl S3Service {
         let mut details = S3BucketDetails::default();
 
         // Get versioning status
-        if let Ok(resp) = self
+        match self
             .client
             .get_bucket_versioning()
             .bucket(bucket_name)
             .send()
             .await
         {
-            details.versioning_enabled = resp
-                .status()
-                .map(|s| s == &aws_sdk_s3::types::BucketVersioningStatus::Enabled);
+            Ok(resp) => {
+                details.versioning_enabled = resp
+                    .status()
+                    .map(|s| s == &aws_sdk_s3::types::BucketVersioningStatus::Enabled);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get versioning for bucket {}: {}", bucket_name, e);
+            }
         }
 
         // Get encryption configuration
-        if let Ok(resp) = self
+        match self
             .client
             .get_bucket_encryption()
             .bucket(bucket_name)
             .send()
             .await
         {
-            if let Some(config) = resp.server_side_encryption_configuration() {
-                let encryption_types: Vec<String> = config
-                    .rules()
-                    .iter()
-                    .filter_map(|rule| {
-                        rule.apply_server_side_encryption_by_default()
-                            .map(|sse| sse.sse_algorithm().as_str().to_string())
-                    })
-                    .collect();
-                if !encryption_types.is_empty() {
-                    details.encryption = Some(encryption_types.join(", "));
+            Ok(resp) => {
+                if let Some(config) = resp.server_side_encryption_configuration() {
+                    let encryption_types: Vec<String> = config
+                        .rules()
+                        .iter()
+                        .filter_map(|rule| {
+                            rule.apply_server_side_encryption_by_default()
+                                .map(|sse| sse.sse_algorithm().as_str().to_string())
+                        })
+                        .collect();
+                    if !encryption_types.is_empty() {
+                        details.encryption = Some(encryption_types.join(", "));
+                    }
                 }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get encryption for bucket {}: {}", bucket_name, e);
             }
         }
 
         // Get bucket tagging
-        if let Ok(resp) = self
+        match self
             .client
             .get_bucket_tagging()
             .bucket(bucket_name)
             .send()
             .await
         {
-            details.tags = resp
-                .tag_set()
-                .iter()
-                .map(|t| (t.key().to_string(), t.value().to_string()))
-                .collect();
-            details.tags.sort_by(|a, b| a.0.cmp(&b.0));
+            Ok(resp) => {
+                details.tags = resp
+                    .tag_set()
+                    .iter()
+                    .map(|t| (t.key().to_string(), t.value().to_string()))
+                    .collect();
+                details.tags.sort_by(|a, b| a.0.cmp(&b.0));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get tags for bucket {}: {}", bucket_name, e);
+            }
         }
 
         // Get object count and total size

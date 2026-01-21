@@ -10,7 +10,10 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::filter_modal::{FilterFieldConfig, FilterFieldType, FilterModalConfig, FilterModalState};
+use crate::app::filter_modal::{
+    FilterFieldConfig, FilterFieldType, FilterModalConfig, FilterModalState,
+};
+use crate::ui::components::modals::helpers::centered_rect;
 use crate::ui::theme::THEME;
 
 /// Render the filter modal
@@ -20,14 +23,18 @@ pub fn render_filter_modal(
     config: &FilterModalConfig,
     state: &FilterModalState,
 ) {
-    let popup_area = centered_rect(area, config.width_percent, config.height_percent);
+    let popup_area = centered_rect(config.width_percent, config.height_percent, area);
 
     // Clear the area behind the modal
     frame.render_widget(Clear, popup_area);
 
     let block = Block::default()
         .title(format!(" {} ", config.title))
-        .title_style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.secondary));
 
@@ -36,11 +43,13 @@ pub fn render_filter_modal(
 
     // Calculate layout - each field gets 2 rows, plus help at bottom
     let num_fields = config.fields.len();
-    let mut constraints: Vec<Constraint> = config.fields.iter()
+    let mut constraints: Vec<Constraint> = config
+        .fields
+        .iter()
         .map(|_| Constraint::Length(3))
         .collect();
     constraints.push(Constraint::Length(2)); // Help line
-    constraints.push(Constraint::Min(0));    // Remaining space
+    constraints.push(Constraint::Min(0)); // Remaining space
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -51,20 +60,40 @@ pub fn render_filter_modal(
     for (i, field_config) in config.fields.iter().enumerate() {
         let is_selected = i == state.selected_field;
         let field_state = state.field_states.get(&field_config.id);
-        
+
         render_field(frame, rows[i], field_config, field_state, is_selected);
     }
 
     // Render help line
     let help_row = rows[num_fields];
     let help = Paragraph::new(Line::from(vec![
-        Span::styled("Tab", Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Tab",
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("/"),
-        Span::styled("↑↓", Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "↑↓",
+            Style::default()
+                .fg(THEME.primary)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(": navigate  "),
-        Span::styled("Enter", Style::default().fg(THEME.success).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(THEME.success)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(": apply  "),
-        Span::styled("Esc", Style::default().fg(THEME.warning).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(THEME.warning)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(": cancel"),
     ]))
     .style(Style::default().fg(THEME.muted));
@@ -80,7 +109,9 @@ fn render_field(
     is_selected: bool,
 ) {
     let text_style = if is_selected {
-        Style::default().fg(THEME.selection_fg).bg(THEME.selection_bg)
+        Style::default()
+            .fg(THEME.selection_fg)
+            .bg(THEME.selection_bg)
     } else {
         Style::default().fg(THEME.fg)
     };
@@ -91,9 +122,11 @@ fn render_field(
         Style::default().fg(THEME.muted)
     };
 
-    let value = state.map(|s| s.display_value(&config.field_type)).unwrap_or_default();
+    let value = state
+        .map(|s| s.display_value(&config.field_type))
+        .unwrap_or_default();
     let value_empty = value.is_empty();
-    
+
     let display_value = match &config.field_type {
         FilterFieldType::Text | FilterFieldType::Date | FilterFieldType::Time => {
             if value_empty {
@@ -131,7 +164,9 @@ fn render_field(
     let display_style = match &config.field_type {
         FilterFieldType::Text | FilterFieldType::Date | FilterFieldType::Time => {
             if value_empty && !is_selected {
-                Style::default().fg(THEME.muted).add_modifier(Modifier::ITALIC)
+                Style::default()
+                    .fg(THEME.muted)
+                    .add_modifier(Modifier::ITALIC)
             } else {
                 text_style
             }
@@ -151,27 +186,6 @@ fn render_field(
     frame.render_widget(paragraph, area);
 }
 
-/// Create a centered rect with percentage dimensions
-fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,8 +194,8 @@ mod tests {
     #[test]
     fn test_centered_rect() {
         let area = Rect::new(0, 0, 100, 50);
-        let centered = centered_rect(area, 60, 70);
-        
+        let centered = centered_rect(60, 70, area);
+
         // Should be roughly centered
         assert!(centered.x > 0);
         assert!(centered.y > 0);

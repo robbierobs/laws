@@ -178,6 +178,7 @@ impl App {
             Service::SecretsManager => &mut self.services.secretsmanager,
             Service::ECS => &mut self.services.ecs,
             Service::ECR => &mut self.services.ecr,
+            Service::Budgets => &mut self.services.budgets,
         }
     }
 
@@ -195,6 +196,7 @@ impl App {
             Service::SecretsManager => &self.services.secretsmanager,
             Service::ECS => &self.services.ecs,
             Service::ECR => &self.services.ecr,
+            Service::Budgets => &self.services.budgets,
         }
     }
 

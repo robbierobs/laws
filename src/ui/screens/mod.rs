@@ -3,6 +3,7 @@
 //! Each module provides a screen for viewing and interacting with AWS resources.
 
 pub mod backup;
+pub mod budgets;
 pub mod cloudtrail;
 pub mod dynamodb;
 pub mod ec2;
@@ -28,6 +29,7 @@ pub struct LambdaScreen;
 pub struct VpcScreen;
 pub struct IamScreen;
 pub struct BackupScreen;
+pub struct BudgetsScreen;
 pub struct CloudTrailScreen;
 pub struct SecretsManagerScreen;
 pub struct EcsScreen;
@@ -130,6 +132,18 @@ impl Screen for BackupScreen {
     }
 }
 
+impl Screen for BudgetsScreen {
+    fn render(
+        &self,
+        frame: &mut Frame,
+        list_area: Option<Rect>,
+        detail_area: Option<Rect>,
+        app: &mut App,
+    ) {
+        budgets::render(frame, list_area, detail_area, app);
+    }
+}
+
 impl Screen for CloudTrailScreen {
     fn render(
         &self,
@@ -207,6 +221,7 @@ pub fn get_screen(service: Service) -> Box<dyn Screen> {
         Service::VPC => Box::new(VpcScreen),
         Service::IAM => Box::new(IamScreen),
         Service::Backup => Box::new(BackupScreen),
+        Service::Budgets => Box::new(BudgetsScreen),
         Service::CloudTrail => Box::new(CloudTrailScreen),
         Service::SecretsManager => Box::new(SecretsManagerScreen),
         Service::ECS => Box::new(EcsScreen),

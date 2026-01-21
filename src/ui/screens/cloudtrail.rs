@@ -1,3 +1,10 @@
+use crate::app::ViewMode;
+use crate::app::{App, CloudTrailViewMode};
+use crate::models::cloudtrail::{CloudTrailEvent, Trail};
+use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
+use crate::ui::components::modals::helpers::centered_rect;
+use crate::ui::components::table::render_table;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
@@ -5,16 +12,15 @@ use ratatui::{
     widgets::{Cell, Row},
     Frame,
 };
-use crate::app::{App, CloudTrailViewMode};
-use crate::models::cloudtrail::{Trail, CloudTrailEvent};
-use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
-use crate::ui::components::table::render_table;
-use crate::ui::theme::THEME;
-use crate::app::ViewMode;
 
-pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
-    use ratatui::layout::{Layout, Direction};
-    
+pub fn render(
+    frame: &mut Frame,
+    list_area: Option<Rect>,
+    detail_area: Option<Rect>,
+    app: &mut App,
+) {
+    use ratatui::layout::{Direction, Layout};
+
     // Render list area if provided (not in fullscreen detail mode)
     if let Some(area) = list_area {
         // Split list area for tabs
@@ -26,15 +32,22 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
             ])
             .split(area);
 
-        let tabs: Vec<&str> = crate::app::CloudTrailViewMode::iterator().map(|m| m.label()).collect();
-        crate::ui::components::tabs::render_tabs(frame, chunks[0], &tabs, app.services.cloudtrail.view_mode.index());
+        let tabs: Vec<&str> = crate::app::CloudTrailViewMode::iterator()
+            .map(|m| m.label())
+            .collect();
+        crate::ui::components::tabs::render_tabs(
+            frame,
+            chunks[0],
+            &tabs,
+            app.services.cloudtrail.view_mode.index(),
+        );
 
         match app.services.cloudtrail.view_mode {
             CloudTrailViewMode::Trails => render_trail_list(frame, chunks[1], app),
             CloudTrailViewMode::Events => render_event_list(frame, chunks[1], app),
         }
     }
-    
+
     if let Some(area) = detail_area {
         match app.services.cloudtrail.view_mode {
             CloudTrailViewMode::Trails => render_trail_details(frame, area, app),
@@ -55,7 +68,10 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 
     if app.services.cloudtrail.show_detail_modal {
         if let Some(json) = &app.services.cloudtrail.selected_event_detail {
-            let title = app.services.cloudtrail.selected_event()
+            let title = app
+                .services
+                .cloudtrail
+                .selected_event()
                 .and_then(|e| e.event_name.as_ref())
                 .map(|s| s.as_str())
                 .unwrap_or("Event Details");
@@ -67,66 +83,61 @@ pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Re
 fn render_event_detail_modal(frame: &mut Frame, area: Rect, title: &str, content: &str) {
     use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-    
-    let popup_area = centered_rect(area, 80, 80); 
-    
+    let popup_area = centered_rect(80, 80, area);
+
     let block = Block::default()
         .title(format!(" {} ", title))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(THEME.secondary));
-        
+
     let paragraph = Paragraph::new(content)
-        .block(block) // No wrap for JSON to keep formatting? Or wrap? JSON is usually wide. 
-                      // Wrap is better than cutting off.
-        .wrap(Wrap { trim: false }) 
+        .block(block) // No wrap for JSON to keep formatting? Or wrap? JSON is usually wide.
+        // Wrap is better than cutting off.
+        .wrap(Wrap { trim: false })
         .style(Style::default().fg(THEME.fg));
-        
+
     frame.render_widget(ratatui::widgets::Clear, popup_area);
     frame.render_widget(paragraph, popup_area);
-}
-
-fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
-    use ratatui::layout::{Layout, Direction, Constraint};
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
 }
 
 use crate::models::Filterable;
 
 fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.cloudtrail.trails.iter()
+    let rows = app
+        .services
+        .cloudtrail
+        .trails
+        .iter()
         .filter(|t| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             t.matches_filter(&filter)
         })
         .map(|trail| {
-            let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
+            let bucket = trail
+                .s3_bucket_name
+                .clone()
+                .unwrap_or_else(|| "-".to_string());
             let region = trail.home_region.clone().unwrap_or_else(|| "-".to_string());
-            
+
             let cells = vec![
                 Cell::from(trail.name.clone()),
                 Cell::from(bucket),
-                Cell::from(if trail.is_multi_region_trail { "Yes" } else { "No" }),
-                Cell::from(if trail.is_organization_trail { "Yes" } else { "No" }),
+                Cell::from(if trail.is_multi_region_trail {
+                    "Yes"
+                } else {
+                    "No"
+                }),
+                Cell::from(if trail.is_organization_trail {
+                    "Yes"
+                } else {
+                    "No"
+                }),
                 Cell::from(region),
             ];
-            
+
             Row::new(cells).height(1)
         });
 
@@ -134,7 +145,13 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
         frame,
         area,
         rows,
-        &["Trail Name", "S3 Bucket", "Multi-Region", "Organization", "Region"],
+        &[
+            "Trail Name",
+            "S3 Bucket",
+            "Multi-Region",
+            "Organization",
+            "Region",
+        ],
         &[
             Constraint::Length(30), // Trail Name
             Constraint::Length(30), // S3 Bucket
@@ -150,7 +167,7 @@ fn render_trail_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.services.cloudtrail.list_state.selected();
-    
+
     let content: Vec<Line> = if let Some(idx) = selected {
         if let Some(trail) = app.services.cloudtrail.trails.get(idx) {
             build_trail_detail_lines(trail)
@@ -158,7 +175,9 @@ fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
             vec![Line::from("No trail selected")]
         }
     } else {
-        vec![Line::from("Select a trail to view details (use j/k to navigate)")]
+        vec![Line::from(
+            "Select a trail to view details (use j/k to navigate)",
+        )]
     };
 
     render_detail_panel(
@@ -172,25 +191,45 @@ fn render_trail_details(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
-    let bucket = trail.s3_bucket_name.clone().unwrap_or_else(|| "-".to_string());
-    let prefix = trail.s3_key_prefix.clone().unwrap_or_else(|| "(none)".to_string());
+    let bucket = trail
+        .s3_bucket_name
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    let prefix = trail
+        .s3_key_prefix
+        .clone()
+        .unwrap_or_else(|| "(none)".to_string());
     let region = trail.home_region.clone().unwrap_or_else(|| "-".to_string());
-    let kms = trail.kms_key_id.clone().unwrap_or_else(|| "(none)".to_string());
-    let cw_logs = trail.cloudwatch_logs_log_group_arn.clone().unwrap_or_else(|| "(not configured)".to_string());
+    let kms = trail
+        .kms_key_id
+        .clone()
+        .unwrap_or_else(|| "(none)".to_string());
+    let cw_logs = trail
+        .cloudwatch_logs_log_group_arn
+        .clone()
+        .unwrap_or_else(|| "(not configured)".to_string());
 
     vec![
         Line::from(vec![
             Span::styled("Trail Name: ", Style::default().fg(THEME.primary)),
-            Span::styled(trail.name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                trail.name.clone(),
+                Style::default()
+                    .fg(THEME.selection_fg)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Home Region: ", Style::default().fg(THEME.primary)),
             Span::raw(region),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Storage ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Storage ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("S3 Bucket: ", Style::default().fg(THEME.primary)),
             Span::raw(bucket),
@@ -200,9 +239,12 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
             Span::raw(prefix),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Configuration ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("Multi-Region Trail: ", Style::default().fg(THEME.primary)),
             if trail.is_multi_region_trail {
@@ -220,7 +262,10 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
             },
         ]),
         Line::from(vec![
-            Span::styled("Global Service Events: ", Style::default().fg(THEME.primary)),
+            Span::styled(
+                "Global Service Events: ",
+                Style::default().fg(THEME.primary),
+            ),
             if trail.include_global_service_events {
                 Span::styled("Yes", Style::default().fg(THEME.success))
             } else {
@@ -236,9 +281,12 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
             },
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Integrations ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Integrations ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("KMS Key: ", Style::default().fg(THEME.primary)),
             Span::raw(kms),
@@ -248,7 +296,10 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
             Span::raw(cw_logs),
         ]),
         Line::from(vec![
-            Span::styled("Custom Event Selectors: ", Style::default().fg(THEME.primary)),
+            Span::styled(
+                "Custom Event Selectors: ",
+                Style::default().fg(THEME.primary),
+            ),
             if trail.has_custom_event_selectors {
                 Span::styled("Yes", Style::default().fg(THEME.success))
             } else {
@@ -268,16 +319,25 @@ fn build_trail_detail_lines(trail: &Trail) -> Vec<Line<'_>> {
 
 fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.cloudtrail.events.items.iter()
+    let rows = app
+        .services
+        .cloudtrail
+        .events
+        .items
+        .iter()
         .filter(|e| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             e.matches_filter(&filter)
         })
         .map(|event| {
-            let time = event.event_time.clone()
+            let time = event
+                .event_time
+                .clone()
                 .map(|d| d.split('T').next().unwrap_or(&d).to_string())
                 .unwrap_or_else(|| "-".to_string());
-            
+
             let cells = vec![
                 Cell::from(event.event_name.clone().unwrap_or_default()),
                 Cell::from(time),
@@ -285,7 +345,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(event.username.clone().unwrap_or_else(|| "-".to_string())),
                 Cell::from(event.read_only.clone().unwrap_or_else(|| "-".to_string())),
             ];
-            
+
             Row::new(cells).height(1)
         });
 
@@ -296,21 +356,21 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let loading_more = app.services.cloudtrail.events.loading_more;
     let sort_field = app.services.cloudtrail.sort_field.label();
     let sort_dir = app.services.cloudtrail.sort_direction.label();
-    
+
     let mut title_parts: Vec<String> = vec![format!("CloudTrail Events ({})", event_count)];
-    
+
     // Filter indicator
     if has_filters {
         title_parts.push(" 🔍".to_string());
     }
-    
+
     // Pagination indicator
     if loading_more {
         title_parts.push(" ⏳".to_string());
     } else if has_more {
         title_parts.push(" 📥".to_string());
     }
-    
+
     // Sort indicator and keybind hints (standardized format)
     title_parts.push(format!(" ⇅{}{}", sort_field, sort_dir));
     title_parts.push(" [s:sort S:dir F:filter".to_string());
@@ -321,7 +381,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
         title_parts.push(" c:clear".to_string());
     }
     title_parts.push("]".to_string());
-    
+
     let title = title_parts.join("");
 
     render_table(
@@ -344,7 +404,7 @@ fn render_event_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.services.cloudtrail.list_state.selected();
-    
+
     let content: Vec<Line> = if let Some(idx) = selected {
         if let Some(event) = app.services.cloudtrail.events.items.get(idx) {
             build_event_detail_lines(event)
@@ -352,7 +412,9 @@ fn render_event_details(frame: &mut Frame, area: Rect, app: &App) {
             vec![Line::from("No event selected")]
         }
     } else {
-        vec![Line::from("Select an event to view details (use j/k to navigate)")]
+        vec![Line::from(
+            "Select an event to view details (use j/k to navigate)",
+        )]
     };
 
     render_detail_panel(
@@ -369,13 +431,21 @@ fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
     let event_id = event.event_id.clone().unwrap_or_else(|| "-".to_string());
     let event_time = event.event_time.clone().unwrap_or_else(|| "-".to_string());
     let username = event.username.clone().unwrap_or_else(|| "-".to_string());
-    let source = event.event_source.clone().unwrap_or_else(|| "-".to_string());
+    let source = event
+        .event_source
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
     let name = event.event_name.clone().unwrap_or_else(|| "-".to_string());
-    
+
     let mut lines = vec![
         Line::from(vec![
             Span::styled("Event Name: ", Style::default().fg(THEME.primary)),
-            Span::styled(name, Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                name,
+                Style::default()
+                    .fg(THEME.selection_fg)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Event ID: ", Style::default().fg(THEME.primary)),
@@ -386,9 +456,12 @@ fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
             Span::raw(event_time),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Source ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Source ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("Source: ", Style::default().fg(THEME.primary)),
             Span::raw(source),
@@ -401,9 +474,12 @@ fn build_event_detail_lines(event: &CloudTrailEvent) -> Vec<Line<'_>> {
 
     if !event.resources.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("─── Resources ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "─── Resources ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         for resource in &event.resources {
             lines.push(Line::from(vec![
                 Span::styled("• ", Style::default().fg(THEME.warning)),

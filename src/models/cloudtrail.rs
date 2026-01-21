@@ -32,7 +32,9 @@ impl Trail {
             has_custom_event_selectors: trail.has_custom_event_selectors().unwrap_or(false),
             has_insight_selectors: trail.has_insight_selectors().unwrap_or(false),
             kms_key_id: trail.kms_key_id().map(|s| s.to_string()),
-            cloudwatch_logs_log_group_arn: trail.cloud_watch_logs_log_group_arn().map(|s| s.to_string()),
+            cloudwatch_logs_log_group_arn: trail
+                .cloud_watch_logs_log_group_arn()
+                .map(|s| s.to_string()),
         }
     }
 }
@@ -50,7 +52,8 @@ pub struct CloudTrailEvent {
 
 impl CloudTrailEvent {
     pub fn from_aws(event: &aws_sdk_cloudtrail::types::Event) -> Self {
-        let resources: Vec<String> = event.resources()
+        let resources: Vec<String> = event
+            .resources()
             .iter()
             .filter_map(|r| r.resource_name().map(|s| s.to_string()))
             .collect();
@@ -69,15 +72,34 @@ impl CloudTrailEvent {
 
 impl crate::models::Filterable for Trail {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.name.to_lowercase().contains(filter) ||
-        self.s3_bucket_name.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.name.to_lowercase().contains(filter)
+            || self
+                .s3_bucket_name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }
 
 impl crate::models::Filterable for CloudTrailEvent {
     fn matches_filter(&self, filter: &str) -> bool {
-        self.event_name.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.event_source.as_deref().unwrap_or("").to_lowercase().contains(filter) ||
-        self.username.as_deref().unwrap_or("").to_lowercase().contains(filter)
+        self.event_name
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase()
+            .contains(filter)
+            || self
+                .event_source
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self
+                .username
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }

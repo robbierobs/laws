@@ -18,9 +18,7 @@ impl EcrRepository {
             repository_arn: repo.repository_arn().map(|s| s.to_string()),
             repository_uri: repo.repository_uri().map(|s| s.to_string()),
             created_at: repo.created_at().map(|d| d.to_string()),
-            image_tag_mutability: repo
-                .image_tag_mutability()
-                .map(|m| m.as_str().to_string()),
+            image_tag_mutability: repo.image_tag_mutability().map(|m| m.as_str().to_string()),
         }
     }
 }
@@ -50,26 +48,28 @@ impl EcrImage {
     pub fn from_aws(image: &aws_sdk_ecr::types::ImageDetail) -> Self {
         Self {
             image_digest: image.image_digest().unwrap_or_default().to_string(),
-            image_tags: image
-                .image_tags()
-                .iter()
-                .map(|t| t.to_string())
-                .collect(),
+            image_tags: image.image_tags().iter().map(|t| t.to_string()).collect(),
             image_pushed_at: image.image_pushed_at().map(|d| d.to_string()),
             image_size_in_bytes: image.image_size_in_bytes(),
             image_uri: None, // Can be constructed if we have repo URI
         }
     }
-    
+
     #[allow(dead_code)] // Helper for display, may be used in future
     pub fn main_tag(&self) -> String {
-        self.image_tags.first().cloned().unwrap_or_else(|| "<untagged>".to_string())
+        self.image_tags
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "<untagged>".to_string())
     }
 }
 
 impl Filterable for EcrImage {
     fn matches_filter(&self, filter: &str) -> bool {
         self.image_digest.to_lowercase().contains(filter)
-            || self.image_tags.iter().any(|t| t.to_lowercase().contains(filter))
+            || self
+                .image_tags
+                .iter()
+                .any(|t| t.to_lowercase().contains(filter))
     }
 }

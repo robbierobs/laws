@@ -232,6 +232,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-billing"
+version = "1.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a96501b449f189e6de6b2c24949c5bfa40362ae557d2c7431f22cb7bd2641849"
+dependencies = [
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http 0.2.12",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
+name = "aws-sdk-budgets"
+version = "1.99.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afa96e5f78b15d2e2fc73d1cbae056f647618d9ce129bcfd3aa582e4ebbcf7f5"
+dependencies = [
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http 0.2.12",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-cloudtrail"
 version = "1.100.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1952,6 +1996,8 @@ dependencies = [
  "arboard",
  "aws-config",
  "aws-sdk-backup",
+ "aws-sdk-billing",
+ "aws-sdk-budgets",
  "aws-sdk-cloudtrail",
  "aws-sdk-dynamodb",
  "aws-sdk-ec2",

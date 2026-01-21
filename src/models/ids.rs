@@ -20,7 +20,7 @@ impl Ec2InstanceId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -56,7 +56,7 @@ impl S3BucketName {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -82,7 +82,7 @@ impl S3ObjectKey {
     pub fn new(key: impl Into<String>) -> Self {
         Self(key.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -112,7 +112,7 @@ impl RdsInstanceId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -142,7 +142,7 @@ impl DynamoDbTableName {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -172,7 +172,7 @@ impl LambdaFunctionName {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -202,7 +202,7 @@ impl VpcId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -228,7 +228,7 @@ impl SecurityGroupId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -254,7 +254,7 @@ impl SubnetId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -284,7 +284,7 @@ impl IamUserName {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -310,7 +310,7 @@ impl IamRoleName {
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -336,7 +336,7 @@ impl IamPolicyArn {
     pub fn new(arn: impl Into<String>) -> Self {
         Self(arn.into())
     }
-    
+
     pub fn as_str(&self) -> &str {
         &self.0
     }

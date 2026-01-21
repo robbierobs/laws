@@ -23,11 +23,9 @@ impl Secret {
             last_changed_date: item.last_changed_date().map(|d| d.to_string()),
             last_accessed_date: item.last_accessed_date().map(|d| d.to_string()),
             deleted_date: item.deleted_date().map(|d| d.to_string()),
-            secret_versions_to_stages: item.secret_versions_to_stages().map(|map| {
-                map.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            }),
+            secret_versions_to_stages: item
+                .secret_versions_to_stages()
+                .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         }
     }
 }
@@ -35,7 +33,17 @@ impl Secret {
 impl crate::models::Filterable for Secret {
     fn matches_filter(&self, filter: &str) -> bool {
         self.name.to_lowercase().contains(filter)
-            || self.description.as_deref().unwrap_or("").to_lowercase().contains(filter)
-            || self.arn.as_deref().unwrap_or("").to_lowercase().contains(filter)
+            || self
+                .description
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
+            || self
+                .arn
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(filter)
     }
 }

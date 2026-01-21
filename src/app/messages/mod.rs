@@ -20,13 +20,13 @@ pub use service::Service;
 
 // Re-export ViewMode enums
 pub use view_modes::{
-    BackupViewMode, CloudTrailViewMode, DynamoDbViewMode, EcrViewMode, EcsViewMode, IamViewMode,
+    BackupViewMode, BudgetsViewMode, CloudTrailViewMode, DynamoDbViewMode, EcrViewMode, EcsViewMode, IamViewMode,
     VpcViewMode,
 };
 
 // Re-export action enums
 pub use actions::{
-    BackupAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction, Ec2Action, EcrAction, EcsAction, IamAction,
+    BackupAction, BudgetsAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction, Ec2Action, EcrAction, EcsAction, IamAction,
     LambdaAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
 };
 
@@ -105,6 +105,7 @@ pub enum ServiceAction {
     SecretsManager(SecretsManagerAction),
     Ecs(EcsAction),
     Ecr(EcrAction),
+    Budgets(BudgetsAction),
 }
 
 impl ConfirmableAction for ServiceAction {
@@ -122,6 +123,7 @@ impl ConfirmableAction for ServiceAction {
             Self::SecretsManager(a) => a.confirmation_description(),
             Self::Ecs(a) => a.confirmation_description(),
             Self::Ecr(a) => a.confirmation_description(),
+            Self::Budgets(a) => a.confirmation_description(),
         }
     }
 }
@@ -600,6 +602,17 @@ impl Message {
     pub fn ecr_clear_filters() -> Self {
         Message::Service(ServiceAction::Ecr(EcrAction::ClearFilters))
     }
+
+    // Budgets message constructors
+    pub fn budgets_load_notifications(budget_name: String) -> Self {
+        Message::Service(ServiceAction::Budgets(BudgetsAction::LoadNotifications(
+            budget_name,
+        )))
+    }
+
+    pub fn budgets_leave_notifications() -> Self {
+        Message::Service(ServiceAction::Budgets(BudgetsAction::LeaveNotifications))
+    }
 }
 
 // ============================================================================
@@ -655,9 +668,10 @@ mod tests {
     #[test]
     fn test_service_iterator() {
         let services: Vec<Service> = Service::iterator().collect();
-        assert_eq!(services.len(), 12); // All 12 services
+        assert_eq!(services.len(), 13); // All 13 services including Budgets
         assert!(services.contains(&Service::EC2));
         assert!(services.contains(&Service::SecretsManager));
+        assert!(services.contains(&Service::Budgets));
     }
 
     #[test]

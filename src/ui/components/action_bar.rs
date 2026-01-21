@@ -173,6 +173,28 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 }
             }
         }
+        Service::Budgets => {
+            use crate::app::BudgetsViewMode;
+            actions.extend_from_slice(&[("j/k", "Navigate")]);
+            match app.services.budgets.view_mode {
+                BudgetsViewMode::Budgets => {
+                    actions.extend_from_slice(&[
+                        ("Enter", "Alerts"),
+                        ("v", "View"),
+                    ]);
+                }
+                BudgetsViewMode::Notifications => {
+                    actions.extend_from_slice(&[
+                        ("Esc", "Back"),
+                    ]);
+                }
+                BudgetsViewMode::BillingViews => {
+                    actions.extend_from_slice(&[
+                        ("v", "View"),
+                    ]);
+                }
+            }
+        }
     }
 
     let spans: Vec<Span> = actions
