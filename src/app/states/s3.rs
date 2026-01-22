@@ -365,6 +365,24 @@ impl ServiceInternal for S3State {
 mod tests {
     use super::*;
 
+    fn make_bucket(name: &str) -> S3Bucket {
+        S3Bucket {
+            name: name.to_string(),
+            creation_date: None,
+            region: None,
+        }
+    }
+
+    fn make_object(key: &str) -> S3Object {
+        S3Object {
+            key: key.to_string(),
+            size: 0,
+            last_modified: None,
+            storage_class: None,
+            etag: None,
+        }
+    }
+
     #[test]
     fn test_viewer_mode_toggle() {
         assert_eq!(ViewerMode::Text.next(), ViewerMode::Hex);
@@ -383,10 +401,59 @@ mod tests {
         assert!(state.buckets.is_empty());
         assert!(state.objects.is_empty());
         assert!(state.current_bucket.is_none());
+        assert_eq!(state.list_state.selected(), None);
+        assert_eq!(state.object_list_state.selected(), None);
         assert!(!state.show_object_viewer);
         assert!(!state.show_create_bucket_modal);
         assert!(state.create_bucket_input.is_empty());
         assert_eq!(state.viewer_mode, ViewerMode::Text);
+    }
+
+    #[test]
+    fn test_s3_state_selection_empty() {
+        let state = S3State::new();
+        assert_eq!(state.selected_bucket(), None);
+        assert_eq!(state.selected_object(), None);
+    }
+
+    #[test]
+    fn test_s3_state_selection_populated() {
+        let mut state = S3State::new();
+        state.buckets = vec![make_bucket("alpha"), make_bucket("beta")];
+        state.list_state.select(Some(1));
+
+        let selected_bucket = state.selected_bucket().expect("bucket selection");
+        assert_eq!(selected_bucket.name, "beta");
+
+        state.current_bucket = Some("alpha".to_string());
+        state.objects = vec![make_object("first.txt"), make_object("second.txt")];
+        state.object_list_state.select(Some(0));
+
+        let selected_object = state.selected_object().expect("object selection");
+        assert_eq!(selected_object.key, "first.txt");
+    }
+
+    #[test]
+    fn test_s3_state_auto_select_first_bucket_view() {
+        let mut state = S3State::new();
+        state.auto_select_first();
+        assert_eq!(state.list_state.selected(), None);
+
+        state.buckets = vec![make_bucket("alpha")];
+        state.auto_select_first();
+        assert_eq!(state.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_s3_state_auto_select_first_object_view() {
+        let mut state = S3State::new();
+        state.current_bucket = Some("alpha".to_string());
+        state.auto_select_first();
+        assert_eq!(state.object_list_state.selected(), None);
+
+        state.objects = vec![make_object("first.txt")];
+        state.auto_select_first();
+        assert_eq!(state.object_list_state.selected(), Some(0));
     }
 
     #[test]
@@ -420,5 +487,37 @@ mod tests {
 
         state.current_bucket = Some("test-bucket".to_string());
         assert!(state.is_viewing_objects());
+    }
+
+    #[test]
+    fn test_s3_state_clear_resets_state() {
+        let mut state = S3State::new();
+        state.buckets = vec![make_bucket("alpha")];
+        state.objects = vec![make_object("file.txt")];
+        state.current_bucket = Some("alpha".to_string());
+        state.bucket_details.insert("alpha".to_string(), S3BucketDetails::default());
+        state.opened_object_content = Some("content".to_string());
+        state.opened_object_path = Some("/tmp/file.txt".to_string());
+        state.opened_object_key = Some("file.txt".to_string());
+        state.show_object_viewer = true;
+        state.opened_object_bytes = Some(vec![1, 2, 3]);
+        state.pending_edit = Some(("alpha".to_string(), "file.txt".to_string(), "/tmp/file.txt".to_string()));
+        state.list_state.select(Some(1));
+        state.object_list_state.select(Some(1));
+
+        state.clear();
+
+        assert!(state.buckets.is_empty());
+        assert!(state.objects.is_empty());
+        assert!(state.current_bucket.is_none());
+        assert!(state.bucket_details.is_empty());
+        assert!(state.opened_object_content.is_none());
+        assert!(state.opened_object_path.is_none());
+        assert!(state.opened_object_key.is_none());
+        assert!(!state.show_object_viewer);
+        assert!(state.opened_object_bytes.is_none());
+        assert!(state.pending_edit.is_none());
+        assert_eq!(state.list_state.selected(), Some(0));
+        assert_eq!(state.object_list_state.selected(), Some(0));
     }
 }

@@ -1,6 +1,7 @@
 use crate::app::App;
 use crate::ui::components::detail_panel::{render_detail_panel, DetailPanelConfig};
 use crate::ui::components::table::render_table;
+use crate::utils::formatting::format_bytes_opt;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
@@ -193,10 +194,7 @@ fn build_bucket_detail_lines(
             ]));
 
             // Total size
-            let total_size_text = details
-                .total_size
-                .map(format_size)
-                .unwrap_or_else(|| "-".to_string());
+            let total_size_text = format_bytes_opt(details.total_size);
             lines.push(Line::from(vec![
                 Span::styled("Total Size: ", Style::default().fg(THEME.primary)),
                 Span::raw(total_size_text),
@@ -229,7 +227,7 @@ fn render_objects(frame: &mut Frame, area: Rect, app: &mut App, bucket_name: &st
             // Use as_deref() to avoid clones
             let cells = vec![
                 Cell::from(obj.key.as_str()),
-                Cell::from(format_size(obj.size)),
+                Cell::from(format_bytes_opt(Some(obj.size))),
                 Cell::from(obj.last_modified.as_deref().unwrap_or("-")),
                 Cell::from(obj.storage_class.as_deref().unwrap_or("STANDARD")),
             ];
@@ -305,7 +303,7 @@ fn build_object_detail_lines(
 
     lines.push(Line::from(vec![
         Span::styled("Size: ", Style::default().fg(THEME.primary)),
-        Span::raw(format_size(object.size)),
+        Span::raw(format_bytes_opt(Some(object.size))),
         Span::raw(format!(" ({} bytes)", object.size)),
     ]));
     lines.push(Line::from(vec![
@@ -335,20 +333,4 @@ fn build_object_detail_lines(
     }
 
     lines
-}
-
-fn format_size(size: i64) -> String {
-    const KB: i64 = 1024;
-    const MB: i64 = KB * 1024;
-    const GB: i64 = MB * 1024;
-
-    if size >= GB {
-        format!("{:.2} GB", size as f64 / GB as f64)
-    } else if size >= MB {
-        format!("{:.2} MB", size as f64 / MB as f64)
-    } else if size >= KB {
-        format!("{:.2} KB", size as f64 / KB as f64)
-    } else {
-        format!("{} B", size)
-    }
 }

@@ -3,7 +3,7 @@ use crate::ui::theme::THEME;
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Ec2Instance {
     pub instance_id: String,
     pub name: Option<String>,
@@ -25,7 +25,7 @@ pub struct Ec2Instance {
     pub tags: Vec<(String, String)>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SecurityGroupInfo {
     pub group_id: String,
     pub group_name: String,

@@ -1,3 +1,10 @@
+use crate::app::{App, DynamoDbViewMode};
+use crate::models::dynamodb::DynamoDbTable;
+use crate::ui::components::detail_panel::{
+    render_detail_panel, render_detail_panel_with_selection, DetailPanelConfig,
+};
+use crate::ui::components::table::render_table;
+use crate::utils::formatting::format_bytes_opt;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
@@ -5,14 +12,15 @@ use ratatui::{
     widgets::{Cell, Row},
     Frame,
 };
-use crate::app::{App, DynamoDbViewMode};
-use crate::models::dynamodb::DynamoDbTable;
-use crate::ui::components::detail_panel::{render_detail_panel, render_detail_panel_with_selection, DetailPanelConfig};
-use crate::ui::components::table::render_table;
 
 use crate::ui::theme::THEME;
 
-pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(
+    frame: &mut Frame,
+    list_area: Option<Rect>,
+    detail_area: Option<Rect>,
+    app: &mut App,
+) {
     match app.services.dynamodb.view_mode {
         DynamoDbViewMode::Tables => {
             // Tables list view
@@ -34,28 +42,43 @@ use crate::models::Filterable;
 
 fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.dynamodb.tables.iter()
+    let rows = app
+        .services
+        .dynamodb
+        .tables
+        .iter()
         .filter(|t| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             t.matches_filter(&filter)
         })
         .map(|table| {
             let status_color = table.state_color();
-            let pk_str = table.partition_key.as_ref()
+            let pk_str = table
+                .partition_key
+                .as_ref()
                 .map(|pk| format!("{} ({})", pk.name, pk.attribute_type))
                 .unwrap_or_else(|| "-".to_string());
-            let billing = table.billing_mode.clone()
+            let billing = table
+                .billing_mode
+                .clone()
                 .unwrap_or_else(|| "PROVISIONED".to_string());
-            
+
             let cells = vec![
                 Cell::from(table.table_name.clone()),
                 Cell::from(table.table_status.clone()).style(Style::default().fg(status_color)),
-                Cell::from(table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string())),
-                Cell::from(table.format_size()),
+                Cell::from(
+                    table
+                        .item_count
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
+                ),
+                Cell::from(format_bytes_opt(table.table_size_bytes)),
                 Cell::from(pk_str),
                 Cell::from(billing),
             ];
-            
+
             Row::new(cells).height(1)
         });
 
@@ -63,7 +86,14 @@ fn render_table_list(frame: &mut Frame, area: Rect, app: &mut App) {
         frame,
         area,
         rows,
-        &["Table Name", "Status", "Items", "Size", "Partition Key", "Billing"],
+        &[
+            "Table Name",
+            "Status",
+            "Items",
+            "Size",
+            "Partition Key",
+            "Billing",
+        ],
         &[
             Constraint::Length(30), // Table Name
             Constraint::Length(12), // Status
@@ -93,10 +123,19 @@ fn render_table_details(frame: &mut Frame, area: Rect, app: &App) {
 
 fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     let status_color = table.state_color();
-    
-    let item_count_str = table.item_count.map(|c| c.to_string()).unwrap_or_else(|| "-".to_string());
-    let created_str = table.creation_date_time.clone().unwrap_or_else(|| "-".to_string());
-    let table_class_str = table.table_class.clone().unwrap_or_else(|| "STANDARD".to_string());
+
+    let item_count_str = table
+        .item_count
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "-".to_string());
+    let created_str = table
+        .creation_date_time
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    let table_class_str = table
+        .table_class
+        .clone()
+        .unwrap_or_else(|| "STANDARD".to_string());
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
@@ -104,14 +143,17 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
             Span::raw(table.table_name.clone()),
             Span::raw("   "),
             Span::styled("Status: ", Style::default().fg(THEME.primary)),
-            Span::styled(table.table_status.clone(), Style::default().fg(status_color)),
+            Span::styled(
+                table.table_status.clone(),
+                Style::default().fg(status_color),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Items: ", Style::default().fg(THEME.primary)),
             Span::raw(item_count_str),
             Span::raw("   "),
             Span::styled("Size: ", Style::default().fg(THEME.primary)),
-            Span::raw(table.format_size()),
+            Span::raw(format_bytes_opt(table.table_size_bytes)),
             Span::raw("   "),
             Span::styled("Class: ", Style::default().fg(THEME.primary)),
             Span::raw(table_class_str),
@@ -121,9 +163,12 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
             Span::raw(created_str),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Key Schema ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Key Schema ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
     ];
 
     // Partition Key
@@ -145,19 +190,31 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     }
 
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("─── Billing ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "─── Billing ───",
+        Style::default()
+            .fg(THEME.secondary)
+            .add_modifier(Modifier::BOLD),
+    )]));
 
-    let billing_mode = table.billing_mode.clone().unwrap_or_else(|| "PROVISIONED".to_string());
+    let billing_mode = table
+        .billing_mode
+        .clone()
+        .unwrap_or_else(|| "PROVISIONED".to_string());
     lines.push(Line::from(vec![
         Span::styled("Billing Mode: ", Style::default().fg(THEME.primary)),
         Span::raw(billing_mode.clone()),
     ]));
 
     if billing_mode == "PROVISIONED" {
-        let rcu = table.read_capacity_units.map(|r| r.to_string()).unwrap_or_else(|| "-".to_string());
-        let wcu = table.write_capacity_units.map(|w| w.to_string()).unwrap_or_else(|| "-".to_string());
+        let rcu = table
+            .read_capacity_units
+            .map(|r| r.to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let wcu = table
+            .write_capacity_units
+            .map(|w| w.to_string())
+            .unwrap_or_else(|| "-".to_string());
         lines.push(Line::from(vec![
             Span::styled("Read Capacity: ", Style::default().fg(THEME.primary)),
             Span::raw(rcu),
@@ -171,16 +228,25 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     // Global Secondary Indexes
     if !table.global_secondary_indexes.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("─── Global Secondary Indexes ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "─── Global Secondary Indexes ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         for gsi in &table.global_secondary_indexes {
             let status = gsi.index_status.clone().unwrap_or_else(|| "?".to_string());
-            let items = gsi.item_count.map(|c| c.to_string()).unwrap_or_else(|| "?".to_string());
+            let items = gsi
+                .item_count
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "?".to_string());
             lines.push(Line::from(vec![
                 Span::styled("• ", Style::default().fg(THEME.warning)),
                 Span::styled(&gsi.index_name, Style::default().fg(THEME.warning)),
-                Span::raw(format!(" [{}] - {} - {} items", status, gsi.key_schema, items)),
+                Span::raw(format!(
+                    " [{}] - {} - {} items",
+                    status, gsi.key_schema, items
+                )),
             ]));
         }
     }
@@ -188,11 +254,17 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     // Local Secondary Indexes
     if !table.local_secondary_indexes.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("─── Local Secondary Indexes ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "─── Local Secondary Indexes ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         for lsi in &table.local_secondary_indexes {
-            let items = lsi.item_count.map(|c| c.to_string()).unwrap_or_else(|| "?".to_string());
+            let items = lsi
+                .item_count
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "?".to_string());
             lines.push(Line::from(vec![
                 Span::styled("• ", Style::default().fg(THEME.warning)),
                 Span::styled(&lsi.index_name, Style::default().fg(THEME.warning)),
@@ -203,9 +275,12 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
 
     // Stream
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("─── Stream ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "─── Stream ───",
+        Style::default()
+            .fg(THEME.secondary)
+            .add_modifier(Modifier::BOLD),
+    )]));
     lines.push(Line::from(vec![
         Span::styled("Stream Enabled: ", Style::default().fg(THEME.primary)),
         if table.stream_enabled {
@@ -236,14 +311,29 @@ fn build_table_detail_lines(table: &DynamoDbTable) -> Vec<Line<'_>> {
     lines
 }
 
-fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
-    let table_name = app.services.dynamodb.current_table.as_deref().unwrap_or("Unknown");
-    let table = app.services.dynamodb.tables.iter().find(|t| t.table_name == table_name);
-    
+fn render_table_drilldown(
+    frame: &mut Frame,
+    list_area: Option<Rect>,
+    detail_area: Option<Rect>,
+    app: &mut App,
+) {
+    let table_name = app
+        .services
+        .dynamodb
+        .current_table
+        .as_deref()
+        .unwrap_or("Unknown");
+    let table = app
+        .services
+        .dynamodb
+        .tables
+        .iter()
+        .find(|t| t.table_name == table_name);
+
     // Get key attribute names for display priority
     let pk_name = table.and_then(|t| t.partition_key.as_ref().map(|k| k.name.clone()));
     let sk_name = table.and_then(|t| t.sort_key.as_ref().map(|k| k.name.clone()));
-    
+
     // Build column headers - start with key columns, then others
     let mut column_names: Vec<String> = Vec::new();
     if let Some(pk) = &pk_name {
@@ -252,7 +342,7 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
     if let Some(sk) = &sk_name {
         column_names.push(sk.clone());
     }
-    
+
     // Discover other columns from items (up to 4 additional columns)
     for item in app.services.dynamodb.items.iter().take(10) {
         for key in item.attributes.keys() {
@@ -261,25 +351,39 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
             }
         }
     }
-    
+
     // Ensure we have at least some columns
     if column_names.is_empty() {
         column_names.push("(no data)".to_string());
     }
-    
+
     // Build rows
     let filter = app.filter_input.to_lowercase();
-    let rows: Vec<Row> = app.services.dynamodb.items.iter()
+    let rows: Vec<Row> = app
+        .services
+        .dynamodb
+        .items
+        .iter()
         .filter(|item| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             item.matches_filter(&filter)
         })
         .map(|item| {
-            let cells: Vec<Cell> = column_names.iter()
+            let cells: Vec<Cell> = column_names
+                .iter()
                 .map(|col| {
-                    let val = item.get(col).map(|s| {
-                        if s.len() > 40 { format!("{}...", &s[..37]) } else { s.clone() }
-                    }).unwrap_or_else(|| "-".to_string());
+                    let val = item
+                        .get(col)
+                        .map(|s| {
+                            if s.len() > 40 {
+                                format!("{}...", &s[..37])
+                            } else {
+                                s.clone()
+                            }
+                        })
+                        .unwrap_or_else(|| "-".to_string());
                     Cell::from(val)
                 })
                 .collect();
@@ -290,25 +394,28 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
     let item_count = app.services.dynamodb.items.len();
     let title = format!(
         "{} - {} items (D: delete, r: refresh, Esc: back)",
-        table_name,
-        item_count
+        table_name, item_count
     );
-    
+
     // Calculate column widths
     let col_count = column_names.len();
     let constraints: Vec<Constraint> = if col_count <= 1 {
         vec![Constraint::Min(20)]
     } else {
         let base_width = 100 / col_count as u16;
-        column_names.iter().enumerate().map(|(i, _)| {
-            if i < 2 {
-                Constraint::Length(25) // Key columns get fixed width
-            } else if i == col_count - 1 {
-                Constraint::Min(15) // Last column fills remaining
-            } else {
-                Constraint::Length(base_width.max(15))
-            }
-        }).collect()
+        column_names
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                if i < 2 {
+                    Constraint::Length(25) // Key columns get fixed width
+                } else if i == col_count - 1 {
+                    Constraint::Min(15) // Last column fills remaining
+                } else {
+                    Constraint::Length(base_width.max(15))
+                }
+            })
+            .collect()
     };
 
     if let Some(area) = list_area {
@@ -324,7 +431,7 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
             &mut app.services.dynamodb.item_list_state,
         );
     }
-    
+
     // Render item details in detail area if available
     if let Some(area) = detail_area {
         render_item_details(frame, area, app, &column_names);
@@ -333,20 +440,23 @@ fn render_table_drilldown(frame: &mut Frame, list_area: Option<Rect>, detail_are
 
 fn render_item_details(frame: &mut Frame, area: Rect, app: &App, _column_names: &[String]) {
     let selected = app.services.dynamodb.item_list_state.selected();
-    
+
     let content: Vec<Line> = if let Some(idx) = selected {
         if let Some(item) = app.services.dynamodb.items.get(idx) {
             let mut lines = vec![
-                Line::from(vec![
-                    Span::styled("─── Item Attributes ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-                ]),
+                Line::from(vec![Span::styled(
+                    "─── Item Attributes ───",
+                    Style::default()
+                        .fg(THEME.secondary)
+                        .add_modifier(Modifier::BOLD),
+                )]),
                 Line::from(""),
             ];
-            
+
             // Sort keys to put partition/sort keys first
             let mut attrs: Vec<(&String, &String)> = item.attributes.iter().collect();
             attrs.sort_by(|a, b| a.0.cmp(b.0));
-            
+
             for (key, value) in attrs {
                 let display_value = if value.len() > 60 {
                     format!("{}...", &value[..57])
@@ -367,7 +477,9 @@ fn render_item_details(frame: &mut Frame, area: Rect, app: &App, _column_names: 
     } else if app.services.dynamodb.items.is_empty() {
         vec![Line::from("No items in table (or table is empty)")]
     } else {
-        vec![Line::from("Select an item to view details (j/k to navigate)")]
+        vec![Line::from(
+            "Select an item to view details (j/k to navigate)",
+        )]
     };
 
     render_detail_panel(

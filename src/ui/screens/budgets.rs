@@ -1,14 +1,15 @@
 //! Budgets service screen
 
+use crate::app::{App, BudgetsViewMode, Focus};
+use crate::ui::components::table::render_table;
+use crate::ui::theme::THEME;
 use ratatui::{
-    layout::Rect,
-    style::{Modifier, Style},
+    layout::{Constraint, Rect},
+    style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row},
     Frame,
 };
-use crate::app::{App, BudgetsViewMode};
-use crate::ui::theme::THEME;
 
 pub fn render(
     frame: &mut Frame,
@@ -30,46 +31,47 @@ fn render_budgets_list(
     app: &mut App,
 ) {
     if let Some(area) = list_area {
-        let header_cells = ["Name", "Type", "Limit", "Actual", "Usage %"]
-            .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-        let header = Row::new(header_cells)
-            .style(Style::default().add_modifier(Modifier::BOLD))
-            .height(1);
-
         let rows = app.services.budgets.budgets.iter().map(|b| {
-            let usage_pct = b.usage_percentage().map(|p| format!("{:.1}%", p)).unwrap_or_default();
+            let usage_pct = b
+                .usage_percentage()
+                .map(|p| format!("{:.1}%", p))
+                .unwrap_or_default();
             let usage_color = b.status_color();
-            
+
             Row::new(vec![
                 Cell::from(b.budget_name.as_str()),
                 Cell::from(b.budget_type.as_str()),
-                Cell::from(b.budget_limit.map(|l| format!("${:.2}", l)).unwrap_or_default()),
-                Cell::from(b.actual_spend.map(|s| format!("${:.2}", s)).unwrap_or_default()),
+                Cell::from(
+                    b.budget_limit
+                        .map(|l| format!("${:.2}", l))
+                        .unwrap_or_default(),
+                ),
+                Cell::from(
+                    b.actual_spend
+                        .map(|s| format!("${:.2}", s))
+                        .unwrap_or_default(),
+                ),
                 Cell::from(usage_pct).style(Style::default().fg(usage_color)),
             ])
         });
+        let title = format!("Budgets ({})", app.services.budgets.budgets.len());
 
-        let table = Table::new(
+        render_table(
+            frame,
+            area,
             rows,
-            [
-                ratatui::layout::Constraint::Percentage(30),
-                ratatui::layout::Constraint::Percentage(15),
-                ratatui::layout::Constraint::Percentage(18),
-                ratatui::layout::Constraint::Percentage(18),
-                ratatui::layout::Constraint::Percentage(19),
+            &["Name", "Type", "Limit", "Actual", "Usage %"],
+            &[
+                Constraint::Percentage(30),
+                Constraint::Percentage(15),
+                Constraint::Percentage(18),
+                Constraint::Percentage(18),
+                Constraint::Percentage(19),
             ],
-        )
-        .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.border))
-                .title(format!(" Budgets ({}) ", app.services.budgets.budgets.len())),
-        )
-        .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg));
-
-        frame.render_stateful_widget(table, area, &mut app.services.budgets.list_state);
+            &title,
+            matches!(app.focus, Focus::Main),
+            &mut app.services.budgets.list_state,
+        );
     }
 
     if let Some(area) = detail_area {
@@ -99,7 +101,10 @@ fn render_budgets_list(
             if let Some(actual) = budget.actual_spend {
                 lines.push(Line::from(vec![
                     Span::styled("Actual Spend: ", Style::default().fg(THEME.secondary)),
-                    Span::styled(format!("${:.2}", actual), Style::default().fg(budget.status_color())),
+                    Span::styled(
+                        format!("${:.2}", actual),
+                        Style::default().fg(budget.status_color()),
+                    ),
                 ]));
             }
             if let Some(forecasted) = budget.forecasted_spend {
@@ -111,7 +116,10 @@ fn render_budgets_list(
             if let Some(pct) = budget.usage_percentage() {
                 lines.push(Line::from(vec![
                     Span::styled("Usage: ", Style::default().fg(THEME.secondary)),
-                    Span::styled(format!("{:.1}%", pct), Style::default().fg(budget.status_color())),
+                    Span::styled(
+                        format!("{:.1}%", pct),
+                        Style::default().fg(budget.status_color()),
+                    ),
                 ]));
             }
 
@@ -136,16 +144,14 @@ fn render_notifications(
     detail_area: Option<Rect>,
     app: &mut App,
 ) {
-    let budget_name = app.services.budgets.selected_budget.as_deref().unwrap_or("Unknown");
+    let budget_name = app
+        .services
+        .budgets
+        .selected_budget
+        .as_deref()
+        .unwrap_or("Unknown");
 
     if let Some(area) = list_area {
-        let header_cells = ["Type", "Operator", "Threshold", "State"]
-            .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-        let header = Row::new(header_cells)
-            .style(Style::default().add_modifier(Modifier::BOLD))
-            .height(1);
-
         let rows = app.services.budgets.notifications.iter().map(|n| {
             let state_color = n.state_color();
             Row::new(vec![
@@ -156,26 +162,27 @@ fn render_notifications(
                     .style(Style::default().fg(state_color)),
             ])
         });
+        let title = format!(
+            "Notifications for '{}' ({})",
+            budget_name,
+            app.services.budgets.notifications.len()
+        );
 
-        let table = Table::new(
+        render_table(
+            frame,
+            area,
             rows,
-            [
-                ratatui::layout::Constraint::Percentage(25),
-                ratatui::layout::Constraint::Percentage(25),
-                ratatui::layout::Constraint::Percentage(25),
-                ratatui::layout::Constraint::Percentage(25),
+            &["Type", "Operator", "Threshold", "State"],
+            &[
+                Constraint::Percentage(25),
+                Constraint::Percentage(25),
+                Constraint::Percentage(25),
+                Constraint::Percentage(25),
             ],
-        )
-        .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.border))
-                .title(format!(" Notifications for '{}' ({}) ", budget_name, app.services.budgets.notifications.len())),
-        )
-        .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg));
-
-        frame.render_stateful_widget(table, area, &mut app.services.budgets.list_state);
+            &title,
+            matches!(app.focus, Focus::Main),
+            &mut app.services.budgets.list_state,
+        );
     }
 
     if let Some(area) = detail_area {
@@ -222,13 +229,6 @@ fn render_billing_views(
     app: &mut App,
 ) {
     if let Some(area) = list_area {
-        let header_cells = ["Name", "Owner Account", "ARN"]
-            .iter()
-            .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-        let header = Row::new(header_cells)
-            .style(Style::default().add_modifier(Modifier::BOLD))
-            .height(1);
-
         let rows = app.services.budgets.billing_views.iter().map(|v| {
             Row::new(vec![
                 Cell::from(v.name.as_str()),
@@ -236,25 +236,25 @@ fn render_billing_views(
                 Cell::from(v.arn.as_str()),
             ])
         });
+        let title = format!(
+            "Billing Views ({})",
+            app.services.budgets.billing_views.len()
+        );
 
-        let table = Table::new(
+        render_table(
+            frame,
+            area,
             rows,
-            [
-                ratatui::layout::Constraint::Percentage(25),
-                ratatui::layout::Constraint::Percentage(25),
-                ratatui::layout::Constraint::Percentage(50),
+            &["Name", "Owner Account", "ARN"],
+            &[
+                Constraint::Percentage(25),
+                Constraint::Percentage(25),
+                Constraint::Percentage(50),
             ],
-        )
-        .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(THEME.border))
-                .title(format!(" Billing Views ({}) ", app.services.budgets.billing_views.len())),
-        )
-        .row_highlight_style(Style::default().bg(THEME.selection_bg).fg(THEME.selection_fg));
-
-        frame.render_stateful_widget(table, area, &mut app.services.budgets.list_state);
+            &title,
+            matches!(app.focus, Focus::Main),
+            &mut app.services.budgets.list_state,
+        );
     }
 
     if let Some(area) = detail_area {

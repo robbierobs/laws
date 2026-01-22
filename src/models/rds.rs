@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::models::collect_tags;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RdsInstance {
     pub db_instance_identifier: String,
     pub db_instance_class: String,

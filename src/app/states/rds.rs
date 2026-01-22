@@ -153,3 +153,88 @@ impl ServiceInternal for RdsState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::global_search::AutoSelectable;
+
+    fn sample_instance(id: &str) -> RdsInstance {
+        RdsInstance {
+            db_instance_identifier: id.to_string(),
+            db_instance_class: "db.t3.micro".to_string(),
+            engine: "postgres".to_string(),
+            engine_version: Some("16.1".to_string()),
+            status: "available".to_string(),
+            endpoint: None,
+            port: None,
+            master_username: Some("admin".to_string()),
+            allocated_storage: Some(20),
+            availability_zone: Some("us-east-1a".to_string()),
+            multi_az: false,
+            publicly_accessible: false,
+            storage_type: Some("gp3".to_string()),
+            storage_encrypted: true,
+            vpc_id: Some("vpc-123".to_string()),
+            db_subnet_group: Some("subnet-group".to_string()),
+            security_groups: vec!["sg-123".to_string()],
+            backup_retention_period: Some(7),
+            preferred_backup_window: Some("02:00-03:00".to_string()),
+            preferred_maintenance_window: Some("sun:05:00-sun:06:00".to_string()),
+            created_time: Some("2024-01-01T00:00:00Z".to_string()),
+            auto_minor_version_upgrade: true,
+            license_model: Some("postgresql-license".to_string()),
+            iops: None,
+            deletion_protection: false,
+            tags: vec![],
+        }
+    }
+
+    #[test]
+    fn test_rds_state_new() {
+        let state = RdsState::new();
+        assert!(state.instances.is_empty());
+        assert_eq!(state.list_state.selected(), None);
+    }
+
+    #[test]
+    fn test_rds_state_selection_empty() {
+        let state = RdsState::new();
+        assert_eq!(state.selected_instance(), None);
+        assert_eq!(state.selected_instance_id(), None);
+    }
+
+    #[test]
+    fn test_rds_state_select_by_id() {
+        let mut state = RdsState::new();
+        state.instances.push(sample_instance("db-1"));
+        state.instances.push(sample_instance("db-2"));
+
+        assert!(state.select_by_id("db-2"));
+        assert_eq!(state.list_state.selected(), Some(1));
+        assert_eq!(state.selected_instance_id(), Some("db-2".to_string()));
+        assert!(!state.select_by_id("db-missing"));
+    }
+
+    #[test]
+    fn test_rds_state_auto_select_first() {
+        let mut state = RdsState::new();
+        state.auto_select_first();
+        assert_eq!(state.list_state.selected(), None);
+
+        state.instances.push(sample_instance("db-1"));
+        state.auto_select_first();
+        assert_eq!(state.list_state.selected(), Some(0));
+    }
+
+    #[test]
+    fn test_rds_state_clear_removes_instances() {
+        let mut state = RdsState::new();
+        state.instances.push(sample_instance("db-1"));
+
+        assert_eq!(state.instances.len(), 1);
+        state.clear();
+        assert!(state.instances.is_empty());
+        assert_eq!(state.list_state.selected(), Some(0));
+    }
+}
