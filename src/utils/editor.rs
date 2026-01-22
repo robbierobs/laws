@@ -29,25 +29,23 @@ use std::process::Command;
 /// * `Err` if the editor failed or was not found
 pub fn open_in_editor<P: AsRef<Path>>(file_path: P) -> AppResult<()> {
     let file_path = file_path.as_ref();
-    
+
     // Get editor from environment variable, default to vi
     let editor = env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
-    
+
     // Leave alternate screen and disable raw mode before opening editor
     // This prevents the TUI from interfering with the editor
     disable_raw_mode()?;
     execute!(io::stdout(), LeaveAlternateScreen)?;
-    
+
     // Try to run the editor
-    let result = Command::new(&editor)
-        .arg(file_path)
-        .status();
-    
+    let result = Command::new(&editor).arg(file_path).status();
+
     // Re-enable raw mode and re-enter alternate screen after editor closes
     // This restores the TUI to its normal state
     execute!(io::stdout(), EnterAlternateScreen)?;
     enable_raw_mode()?;
-    
+
     // Check editor result
     match result {
         Ok(status) => {
@@ -74,43 +72,43 @@ mod tests {
         // Create a temporary file
         let temp_dir = env::temp_dir();
         let test_file = temp_dir.join("laws_editor_test.txt");
-        
+
         // Write some content
         let mut file = fs::File::create(&test_file).unwrap();
         file.write_all(b"test content").unwrap();
         drop(file);
-        
+
         // Set EDITOR to 'cat' which will just display the file and exit successfully
         env::set_var("EDITOR", "cat");
-        
+
         let result = open_in_editor(&test_file);
-        
+
         // Clean up
         fs::remove_file(&test_file).ok();
         env::remove_var("EDITOR");
-        
+
         assert!(result.is_ok(), "Expected successful editor invocation");
     }
-    
+
     #[test]
     fn test_open_in_editor_with_nonexistent_editor() {
         let temp_dir = env::temp_dir();
         let test_file = temp_dir.join("laws_editor_test2.txt");
-        
+
         // Write some content
         let mut file = fs::File::create(&test_file).unwrap();
         file.write_all(b"test content").unwrap();
         drop(file);
-        
+
         // Set EDITOR to a command that doesn't exist
         env::set_var("EDITOR", "this_editor_does_not_exist_xyz_123");
-        
+
         let result = open_in_editor(&test_file);
-        
+
         // Clean up
         fs::remove_file(&test_file).ok();
         env::remove_var("EDITOR");
-        
+
         assert!(result.is_err(), "Expected error when editor doesn't exist");
     }
 }

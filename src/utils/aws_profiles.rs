@@ -54,10 +54,10 @@ pub const ALL_REGIONS: &[&str] = &[
 /// Read AWS profiles from ~/.aws/config and ~/.aws/credentials
 pub fn list_profiles() -> Vec<String> {
     let mut profiles = HashSet::new();
-    
+
     // Always include "default" as an option
     profiles.insert("default".to_string());
-    
+
     // Read from ~/.aws/config
     if let Some(config_path) = get_aws_config_path() {
         if let Ok(content) = fs::read_to_string(&config_path) {
@@ -66,7 +66,7 @@ pub fn list_profiles() -> Vec<String> {
             }
         }
     }
-    
+
     // Read from ~/.aws/credentials
     if let Some(creds_path) = get_aws_credentials_path() {
         if let Ok(content) = fs::read_to_string(&creds_path) {
@@ -75,16 +75,16 @@ pub fn list_profiles() -> Vec<String> {
             }
         }
     }
-    
+
     let mut sorted: Vec<String> = profiles.into_iter().collect();
     sorted.sort();
-    
+
     // Move "default" to the front if it exists
     if let Some(pos) = sorted.iter().position(|p| p == "default") {
         let default = sorted.remove(pos);
         sorted.insert(0, default);
     }
-    
+
     sorted
 }
 
@@ -102,11 +102,11 @@ fn get_aws_credentials_path() -> Option<PathBuf> {
 /// Config file uses [profile name] format (except for default which is just [default])
 fn parse_profiles_from_config(content: &str) -> Vec<String> {
     let mut profiles = Vec::new();
-    
+
     for line in content.lines() {
         let line = line.trim();
         if line.starts_with('[') && line.ends_with(']') {
-            let section = &line[1..line.len()-1].trim();
+            let section = &line[1..line.len() - 1].trim();
             if *section == "default" {
                 profiles.push("default".to_string());
             } else if let Some(profile_name) = section.strip_prefix("profile ") {
@@ -114,7 +114,7 @@ fn parse_profiles_from_config(content: &str) -> Vec<String> {
             }
         }
     }
-    
+
     profiles
 }
 
@@ -122,15 +122,15 @@ fn parse_profiles_from_config(content: &str) -> Vec<String> {
 /// Credentials file uses [name] format directly
 fn parse_profiles_from_credentials(content: &str) -> Vec<String> {
     let mut profiles = Vec::new();
-    
+
     for line in content.lines() {
         let line = line.trim();
         if line.starts_with('[') && line.ends_with(']') {
-            let profile_name = &line[1..line.len()-1].trim();
+            let profile_name = &line[1..line.len() - 1].trim();
             profiles.push(profile_name.to_string());
         }
     }
-    
+
     profiles
 }
 
@@ -151,28 +151,29 @@ fn check_profile_has_sso(content: &str, profile_name: &str) -> bool {
     } else {
         format!("[profile {}]", profile_name)
     };
-    
+
     let mut in_target_section = false;
-    
+
     for line in content.lines() {
         let line = line.trim();
-        
+
         // Check for section header
         if line.starts_with('[') && line.ends_with(']') {
             in_target_section = line == target_section;
             continue;
         }
-        
+
         // Check for SSO-related keys in the target section
         if in_target_section
-            && (line.starts_with("sso_start_url") ||
-               line.starts_with("sso_account_id") ||
-               line.starts_with("sso_role_name") ||
-               line.starts_with("sso_session")) {
-                return true;
-            }
+            && (line.starts_with("sso_start_url")
+                || line.starts_with("sso_account_id")
+                || line.starts_with("sso_role_name")
+                || line.starts_with("sso_session"))
+        {
+            return true;
+        }
     }
-    
+
     false
 }
 
@@ -194,18 +195,18 @@ fn parse_profile_endpoint_url(content: &str, profile_name: &str) -> Option<Strin
     } else {
         format!("[profile {}]", profile_name)
     };
-    
+
     let mut in_target_section = false;
-    
+
     for line in content.lines() {
         let line = line.trim();
-        
+
         // Check for section header
         if line.starts_with('[') && line.ends_with(']') {
             in_target_section = line == target_section;
             continue;
         }
-        
+
         // Check for endpoint_url in the target section
         if in_target_section {
             if let Some(value) = line.strip_prefix("endpoint_url") {
@@ -217,7 +218,7 @@ fn parse_profile_endpoint_url(content: &str, profile_name: &str) -> Option<Strin
             }
         }
     }
-    
+
     None
 }
 
@@ -315,4 +316,3 @@ endpoint_url=http://localhost:4566
         assert!(ALL_REGIONS.contains(&"us-gov-west-1"));
     }
 }
-
