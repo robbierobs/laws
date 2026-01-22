@@ -3,11 +3,11 @@
 //! Provides a fluent builder API for constructing styled detail panel content.
 //! Reduces boilerplate across screen render functions.
 
+use crate::ui::theme::THEME;
 use ratatui::{
     style::{Modifier, Style},
     text::{Line, Span},
 };
-use crate::ui::theme::THEME;
 
 /// Fluent builder for constructing styled detail panel lines
 ///
@@ -58,7 +58,11 @@ impl<'a> DetailBuilder<'a> {
     }
 
     /// Add a field only if the value is Some, otherwise skip
-    pub fn optional_field<T: AsRef<str>>(mut self, label: &'static str, value: Option<&'a T>) -> Self {
+    pub fn optional_field<T: AsRef<str>>(
+        mut self,
+        label: &'static str,
+        value: Option<&'a T>,
+    ) -> Self {
         let display = value.map(|v| v.as_ref()).unwrap_or("-");
         self.lines.push(Line::from(vec![
             Span::styled(format!("{}: ", label), Style::default().fg(THEME.primary)),
@@ -70,17 +74,23 @@ impl<'a> DetailBuilder<'a> {
     /// Add a section header with styled separator
     pub fn section(mut self, title: &'static str) -> Self {
         self.lines.push(Line::from(""));
-        self.lines.push(Line::from(vec![
-            Span::styled(
-                format!("─── {} ───", title),
-                Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD),
-            ),
-        ]));
+        self.lines.push(Line::from(vec![Span::styled(
+            format!("─── {} ───", title),
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         self
     }
 
     /// Add a boolean field with colored yes/no indicators
-    pub fn bool_field(mut self, label: &'static str, value: bool, yes_text: &'static str, no_text: &'static str) -> Self {
+    pub fn bool_field(
+        mut self,
+        label: &'static str,
+        value: bool,
+        yes_text: &'static str,
+        no_text: &'static str,
+    ) -> Self {
         let (text, color) = if value {
             (yes_text, THEME.success)
         } else {
@@ -122,9 +132,10 @@ impl<'a> DetailBuilder<'a> {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        self.lines.push(Line::from(vec![
-            Span::styled(format!("{}:", label), Style::default().fg(THEME.primary)),
-        ]));
+        self.lines.push(Line::from(vec![Span::styled(
+            format!("{}:", label),
+            Style::default().fg(THEME.primary),
+        )]));
         for item in items {
             self.lines.push(Line::from(vec![
                 Span::raw("  • "),
@@ -152,17 +163,13 @@ mod tests {
 
     #[test]
     fn test_field_creates_line() {
-        let lines = DetailBuilder::new()
-            .field("Name", "test-value")
-            .build();
+        let lines = DetailBuilder::new().field("Name", "test-value").build();
         assert_eq!(lines.len(), 1);
     }
 
     #[test]
     fn test_section_adds_header() {
-        let lines = DetailBuilder::new()
-            .section("Network")
-            .build();
+        let lines = DetailBuilder::new().section("Network").build();
         // Section adds blank line + header = 2 lines
         assert_eq!(lines.len(), 2);
     }
@@ -178,9 +185,7 @@ mod tests {
     #[test]
     fn test_optional_field_with_none() {
         let value: Option<&String> = None;
-        let lines = DetailBuilder::new()
-            .optional_field("VPC", value)
-            .build();
+        let lines = DetailBuilder::new().optional_field("VPC", value).build();
         assert_eq!(lines.len(), 1);
         // Should show "-" for None
     }

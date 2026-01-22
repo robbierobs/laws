@@ -4,6 +4,8 @@
 
 #![allow(clippy::too_many_arguments)]
 
+use super::helpers::centered_rect_fixed;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -11,8 +13,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
-use crate::ui::theme::THEME;
-use super::helpers::centered_rect_fixed;
 
 /// Render the ECS service editor modal for modifying task definition, CPU, and memory
 pub fn render(

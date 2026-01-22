@@ -4,6 +4,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::Rect,
     style::Style,
@@ -11,7 +12,6 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
     Frame,
 };
-use crate::ui::theme::THEME;
 
 /// Configuration for rendering a detail panel
 pub struct DetailPanelConfig<'a> {
@@ -71,45 +71,54 @@ pub fn render_detail_panel(
     let total_lines = content.len();
     let visible_height = area.height.saturating_sub(2) as usize; // Account for borders
     let scroll_offset = config.scroll_offset as usize;
-    
+
     // Determine if we need to show scroll indicator
     let can_scroll = total_lines > visible_height;
     let scroll_info = if can_scroll {
-        format!(" [{}/{}] ", 
-            scroll_offset.min(total_lines.saturating_sub(visible_height)) + 1, 
+        format!(
+            " [{}/{}] ",
+            scroll_offset.min(total_lines.saturating_sub(visible_height)) + 1,
             total_lines.saturating_sub(visible_height).max(1)
         )
     } else {
         String::new()
     };
-    
+
     // Build title with scroll info and keyboard hints
     let title = if config.is_fullscreen {
-        format!("{} (Fullscreen){} [D: exit, PgUp/PgDn: scroll]", config.title, scroll_info)
+        format!(
+            "{} (Fullscreen){} [D: exit, PgUp/PgDn: scroll]",
+            config.title, scroll_info
+        )
     } else if can_scroll {
-        format!("{}{} [D: fullscreen, PgUp/PgDn: scroll]", config.title, scroll_info)
+        format!(
+            "{}{} [D: fullscreen, PgUp/PgDn: scroll]",
+            config.title, scroll_info
+        )
     } else {
         format!("{} [D: fullscreen]", config.title)
     };
 
     let paragraph = Paragraph::new(content)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(title)
-            .title_style(Style::default().fg(THEME.primary))
-            .border_style(Style::default().fg(THEME.border)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(title)
+                .title_style(Style::default().fg(THEME.primary))
+                .border_style(Style::default().fg(THEME.border)),
+        )
         .scroll((config.scroll_offset, 0));
-    
+
     frame.render_widget(paragraph, area);
-    
+
     // Render scrollbar if content overflows
     if can_scroll {
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("▲"))
             .end_symbol(Some("▼"));
         let max_scroll = total_lines.saturating_sub(visible_height);
-        let mut scrollbar_state = ScrollbarState::new(max_scroll)
-            .position(scroll_offset.min(max_scroll));
+        let mut scrollbar_state =
+            ScrollbarState::new(max_scroll).position(scroll_offset.min(max_scroll));
         frame.render_stateful_widget(scrollbar, area, &mut scrollbar_state);
     }
 }

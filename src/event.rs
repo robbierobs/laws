@@ -348,7 +348,14 @@ mod tests {
             let _ = tx.send(Event::Tick).await;
         }
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        // Poll queue depth until it reflects the sent events (or timeout)
+        for _ in 0..10 {
+            if handler.is_near_capacity() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        
         assert!(handler.is_near_capacity());
     }
 
@@ -366,11 +373,18 @@ mod tests {
         let tx_clone = tx.clone();
         let send_future = tokio::spawn(async move { tx_clone.send(Event::Tick).await });
 
-        // Give it a bit of time to block
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        // Poll with timeout to check if task blocks
+        let mut is_blocked = false;
+        for _ in 0..5 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            if !send_future.is_finished() {
+                is_blocked = true;
+                break;
+            }
+        }
 
         // Task should still be pending (not completed)
-        assert!(!send_future.is_finished());
+        assert!(is_blocked, "Send should block when channel is full");
     }
 
     #[tokio::test]

@@ -3,6 +3,10 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::if_same_then_else)] // Scroll offset calculations intentionally follow same pattern
 
+use super::helpers::centered_rect;
+use crate::app::global_search::SearchResult;
+use crate::app::Service;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -10,10 +14,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
-use crate::app::global_search::SearchResult;
-use crate::app::Service;
-use crate::ui::theme::THEME;
-use super::helpers::centered_rect;
 
 /// Render the global search modal for searching all resources
 pub fn render(

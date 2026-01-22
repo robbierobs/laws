@@ -1,12 +1,12 @@
-use ratatui::{
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
-    style::{Style, Modifier},
-    layout::{Rect, Layout, Direction, Constraint},
-    Frame,
-};
-use crossterm::event::{KeyCode, KeyEvent};
 use crate::app::{Message, Service};
 use crate::ui::components::Component;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    Frame,
+};
 
 pub struct Sidebar {
     /// All available services
@@ -41,7 +41,7 @@ impl Sidebar {
     /// Rebuild the filtered indices based on current filter text
     fn rebuild_filter(&mut self) {
         self.filtered_indices.clear();
-        
+
         if self.filter.is_empty() {
             // No filter - include all indices
             self.filtered_indices = (0..self.items.len()).collect();
@@ -53,7 +53,7 @@ impl Sidebar {
                 }
             }
         }
-        
+
         // Adjust selection if it's now out of bounds
         if let Some(selected) = self.state.selected() {
             if selected >= self.filtered_indices.len() {
@@ -78,7 +78,7 @@ impl Sidebar {
         if self.filtered_indices.is_empty() {
             return;
         }
-        
+
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= self.filtered_indices.len() - 1 {
@@ -96,7 +96,7 @@ impl Sidebar {
         if self.filtered_indices.is_empty() {
             return;
         }
-        
+
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -109,7 +109,7 @@ impl Sidebar {
         };
         self.state.select(Some(i));
     }
-    
+
     /// Get the currently selected service from the filtered list
     pub fn selected_service(&self) -> Option<Service> {
         self.state
@@ -159,7 +159,7 @@ impl Component for Sidebar {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         // Split area for filter input at bottom when filter is active or has text
         let show_filter = self.filter_active || !self.filter.is_empty();
-        
+
         let chunks = if show_filter {
             Layout::default()
                 .direction(Direction::Vertical)
@@ -174,16 +174,14 @@ impl Component for Sidebar {
                 .constraints([Constraint::Min(3)])
                 .split(area)
         };
-        
+
         let list_area = chunks[0];
 
         // Build list items from filtered services
         let filtered_services = self.filtered_services();
         let items: Vec<ListItem> = filtered_services
             .iter()
-            .map(|service| {
-                ListItem::new(service.as_str())
-            })
+            .map(|service| ListItem::new(service.as_str()))
             .collect();
 
         // Highlight style
@@ -195,14 +193,18 @@ impl Component for Sidebar {
         let title = if self.filter.is_empty() {
             "Services".to_string()
         } else {
-            format!("Services ({}/{})", self.filtered_indices.len(), self.items.len())
+            format!(
+                "Services ({}/{})",
+                self.filtered_indices.len(),
+                self.items.len()
+            )
         };
 
         let block = Block::default()
             .borders(Borders::ALL)
             .title(title)
             .title_style(Style::default().fg(THEME.primary));
-            
+
         let block = if self.is_focused && !self.filter_active {
             block.border_style(Style::default().fg(THEME.secondary))
         } else {
@@ -220,22 +222,26 @@ impl Component for Sidebar {
         if show_filter {
             let filter_area = chunks[1];
             let filter_text = format!("/{}", self.filter);
-            
+
             let filter_block = Block::default()
                 .borders(Borders::ALL)
                 .title("Filter")
                 .title_style(Style::default().fg(THEME.primary));
-            
+
             let filter_block = if self.filter_active {
                 filter_block.border_style(Style::default().fg(THEME.secondary))
             } else {
                 filter_block.border_style(Style::default().fg(THEME.border))
             };
-            
+
             let filter_paragraph = Paragraph::new(filter_text)
-                .style(Style::default().fg(if self.filter_active { THEME.fg } else { THEME.muted }))
+                .style(Style::default().fg(if self.filter_active {
+                    THEME.fg
+                } else {
+                    THEME.muted
+                }))
                 .block(filter_block);
-            
+
             frame.render_widget(filter_paragraph, filter_area);
         }
     }
@@ -284,9 +290,7 @@ impl Component for Sidebar {
                 self.previous();
                 None
             }
-            KeyCode::Enter => {
-                self.selected_service().map(Message::navigate)
-            }
+            KeyCode::Enter => self.selected_service().map(Message::navigate),
             KeyCode::Esc => {
                 // Clear filter if it exists
                 if !self.filter.is_empty() {

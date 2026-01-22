@@ -1,5 +1,7 @@
 //! S3 bucket creation modal
 
+use super::helpers::centered_rect_fixed;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -7,8 +9,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
-use crate::ui::theme::THEME;
-use super::helpers::centered_rect_fixed;
 
 /// Render a modal for S3 bucket creation
 pub fn render_bucket_creation(frame: &mut Frame, area: Rect, bucket_name: &str) {

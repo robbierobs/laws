@@ -1,3 +1,4 @@
+use crate::app::{App, Service, ViewMode};
 use ratatui::{
     layout::Rect,
     style::Style,
@@ -5,7 +6,6 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
-use crate::app::{App, Service, ViewMode};
 
 use crate::ui::theme::THEME;
 
@@ -38,10 +38,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                     ("Esc", "Back"),
                 ]);
             } else {
-                actions.extend_from_slice(&[
-                    ("j/k", "Navigate"),
-                    ("Enter", "Browse"),
-                ]);
+                actions.extend_from_slice(&[("j/k", "Navigate"), ("Enter", "Browse")]);
             }
         }
         Service::RDS => {
@@ -54,23 +51,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             ]);
         }
         Service::DynamoDB => {
-            actions.extend_from_slice(&[
-                ("j/k", "Navigate"),
-                ("Enter", "Drill Down"),
-            ]);
+            actions.extend_from_slice(&[("j/k", "Navigate"), ("Enter", "Drill Down")]);
             if app.services.dynamodb.is_viewing_items() {
-                actions.extend_from_slice(&[
-                    ("X", "Delete"),
-                    ("Esc", "Back"),
-                ]);
+                actions.extend_from_slice(&[("X", "Delete"), ("Esc", "Back")]);
             }
         }
         Service::Lambda => {
-            actions.extend_from_slice(&[
-                ("j/k", "Navigate"),
-                ("I", "Invoke"),
-                ("X", "Delete"),
-            ]);
+            actions.extend_from_slice(&[("j/k", "Navigate"), ("I", "Invoke"), ("X", "Delete")]);
         }
         Service::VPC => {
             actions.extend_from_slice(&[
@@ -79,7 +66,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("Enter", "Drill Down"),
             ]);
             if app.services.vpc.view_mode == crate::app::VpcViewMode::SecurityGroups {
-                 actions.extend_from_slice(&[("X", "Delete")]);
+                actions.extend_from_slice(&[("X", "Delete")]);
             }
             actions.extend_from_slice(&[("Esc", "Back")]);
         }
@@ -90,38 +77,26 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 ("Enter", "Drill Down"),
             ]);
             if app.services.iam.view_mode.is_main_tab() {
-                 actions.extend_from_slice(&[("X", "Delete")]);
+                actions.extend_from_slice(&[("X", "Delete")]);
             }
             actions.extend_from_slice(&[("Esc", "Back")]);
         }
         Service::Backup => {
-            actions.extend_from_slice(&[
-                ("j/k", "Navigate"),
-                ("v", "View"),
-            ]);
+            actions.extend_from_slice(&[("j/k", "Navigate"), ("v", "View")]);
         }
         Service::CloudTrail => {
-            actions.extend_from_slice(&[
-                ("j/k", "Navigate"),
-                ("v", "View"),
-            ]);
+            actions.extend_from_slice(&[("j/k", "Navigate"), ("v", "View")]);
         }
         Service::SecretsManager => {
-            actions.extend_from_slice(&[
-                ("j/k", "Navigate"),
-                ("s", "Get Value"),
-                ("X", "Delete"),
-            ]);
+            actions.extend_from_slice(&[("j/k", "Navigate"), ("s", "Get Value"), ("X", "Delete")]);
         }
         Service::ECS => {
             use crate::app::EcsViewMode;
             actions.extend_from_slice(&[("j/k", "Navigate")]);
-            
+
             match app.services.ecs.view_mode {
                 EcsViewMode::Clusters => {
-                    actions.extend_from_slice(&[
-                        ("Enter", "Services"),
-                    ]);
+                    actions.extend_from_slice(&[("Enter", "Services")]);
                 }
                 EcsViewMode::Services => {
                     actions.extend_from_slice(&[
@@ -135,11 +110,7 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                     ]);
                 }
                 EcsViewMode::Tasks => {
-                    actions.extend_from_slice(&[
-                        ("t", "Task Def"),
-                        ("S", "Stop"),
-                        ("Esc", "Back"),
-                    ]);
+                    actions.extend_from_slice(&[("t", "Task Def"), ("S", "Stop"), ("Esc", "Back")]);
                 }
                 EcsViewMode::TaskDefinition => {
                     actions.extend_from_slice(&[
@@ -156,16 +127,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             actions.extend_from_slice(&[("j/k", "Navigate")]);
             match app.services.ecr.view_mode {
                 EcrViewMode::Repositories => {
-                    actions.extend_from_slice(&[
-                        ("Enter", "View Images"),
-                    ]);
+                    actions.extend_from_slice(&[("Enter", "View Images")]);
                 }
                 EcrViewMode::Images => {
-                    actions.extend_from_slice(&[
-                        ("p", "Pull"),
-                        ("s", "Sort"),
-                        ("F", "Filter"),
-                    ]);
+                    actions.extend_from_slice(&[("p", "Pull"), ("s", "Sort"), ("F", "Filter")]);
                     if app.services.ecr.images.has_more {
                         actions.push(("L", "More"));
                     }
@@ -178,20 +143,13 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
             actions.extend_from_slice(&[("j/k", "Navigate")]);
             match app.services.budgets.view_mode {
                 BudgetsViewMode::Budgets => {
-                    actions.extend_from_slice(&[
-                        ("Enter", "Alerts"),
-                        ("v", "View"),
-                    ]);
+                    actions.extend_from_slice(&[("Enter", "Alerts"), ("v", "View")]);
                 }
                 BudgetsViewMode::Notifications => {
-                    actions.extend_from_slice(&[
-                        ("Esc", "Back"),
-                    ]);
+                    actions.extend_from_slice(&[("Esc", "Back")]);
                 }
                 BudgetsViewMode::BillingViews => {
-                    actions.extend_from_slice(&[
-                        ("v", "View"),
-                    ]);
+                    actions.extend_from_slice(&[("v", "View")]);
                 }
             }
         }
@@ -201,7 +159,10 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
         .iter()
         .flat_map(|(key, desc)| {
             vec![
-                Span::styled(format!(" {} ", key), Style::default().bg(THEME.selection_bg).fg(THEME.primary)),
+                Span::styled(
+                    format!(" {} ", key),
+                    Style::default().bg(THEME.selection_bg).fg(THEME.primary),
+                ),
                 Span::styled(format!(" {} ", desc), Style::default().fg(THEME.fg)),
             ]
         })
@@ -221,20 +182,31 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     // Color the title based on last action type
-    let title_style = if app.action_log.last().map(|s| s.contains("[ERROR]")).unwrap_or(false) {
+    let title_style = if app
+        .action_log
+        .last()
+        .map(|s| s.contains("[ERROR]"))
+        .unwrap_or(false)
+    {
         Style::default().fg(THEME.error)
-    } else if app.action_log.last().map(|s| s.contains("[SUCCESS]")).unwrap_or(false) {
+    } else if app
+        .action_log
+        .last()
+        .map(|s| s.contains("[SUCCESS]"))
+        .unwrap_or(false)
+    {
         Style::default().fg(THEME.success)
     } else {
         Style::default().fg(THEME.secondary)
     };
 
-    let p = Paragraph::new(Line::from(spans))
-        .block(Block::default()
+    let p = Paragraph::new(Line::from(spans)).block(
+        Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(THEME.border))
             .title(title)
-            .title_style(title_style));
+            .title_style(title_style),
+    );
 
     frame.render_widget(p, area);
 }

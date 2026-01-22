@@ -2,6 +2,10 @@
 
 #![allow(clippy::too_many_arguments)]
 
+use super::helpers::{centered_rect, format_hex_dump, get_syntax_style};
+use crate::app::states::s3::ViewerMode;
+use crate::ui::theme::THEME;
+use ratatui::style::Modifier;
 use ratatui::{
     layout::Rect,
     style::Style,
@@ -9,10 +13,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
-use ratatui::style::Modifier;
-use crate::app::states::s3::ViewerMode;
-use crate::ui::theme::THEME;
-use super::helpers::{centered_rect, format_hex_dump, get_syntax_style};
 
 /// Render a modal to display S3 object content with text/hex view toggle
 pub fn render(

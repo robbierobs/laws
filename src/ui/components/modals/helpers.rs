@@ -2,9 +2,9 @@
 //!
 //! Provides centering utilities and formatting helpers used across all modals.
 
+use crate::ui::theme::THEME;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
-use crate::ui::theme::THEME;
 
 /// Create a centered rect using percentage-based sizing
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {

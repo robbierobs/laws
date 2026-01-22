@@ -5,6 +5,9 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::vec_init_then_push)] // Readable line-by-line building
 
+use super::helpers::centered_rect;
+use crate::models::ecs::EcsTaskDefinition;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -12,9 +15,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
-use crate::models::ecs::EcsTaskDefinition;
-use crate::ui::theme::THEME;
-use super::helpers::centered_rect;
 
 /// Render the ECS task definition selector modal with list and detail panes
 pub fn render(
@@ -109,7 +109,13 @@ pub fn render(
     render_task_list(frame, content_chunks[0], task_defs, selected_index, loading);
 
     // Render details pane
-    render_detail_pane(frame, content_chunks[1], task_defs, selected_index, detail_scroll);
+    render_detail_pane(
+        frame,
+        content_chunks[1],
+        task_defs,
+        selected_index,
+        detail_scroll,
+    );
 
     // Force deploy toggle
     let checkbox = if force_deploy { "[✓]" } else { "[ ]" };

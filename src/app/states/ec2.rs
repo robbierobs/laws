@@ -150,3 +150,50 @@ impl ServiceInternal for Ec2State {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ec2_state_new() {
+        let state = Ec2State::new();
+        assert!(state.instances.is_empty());
+        assert_eq!(state.list_state.selected(), None);
+    }
+
+    #[test]
+    fn test_ec2_state_selection_empty() {
+        let state = Ec2State::new();
+        assert_eq!(state.selected_instance(), None);
+        assert_eq!(state.selected_instance_id(), None);
+    }
+
+    #[test]
+    fn test_ec2_state_clear_removes_instances() {
+        let mut state = Ec2State::new();
+        state.instances.push(crate::models::ec2::Ec2Instance {
+            instance_id: "i-test".to_string(),
+            name: None,
+            state: crate::models::ec2::InstanceState::Running,
+            instance_type: "t2.micro".to_string(),
+            public_ip: None,
+            private_ip: None,
+            launch_time: None,
+            subnet_id: None,
+            vpc_id: None,
+            security_groups: vec![],
+            availability_zone: None,
+            platform: None,
+            architecture: None,
+            ami_id: None,
+            key_name: None,
+            monitoring_state: None,
+            tags: vec![],
+        });
+        
+        assert_eq!(state.instances.len(), 1);
+        state.clear();
+        assert_eq!(state.instances.len(), 0);
+    }
+}

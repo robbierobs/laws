@@ -5,6 +5,8 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::if_same_then_else)] // Scroll offset calculations intentionally follow same pattern
 
+use super::helpers::centered_rect;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -12,8 +14,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
-use crate::ui::theme::THEME;
-use super::helpers::centered_rect;
 
 /// Render the profile switcher modal with scrollbar and filter support
 pub fn render_profile_switcher(

@@ -31,6 +31,8 @@ pub use global_search::render as render_global_search_modal;
 #[allow(unused_imports)]
 pub use helpers::{centered_rect, centered_rect_fixed};
 pub use object_viewer::render as render_object_viewer_modal;
-pub use profile_switcher::{render_profile_switcher as render_profile_switcher_modal, render_region_switcher as render_region_switcher_modal};
+pub use profile_switcher::{
+    render_profile_switcher as render_profile_switcher_modal,
+    render_region_switcher as render_region_switcher_modal,
+};
 pub use s3::render_bucket_creation as render_s3_bucket_creation_modal;
-

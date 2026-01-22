@@ -1,5 +1,7 @@
 //! Confirmation modal for destructive actions
 
+use super::helpers::centered_rect_fixed;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -7,8 +9,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
-use crate::ui::theme::THEME;
-use super::helpers::centered_rect_fixed;
 
 /// Render a confirmation modal for destructive actions
 pub fn render(frame: &mut Frame, area: Rect, action_description: &str) {

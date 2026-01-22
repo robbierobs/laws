@@ -1,13 +1,13 @@
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
     Frame,
 };
-use crate::ui::theme::THEME;
 
 /// Generic helper to render a consistent table across all services.
-/// 
+///
 /// # Arguments
 /// * `frame` - The frame to render to
 /// * `area` - The area to render the table in
@@ -34,7 +34,7 @@ pub fn render_table<'a, I>(
     let header_cells = header_labels
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(THEME.primary)));
-    
+
     let header = Row::new(header_cells)
         .style(Style::default().add_modifier(Modifier::BOLD))
         .height(1)
@@ -59,7 +59,7 @@ pub fn render_table<'a, I>(
             Style::default()
                 .bg(THEME.selection_bg)
                 .fg(THEME.selection_fg)
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD),
         );
 
     // Render the table with state

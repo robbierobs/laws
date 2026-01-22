@@ -1,12 +1,15 @@
+use crate::app::App;
+use crate::ui::theme::THEME;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
+    widgets::{
+        Block, Borders, Clear, List, ListItem, ListState, Paragraph, Scrollbar,
+        ScrollbarOrientation, ScrollbarState, Wrap,
+    },
     Frame,
 };
-use crate::app::App;
-use crate::ui::theme::THEME;
 
 /// Render action log as a centered popup with list and details pane
 pub fn render_popup(frame: &mut Frame, area: Rect, app: &mut App) {
@@ -18,10 +21,7 @@ pub fn render_popup(frame: &mut Frame, area: Rect, app: &mut App) {
     // Split into list (left) and details (right)
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(40),
-            Constraint::Percentage(60),
-        ])
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(popup_area);
 
     let list_area = chunks[0];
@@ -43,8 +43,10 @@ fn render_log_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // Show logs in reverse order (newest first)
     let logs: Vec<&String> = app.action_log.iter().rev().collect();
-    
-    let items: Vec<ListItem> = logs.iter().enumerate()
+
+    let items: Vec<ListItem> = logs
+        .iter()
+        .enumerate()
         .map(|(i, msg)| {
             let is_selected = i == app.action_log_selected_index;
             let base_style = if msg.contains("[ERROR]") {
@@ -54,20 +56,22 @@ fn render_log_list(frame: &mut Frame, area: Rect, app: &mut App) {
             } else {
                 Style::default().fg(THEME.fg)
             };
-            
+
             let style = if is_selected {
-                base_style.add_modifier(Modifier::BOLD).bg(THEME.selection_bg)
+                base_style
+                    .add_modifier(Modifier::BOLD)
+                    .bg(THEME.selection_bg)
             } else {
                 base_style
             };
-            
+
             // Truncate message for list display
             let display = if msg.len() > 50 {
                 format!("{}...", &msg[..47])
             } else {
                 msg.to_string()
             };
-            
+
             ListItem::new(display).style(style)
         })
         .collect();
@@ -84,9 +88,13 @@ fn render_log_list(frame: &mut Frame, area: Rect, app: &mut App) {
 
 fn render_log_details(frame: &mut Frame, area: Rect, app: &mut App) {
     let logs: Vec<&String> = app.action_log.iter().rev().collect();
-    
+
     let (title, content, style) = if logs.is_empty() {
-        ("Details".to_string(), "No log entries".to_string(), Style::default().fg(THEME.muted))
+        (
+            "Details".to_string(),
+            "No log entries".to_string(),
+            Style::default().fg(THEME.muted),
+        )
     } else if let Some(msg) = logs.get(app.action_log_selected_index) {
         let entry_style = if msg.contains("[ERROR]") {
             Style::default().fg(THEME.error)
@@ -96,12 +104,20 @@ fn render_log_details(frame: &mut Frame, area: Rect, app: &mut App) {
             Style::default().fg(THEME.fg)
         };
         (
-            format!(" Details ({}/{}) ", app.action_log_selected_index + 1, logs.len()),
+            format!(
+                " Details ({}/{}) ",
+                app.action_log_selected_index + 1,
+                logs.len()
+            ),
             msg.to_string(),
             entry_style,
         )
     } else {
-        ("Details".to_string(), "No entry selected".to_string(), Style::default().fg(THEME.muted))
+        (
+            "Details".to_string(),
+            "No entry selected".to_string(),
+            Style::default().fg(THEME.muted),
+        )
     };
 
     let block = Block::default()
@@ -113,7 +129,7 @@ fn render_log_details(frame: &mut Frame, area: Rect, app: &mut App) {
     // Calculate visible area
     let inner_area = block.inner(area);
     let visible_height = inner_area.height as usize;
-    
+
     // Split content into lines for scrolling
     let content_lines: Vec<Line> = content
         .lines()
@@ -123,7 +139,7 @@ fn render_log_details(frame: &mut Frame, area: Rect, app: &mut App) {
                 let words: Vec<&str> = line.split_whitespace().collect();
                 let mut wrapped_lines = Vec::new();
                 let mut current_line = String::new();
-                
+
                 for word in words {
                     if current_line.is_empty() {
                         current_line = word.to_string();
@@ -148,7 +164,7 @@ fn render_log_details(frame: &mut Frame, area: Rect, app: &mut App) {
     let total_lines = content_lines.len();
     let max_scroll = total_lines.saturating_sub(visible_height);
     let scroll_offset = (app.action_log_detail_scroll as usize).min(max_scroll);
-    
+
     // Update scroll offset if it was clamped
     if scroll_offset != app.action_log_detail_scroll as usize {
         app.action_log_detail_scroll = scroll_offset as u16;
