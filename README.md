@@ -4,7 +4,11 @@ A keyboard-driven TUI for AWS. Think [lazygit](https://github.com/jesseduffield/
 
 Built with Rust + Ratatui. Vim-style navigation. Fully async.
 
-![laws demo](https://github.com/user-attachments/assets/placeholder.gif)
+Screenshots:
+
+![Global search](assets/global-search.png)
+![Filter results](assets/filter.png)
+![CloudTrail view](assets/cloudtrail.png)
 
 ---
 
@@ -21,6 +25,7 @@ Built with Rust + Ratatui. Vim-style navigation. Fully async.
 `laws` is a terminal-based interface for managing your AWS resources without leaving the command line. If you're tired of clicking through the AWS Console or juggling `aws-cli` commands, this might be for you.
 
 **What you can do:**
+
 - Browse and manage EC2 instances, S3 buckets, RDS databases, Lambda functions, and more
 - Start, stop, reboot, and delete resources (with confirmation prompts, I'm not a monster)
 - View and edit S3 objects directly
@@ -38,7 +43,7 @@ EC2 • S3 • RDS • DynamoDB • Lambda • VPC • IAM • ECS • ECR • B
 
 You'll need Rust 1.75+ installed.
 
-```bash
+```/dev/null/install.sh#L1-8
 # Clone and build
 git clone https://github.com/yourusername/laws.git
 cd laws
@@ -50,7 +55,7 @@ cargo build --release
 
 Or if you just want to try it:
 
-```bash
+```/dev/null/cargo_run.sh#L1-1
 cargo run --release
 ```
 
@@ -58,7 +63,7 @@ cargo run --release
 
 ## Usage
 
-```bash
+```/dev/null/usage.sh#L1-6
 laws                                    # Opens profile switcher on first run
 laws -p prod                            # Use a specific AWS profile
 laws -p prod -r eu-west-1               # Specify region too
@@ -74,38 +79,38 @@ Everything is keyboard-driven. If you've used Vim or lazygit, you'll feel right 
 
 ### Navigation
 
-| Key | Action |
-|-----|--------|
-| `j` / `k` | Move down / up |
-| `g` / `G` | Jump to top / bottom |
-| `Enter` | Drill into selection |
-| `Esc` / `Backspace` | Go back |
-| `Tab` | Toggle focus: sidebar ↔ main panel |
-| `1-9` | Jump directly to service (by position) |
-| `/` | Filter current list / Global search |
-| `?` | Search by tags |
+| Key                 | Action                                 |
+| ------------------- | -------------------------------------- |
+| `j` / `k`           | Move down / up                         |
+| `g` / `G`           | Jump to top / bottom                   |
+| `Enter`             | Drill into selection                   |
+| `Esc` / `Backspace` | Go back                                |
+| `Tab`               | Toggle focus: sidebar ↔ main panel    |
+| `1-9`               | Jump directly to service (by position) |
+| `/`                 | Filter current list / Global search    |
+| `?`                 | Search by tags                         |
 
 ### Actions
 
-| Key | Action |
-|-----|--------|
-| `s` / `S` | Start / Stop resource |
-| `R` | Reboot |
-| `x` | Delete (don't worry, it asks first) |
-| `y` | Copy selection to clipboard |
-| `e` | Edit (S3 objects, ECS task definitions) |
-| `i` | Invoke (Lambda functions) |
+| Key       | Action                                  |
+| --------- | --------------------------------------- |
+| `s` / `S` | Start / Stop resource                   |
+| `R`       | Reboot                                  |
+| `x`       | Delete (don't worry, it asks first)     |
+| `y`       | Copy selection to clipboard             |
+| `e`       | Edit (S3 objects, ECS task definitions) |
+| `i`       | Invoke (Lambda functions)               |
 
 ### Views & Navigation
 
-| Key | Action |
-|-----|--------|
-| `d` / `D` | Toggle detail panel / Fullscreen detail |
-| `v` or `h` / `l` | Cycle through views/tabs |
-| `P` | Open profile & region switcher |
-| `A` | Toggle action log |
-| `r` | Refresh current view |
-| `q` | Quit |
+| Key              | Action                                  |
+| ---------------- | --------------------------------------- |
+| `d` / `D`        | Toggle detail panel / Fullscreen detail |
+| `v` or `h` / `l` | Cycle through views/tabs                |
+| `P`              | Open profile & region switcher          |
+| `A`              | Toggle action log                       |
+| `r`              | Refresh current view                    |
+| `q`              | Quit                                    |
 
 ---
 
@@ -113,7 +118,7 @@ Everything is keyboard-driven. If you've used Vim or lazygit, you'll feel right 
 
 Config lives at `~/.config/laws/config.toml`:
 
-```toml
+```/dev/null/config.toml#L1-4
 theme = "dark"          # dark, light, monokai, nord
 tick_rate_ms = 250      # UI refresh rate
 api_timeout_secs = 30   # AWS API timeout
@@ -125,7 +130,7 @@ api_timeout_secs = 30   # AWS API timeout
 
 Hybrid TEA (The Elm Architecture) + Component pattern. About ~25k lines of Rust.
 
-```
+```/dev/null/architecture.txt#L1-16
 src/
 ├── app/     # State management, messages, input handling, update logic
 ├── aws/     # AWS SDK wrappers
