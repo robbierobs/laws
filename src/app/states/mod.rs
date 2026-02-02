@@ -1,34 +1,35 @@
-pub mod ec2;
-pub mod s3;
-pub mod rds;
-pub mod dynamodb;
-pub mod lambda;
-pub mod vpc;
-pub mod iam;
 pub mod backup;
-pub mod cloudtrail;
-pub mod secretsmanager;
-pub mod ecs;
-pub mod ecr;
 pub mod budgets;
+pub mod cloudtrail;
+pub mod dynamodb;
+pub mod ec2;
+pub mod ecr;
+pub mod ecs;
+pub mod iam;
+pub mod lambda;
+pub mod rds;
+pub mod s3;
+pub mod secretsmanager;
+pub mod sqs;
 pub mod traits;
+pub mod vpc;
 
 pub use self::traits::ServiceInternal;
 
-
-use self::ec2::Ec2State;
-use self::s3::S3State;
-use self::rds::RdsState;
-use self::dynamodb::DynamoDbState;
-use self::lambda::LambdaState;
-use self::vpc::VpcState;
-use self::iam::IamState;
 use self::backup::BackupState;
-use self::cloudtrail::CloudTrailState;
-use self::secretsmanager::SecretsManagerState;
-use self::ecs::EcsState;
-use self::ecr::EcrState;
 use self::budgets::BudgetsState;
+use self::cloudtrail::CloudTrailState;
+use self::dynamodb::DynamoDbState;
+use self::ec2::Ec2State;
+use self::ecr::EcrState;
+use self::ecs::EcsState;
+use self::iam::IamState;
+use self::lambda::LambdaState;
+use self::rds::RdsState;
+use self::s3::S3State;
+use self::secretsmanager::SecretsManagerState;
+use self::sqs::SqsState;
+use self::vpc::VpcState;
 
 /// Container for all service-specific states
 ///
@@ -49,6 +50,7 @@ pub struct ServiceStates {
     pub ecs: EcsState,
     pub ecr: EcrState,
     pub budgets: BudgetsState,
+    pub sqs: SqsState,
 }
 
 impl ServiceStates {
@@ -67,6 +69,7 @@ impl ServiceStates {
             ecs: EcsState::new(),
             ecr: EcrState::new(),
             budgets: BudgetsState::new(),
+            sqs: SqsState::new(),
         }
     }
 }
@@ -87,6 +90,7 @@ impl crate::app::global_search::Searchable for ServiceStates {
         results.extend(self.ecs.get_search_results());
         results.extend(self.ecr.get_search_results());
         results.extend(self.budgets.get_search_results());
+        results.extend(self.sqs.get_search_results());
         results
     }
 }
@@ -94,7 +98,11 @@ impl crate::app::global_search::Searchable for ServiceStates {
 impl ServiceStates {
     /// Select a resource by service and ID
     /// Returns true if the resource was found and selected
-    pub fn select_by_service_and_id(&mut self, service: crate::app::Service, resource_id: &str) -> bool {
+    pub fn select_by_service_and_id(
+        &mut self,
+        service: crate::app::Service,
+        resource_id: &str,
+    ) -> bool {
         self.get_mut(service).select_by_id(resource_id)
     }
 
@@ -121,6 +129,7 @@ impl ServiceStates {
             &mut self.ecs,
             &mut self.ecr,
             &mut self.budgets,
+            &mut self.sqs,
         ]
     }
 
@@ -143,6 +152,7 @@ impl ServiceStates {
             Service::ECS => &mut self.ecs,
             Service::ECR => &mut self.ecr,
             Service::Budgets => &mut self.budgets,
+            Service::SQS => &mut self.sqs,
         }
     }
 
@@ -164,6 +174,7 @@ impl ServiceStates {
             Service::ECS => &self.ecs,
             Service::ECR => &self.ecr,
             Service::Budgets => &self.budgets,
+            Service::SQS => &self.sqs,
         }
     }
 }

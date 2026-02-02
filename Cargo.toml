@@ -56,4 +56,4 @@ aws-sdk-ecs = "1.26.0"
 aws-sdk-ecr = "1.25.0"
 aws-sdk-billing = "1.46"
 aws-sdk-budgets = "1.99"
-
+aws-sdk-sqs = "1"

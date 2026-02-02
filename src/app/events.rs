@@ -23,7 +23,7 @@ impl App {
     pub fn handle_aws_event(&mut self, event: AwsEvent) {
         // Reset loading state for most events - saves repeating this 30+ times
         self.loading = false;
-        
+
         match event {
             AwsEvent::Ec2InstancesLoaded(instances) => {
                 self.services.ec2.instances = instances;
@@ -149,7 +149,11 @@ impl App {
                 self.loading = false;
                 self.update_global_search_for_event();
             }
-            AwsEvent::CloudTrailEventsLoaded { events, next_token, append } => {
+            AwsEvent::CloudTrailEventsLoaded {
+                events,
+                next_token,
+                append,
+            } => {
                 if append {
                     // Append to existing events (load more)
                     self.services.cloudtrail.events.append(events, next_token);
@@ -281,7 +285,11 @@ impl App {
                 self.loading = false;
                 self.update_global_search_for_event();
             }
-            AwsEvent::EcrImagesLoaded { images, next_token, append } => {
+            AwsEvent::EcrImagesLoaded {
+                images,
+                next_token,
+                append,
+            } => {
                 if append {
                     // Append to existing images (load more)
                     self.services.ecr.images.append(images, next_token);
@@ -306,7 +314,10 @@ impl App {
                 self.loading = false;
                 self.update_global_search_for_event();
             }
-            AwsEvent::BudgetNotificationsLoaded { budget_name, notifications } => {
+            AwsEvent::BudgetNotificationsLoaded {
+                budget_name,
+                notifications,
+            } => {
                 self.services.budgets.notifications = notifications;
                 self.services.budgets.selected_budget = Some(budget_name);
                 self.services.budgets.view_mode = crate::app::BudgetsViewMode::Notifications;
@@ -317,12 +328,17 @@ impl App {
                 self.services.budgets.billing_views = views;
                 self.loading = false;
             }
+            AwsEvent::SqsQueuesLoaded(queues) => {
+                self.services.sqs.queues = queues;
+                self.loading = false;
+                self.update_global_search_for_event();
+            }
             AwsEvent::ProfileRegionSwitched(data) => {
                 // Log SSO messages
                 for msg in data.sso_messages {
                     self.action_log.push(msg);
                 }
-                
+
                 // Apply the new clients and state
                 self.aws_clients = Some(data.clients);
                 self.profile = data.profile;
@@ -331,11 +347,16 @@ impl App {
                 self.profile_switcher.pending_read_only = data.read_only;
 
                 // Update profile/region indices
-                if let Some(idx) = self.profile_switcher.available_profiles.iter().position(|p| {
-                    self.profile
-                        .as_ref()
-                        .map_or(p == "default", |prof| p == prof)
-                }) {
+                if let Some(idx) = self
+                    .profile_switcher
+                    .available_profiles
+                    .iter()
+                    .position(|p| {
+                        self.profile
+                            .as_ref()
+                            .map_or(p == "default", |prof| p == prof)
+                    })
+                {
                     self.profile_switcher.profile_switcher_index = idx;
                 }
                 if let Some(idx) = self

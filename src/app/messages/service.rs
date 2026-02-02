@@ -19,6 +19,7 @@ pub enum Service {
     ECS,
     ECR,
     Budgets,
+    SQS,
 }
 
 impl Service {
@@ -37,6 +38,7 @@ impl Service {
             Service::ECS => "ECS",
             Service::ECR => "ECR",
             Service::Budgets => "Budgets",
+            Service::SQS => "SQS",
         }
     }
 
@@ -55,6 +57,7 @@ impl Service {
             Self::ECS,
             Self::ECR,
             Self::Budgets,
+            Self::SQS,
         ]
         .iter()
         .copied()

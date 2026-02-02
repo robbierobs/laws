@@ -14,6 +14,8 @@ pub enum Event {
 }
 
 use crate::models::backup::{BackupJob, BackupPlan, BackupVault, RecoveryPoint};
+use crate::models::billing::BillingView;
+use crate::models::budgets::{Budget, BudgetNotification};
 use crate::models::cloudtrail::{CloudTrailEvent, Trail};
 use crate::models::dynamodb::{DynamoDbItem, DynamoDbTable};
 use crate::models::ec2::Ec2Instance;
@@ -24,9 +26,8 @@ use crate::models::lambda::{LambdaFunction, LambdaFunctionDetails};
 use crate::models::rds::RdsInstance;
 use crate::models::s3::{S3Bucket, S3BucketDetails, S3Object};
 use crate::models::secretsmanager::Secret;
+use crate::models::sqs::SqsQueue;
 use crate::models::vpc::{SecurityGroup, Subnet, Vpc};
-use crate::models::budgets::{Budget, BudgetNotification};
-use crate::models::billing::BillingView;
 
 #[derive(Debug)]
 pub enum AwsEvent {
@@ -130,6 +131,8 @@ pub enum AwsEvent {
         notifications: Vec<BudgetNotification>,
     },
     BillingViewsLoaded(Vec<BillingView>),
+    // SQS events
+    SqsQueuesLoaded(Vec<SqsQueue>),
 }
 
 #[derive(Debug)]
@@ -355,7 +358,7 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        
+
         assert!(handler.is_near_capacity());
     }
 

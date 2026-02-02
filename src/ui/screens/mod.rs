@@ -7,14 +7,15 @@ pub mod budgets;
 pub mod cloudtrail;
 pub mod dynamodb;
 pub mod ec2;
+pub mod ecr;
 pub mod ecs;
 pub mod iam;
 pub mod lambda;
 pub mod rds;
 pub mod s3;
 pub mod secretsmanager;
+pub mod sqs;
 pub mod vpc;
-pub mod ecr;
 
 use crate::app::{App, Service};
 use crate::ui::Screen;
@@ -34,6 +35,7 @@ pub struct CloudTrailScreen;
 pub struct SecretsManagerScreen;
 pub struct EcsScreen;
 pub struct EcrScreen;
+pub struct SqsScreen;
 
 // Implement Screen trait for each service screen
 impl Screen for Ec2Screen {
@@ -210,6 +212,18 @@ impl Screen for EcrScreen {
     }
 }
 
+impl Screen for SqsScreen {
+    fn render(
+        &self,
+        frame: &mut Frame,
+        list_area: Option<Rect>,
+        detail_area: Option<Rect>,
+        app: &mut App,
+    ) {
+        sqs::render(frame, list_area, detail_area, app);
+    }
+}
+
 /// Get the screen implementation for the given service
 pub fn get_screen(service: Service) -> Box<dyn Screen> {
     match service {
@@ -226,5 +240,6 @@ pub fn get_screen(service: Service) -> Box<dyn Screen> {
         Service::SecretsManager => Box::new(SecretsManagerScreen),
         Service::ECS => Box::new(EcsScreen),
         Service::ECR => Box::new(EcrScreen),
+        Service::SQS => Box::new(SqsScreen),
     }
 }
