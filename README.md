@@ -45,7 +45,7 @@ You'll need Rust 1.75+ installed.
 
 ```/dev/null/install.sh#L1-8
 # Clone and build
-git clone https://github.com/yourusername/laws.git
+git clone https://github.com/robbierobs/laws.git
 cd laws
 cargo build --release
 
