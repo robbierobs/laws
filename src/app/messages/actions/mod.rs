@@ -22,7 +22,7 @@ pub use budgets::BudgetsAction;
 pub use cloudtrail::{CloudTrailAction, CloudTrailLookupParams};
 pub use dynamodb::DynamoDbAction;
 pub use ec2::Ec2Action;
-pub use ecr::EcrAction;
+pub use ecr::{EcrAction, ExportFormat};
 pub use ecs::EcsAction;
 pub use iam::IamAction;
 pub use lambda::LambdaAction;

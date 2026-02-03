@@ -2,6 +2,13 @@
 
 use super::super::confirmable::ConfirmableAction;
 
+/// Export format for scan findings
+#[derive(Debug, Clone, Copy)]
+pub enum ExportFormat {
+    Json,
+    Csv,
+}
+
 /// ECR-specific actions
 #[derive(Debug, Clone)]
 pub enum EcrAction {
@@ -19,6 +26,10 @@ pub enum EcrAction {
     LoadScanFindings {
         repository_name: String,
         image_digest: String,
+    },
+    /// Export scan findings to file
+    ExportScanFindings {
+        format: ExportFormat,
     },
     /// Open the filter modal
     OpenFilterModal,

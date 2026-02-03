@@ -27,7 +27,7 @@ pub use view_modes::{
 // Re-export action enums
 pub use actions::{
     BackupAction, BudgetsAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction,
-    Ec2Action, EcrAction, EcsAction, IamAction, LambdaAction, RdsAction, S3Action,
+    Ec2Action, EcrAction, EcsAction, ExportFormat, IamAction, LambdaAction, RdsAction, S3Action,
     SecretsManagerAction, SqsAction, VpcAction,
 };
 
@@ -612,6 +612,10 @@ impl Message {
             repository_name,
             image_digest,
         }))
+    }
+
+    pub fn ecr_export_scan_findings(format: ExportFormat) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::ExportScanFindings { format }))
     }
 
     // Budgets message constructors

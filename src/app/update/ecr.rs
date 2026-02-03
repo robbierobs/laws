@@ -1,3 +1,4 @@
+use crate::app::messages::ExportFormat;
 use crate::app::states::ecr::EcrImageFilters;
 use crate::app::task_manager::task_keys;
 use crate::app::{
@@ -80,6 +81,9 @@ impl App {
                 image_digest,
             } => {
                 self.load_ecr_scan_findings(repository_name, image_digest, event_tx);
+            }
+            EcrAction::ExportScanFindings { format } => {
+                self.export_ecr_scan_findings(format, event_tx);
             }
         }
     }
@@ -184,6 +188,111 @@ impl App {
             }
         });
         self.tasks.spawn(task_keys::ECR_SCAN_FINDINGS, handle);
+    }
+
+    /// Export scan findings to a file (JSON or CSV)
+    fn export_ecr_scan_findings(
+        &mut self,
+        format: ExportFormat,
+        event_tx: crate::app::EventSender,
+    ) {
+        let Some(findings) = &self.services.ecr.scan_findings else {
+            self.error_message = Some("No scan findings loaded. Press 'v' to load first.".into());
+            return;
+        };
+
+        let Some(digest) = &self.services.ecr.scan_findings_digest else {
+            return;
+        };
+
+        // Build filename
+        let short_digest = digest.chars().skip(7).take(12).collect::<String>();
+        let extension = match format {
+            ExportFormat::Json => "json",
+            ExportFormat::Csv => "csv",
+        };
+        let filename = format!(
+            "ecr_scan_{}_{}.{}",
+            short_digest,
+            chrono::Utc::now().format("%Y%m%d_%H%M%S"),
+            extension
+        );
+
+        // Get downloads directory or fall back to temp
+        let downloads_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+        let file_path = downloads_dir.join(&filename);
+
+        let content = match format {
+            ExportFormat::Json => match serde_json::to_string_pretty(findings) {
+                Ok(json) => json,
+                Err(e) => {
+                    self.error_message = Some(format!("Failed to serialize JSON: {}", e));
+                    return;
+                }
+            },
+            ExportFormat::Csv => {
+                let mut csv =
+                    String::from("severity,name,description,package,version,fixed_version\n");
+
+                // Enhanced findings
+                for f in &findings.enhanced_findings {
+                    let severity = f.severity.as_deref().unwrap_or("");
+                    let name = f.title.as_deref().unwrap_or("").replace('"', "\"\"");
+                    let desc = f
+                        .description
+                        .as_deref()
+                        .unwrap_or("")
+                        .replace('"', "\"\"")
+                        .chars()
+                        .take(200)
+                        .collect::<String>();
+                    let pkg = f.package_name.as_deref().unwrap_or("");
+                    let ver = f.package_version.as_deref().unwrap_or("");
+                    let fixed = f.fixed_version.as_deref().unwrap_or("");
+                    csv.push_str(&format!(
+                        "{},\"{}\",\"{}\",{},{},{}\n",
+                        severity, name, desc, pkg, ver, fixed
+                    ));
+                }
+
+                // Basic findings
+                for f in &findings.findings {
+                    let severity = f.severity.as_deref().unwrap_or("");
+                    let name = f.name.as_deref().unwrap_or("").replace('"', "\"\"");
+                    let desc = f
+                        .description
+                        .as_deref()
+                        .unwrap_or("")
+                        .replace('"', "\"\"")
+                        .chars()
+                        .take(200)
+                        .collect::<String>();
+                    csv.push_str(&format!("{},\"{}\",\"{}\",,,\n", severity, name, desc));
+                }
+
+                csv
+            }
+        };
+
+        let path_str = file_path.to_string_lossy().to_string();
+        let tx = event_tx.clone();
+
+        // Write synchronously since it's small
+        match std::fs::write(&file_path, content) {
+            Ok(_) => {
+                let path_clone = path_str.clone();
+                tokio::spawn(async move {
+                    tx.send(Event::Aws(Box::new(AwsEvent::EcrScanFindingsExported {
+                        path: path_clone,
+                    })))
+                    .await
+                    .ok();
+                });
+            }
+            Err(e) => {
+                self.error_message = Some(format!("Failed to write file: {}", e));
+            }
+        }
     }
 
     /// Pull an ECR image by:

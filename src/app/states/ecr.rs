@@ -394,6 +394,22 @@ impl ServiceInputHandler for EcrState {
                     ));
                 }
             }
+            // Export scan findings to JSON
+            KeyCode::Char('e')
+                if self.view_mode == EcrViewMode::Images && self.scan_findings.is_some() =>
+            {
+                return InputResult::Message(Message::ecr_export_scan_findings(
+                    crate::app::messages::ExportFormat::Json,
+                ));
+            }
+            // Export scan findings to CSV
+            KeyCode::Char('E')
+                if self.view_mode == EcrViewMode::Images && self.scan_findings.is_some() =>
+            {
+                return InputResult::Message(Message::ecr_export_scan_findings(
+                    crate::app::messages::ExportFormat::Csv,
+                ));
+            }
             _ => {}
         }
         InputResult::None

@@ -119,6 +119,10 @@ pub enum AwsEvent {
         image_digest: String,
         findings: crate::models::ecr::ImageScanFindings,
     },
+    /// ECR scan findings exported to file
+    EcrScanFindingsExported {
+        path: String,
+    },
     /// ECR image successfully pulled via docker
     EcrImagePulled {
         image_uri: String,

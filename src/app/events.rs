@@ -317,6 +317,10 @@ impl App {
                 self.services.ecr.scan_findings_digest = Some(image_digest);
                 self.services.ecr.scan_findings = Some(findings);
             }
+            AwsEvent::EcrScanFindingsExported { path } => {
+                self.action_log
+                    .push(format!("[SUCCESS] Exported scan findings to {}", path));
+            }
             AwsEvent::BudgetsLoaded(budgets) => {
                 self.services.budgets.budgets = budgets;
                 self.loading = false;
