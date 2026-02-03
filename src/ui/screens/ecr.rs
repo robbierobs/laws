@@ -357,74 +357,175 @@ fn render_image_details(frame: &mut Frame, area: Rect, app: &App) {
                 Style::default().fg(THEME.secondary),
             )]));
 
-            let status_str = img.scan_status.as_ref().and_then(|s| s.status.as_deref());
+            // Check if we have loaded detailed scan findings for this image
+            let has_loaded_findings = app
+                .services
+                .ecr
+                .scan_findings_digest
+                .as_ref()
+                .map(|d| d == &img.image_digest)
+                .unwrap_or(false);
 
-            match status_str {
-                None => {
-                    lines.push(Line::from("  No scan data available"));
-                }
-                Some(status) => {
-                    lines.push(Line::from(vec![
-                        Span::styled("  Status: ", Style::default().fg(THEME.primary)),
-                        Span::raw(status.to_string()),
-                    ]));
+            if app.services.ecr.scan_findings_loading {
+                lines.push(Line::from("  Loading scan findings..."));
+            } else if has_loaded_findings {
+                if let Some(findings) = &app.services.ecr.scan_findings {
+                    // Status
+                    if let Some(status) = &findings.status {
+                        lines.push(Line::from(vec![
+                            Span::styled("  Status: ", Style::default().fg(THEME.primary)),
+                            Span::raw(status.clone()),
+                        ]));
+                    }
+                    if let Some(completed) = &findings.scan_completed_at {
+                        lines.push(Line::from(vec![
+                            Span::styled("  Completed: ", Style::default().fg(THEME.primary)),
+                            Span::raw(completed.clone()),
+                        ]));
+                    }
 
-                    if let Some(summary) = &img.scan_findings_summary {
-                        if let Some(completed) = &summary.scan_completed_at {
-                            lines.push(Line::from(vec![
-                                Span::styled("  Completed: ", Style::default().fg(THEME.primary)),
-                                Span::raw(completed.clone()),
-                            ]));
-                        }
+                    // Severity counts
+                    if !findings.finding_severity_counts.is_empty() {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(vec![Span::styled(
+                            "  Vulnerability Counts:",
+                            Style::default().fg(THEME.primary),
+                        )]));
 
-                        if !summary.finding_severity_counts.is_empty() {
-                            lines.push(Line::from(""));
-                            lines.push(Line::from(vec![Span::styled(
-                                "  Vulnerabilities:",
-                                Style::default().fg(THEME.primary),
-                            )]));
+                        let severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATIONAL"];
+                        let mut has_vulns = false;
 
-                            let severities = [
-                                "CRITICAL",
-                                "HIGH",
-                                "MEDIUM",
-                                "LOW",
-                                "INFORMATIONAL",
-                                "UNDEFINED",
-                            ];
-                            let mut has_findings = false;
-
-                            for severity in severities {
-                                if let Some(&count) = summary.finding_severity_counts.get(severity)
-                                {
-                                    if count > 0 {
-                                        has_findings = true;
-                                        let color = match severity {
-                                            "CRITICAL" => THEME.error,
-                                            "HIGH" => THEME.warning,
-                                            "MEDIUM" => THEME.warning,
-                                            "LOW" => THEME.primary,
-                                            _ => THEME.secondary,
-                                        };
-                                        lines.push(Line::from(vec![
-                                            Span::raw("    "),
-                                            Span::styled(
-                                                format!("{}: ", severity),
-                                                Style::default().fg(color),
-                                            ),
-                                            Span::raw(count.to_string()),
-                                        ]));
-                                    }
+                        for severity in severities {
+                            if let Some(&count) = findings.finding_severity_counts.get(severity) {
+                                if count > 0 {
+                                    has_vulns = true;
+                                    let color = match severity {
+                                        "CRITICAL" => THEME.error,
+                                        "HIGH" => THEME.warning,
+                                        "MEDIUM" => THEME.warning,
+                                        "LOW" => THEME.primary,
+                                        _ => THEME.secondary,
+                                    };
+                                    lines.push(Line::from(vec![
+                                        Span::raw("    "),
+                                        Span::styled(
+                                            format!("{}: ", severity),
+                                            Style::default().fg(color),
+                                        ),
+                                        Span::raw(count.to_string()),
+                                    ]));
                                 }
                             }
+                        }
 
-                            if !has_findings {
-                                lines.push(Line::from(vec![Span::styled(
-                                    "    No vulnerabilities found",
-                                    Style::default().fg(THEME.success),
-                                )]));
+                        if !has_vulns {
+                            lines.push(Line::from(vec![Span::styled(
+                                "    No vulnerabilities found",
+                                Style::default().fg(THEME.success),
+                            )]));
+                        }
+                    }
+
+                    // Enhanced findings (from Inspector)
+                    if !findings.enhanced_findings.is_empty() {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(vec![Span::styled(
+                            format!(
+                                "  Enhanced Findings ({}):",
+                                findings.enhanced_findings.len()
+                            ),
+                            Style::default().fg(THEME.primary),
+                        )]));
+
+                        for (i, finding) in findings.enhanced_findings.iter().take(20).enumerate() {
+                            let severity = finding.severity.as_deref().unwrap_or("UNKNOWN");
+                            let color = match severity {
+                                "CRITICAL" => THEME.error,
+                                "HIGH" => THEME.warning,
+                                "MEDIUM" => THEME.warning,
+                                "LOW" => THEME.primary,
+                                _ => THEME.secondary,
+                            };
+                            let title = finding.title.as_deref().unwrap_or("Unknown vulnerability");
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("    {}. ", i + 1)),
+                                Span::styled(
+                                    format!("[{}] ", severity),
+                                    Style::default().fg(color),
+                                ),
+                                Span::raw(title.chars().take(60).collect::<String>()),
+                            ]));
+                            if let Some(pkg) = &finding.package_name {
+                                let ver = finding.package_version.as_deref().unwrap_or("?");
+                                let fixed = finding
+                                    .fixed_version
+                                    .as_deref()
+                                    .map(|v| format!(" -> {}", v))
+                                    .unwrap_or_default();
+                                lines.push(Line::from(format!(
+                                    "       Package: {}@{}{}",
+                                    pkg, ver, fixed
+                                )));
                             }
                         }
+                        if findings.enhanced_findings.len() > 20 {
+                            lines.push(Line::from(format!(
+                                "    ... and {} more",
+                                findings.enhanced_findings.len() - 20
+                            )));
+                        }
+                    }
+
+                    // Basic findings
+                    if !findings.findings.is_empty() && findings.enhanced_findings.is_empty() {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(vec![Span::styled(
+                            format!("  Findings ({}):", findings.findings.len()),
+                            Style::default().fg(THEME.primary),
+                        )]));
+
+                        for (i, finding) in findings.findings.iter().take(20).enumerate() {
+                            let severity = finding.severity.as_deref().unwrap_or("UNKNOWN");
+                            let color = match severity {
+                                "CRITICAL" => THEME.error,
+                                "HIGH" => THEME.warning,
+                                "MEDIUM" => THEME.warning,
+                                "LOW" => THEME.primary,
+                                _ => THEME.secondary,
+                            };
+                            let name = finding.name.as_deref().unwrap_or("Unknown");
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("    {}. ", i + 1)),
+                                Span::styled(
+                                    format!("[{}] ", severity),
+                                    Style::default().fg(color),
+                                ),
+                                Span::raw(name.to_string()),
+                            ]));
+                        }
+                        if findings.findings.len() > 20 {
+                            lines.push(Line::from(format!(
+                                "    ... and {} more",
+                                findings.findings.len() - 20
+                            )));
+                        }
+                    }
+                } else {
+                    lines.push(Line::from("  No scan findings available"));
+                }
+            } else {
+                // Show basic status from image metadata
+                let status_str = img.scan_status.as_ref().and_then(|s| s.status.as_deref());
+                match status_str {
+                    None => {
+                        lines.push(Line::from("  No scan data (press 'v' to load)"));
+                    }
+                    Some(status) => {
+                        lines.push(Line::from(vec![
+                            Span::styled("  Status: ", Style::default().fg(THEME.primary)),
+                            Span::raw(status.to_string()),
+                        ]));
+                        lines.push(Line::from("  Press 'v' to load detailed findings"));
                     }
                 }
             }

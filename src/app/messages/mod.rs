@@ -607,6 +607,13 @@ impl Message {
         Message::Service(ServiceAction::Ecr(EcrAction::ClearFilters))
     }
 
+    pub fn ecr_load_scan_findings(repository_name: String, image_digest: String) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::LoadScanFindings {
+            repository_name,
+            image_digest,
+        }))
+    }
+
     // Budgets message constructors
     pub fn budgets_load_notifications(budget_name: String) -> Self {
         Message::Service(ServiceAction::Budgets(BudgetsAction::LoadNotifications(

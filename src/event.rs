@@ -114,6 +114,11 @@ pub enum AwsEvent {
         next_token: Option<String>,
         append: bool,
     },
+    /// ECR scan findings loaded for a specific image
+    EcrScanFindingsLoaded {
+        image_digest: String,
+        findings: crate::models::ecr::ImageScanFindings,
+    },
     /// ECR image successfully pulled via docker
     EcrImagePulled {
         image_uri: String,

@@ -310,6 +310,7 @@ pub mod task_keys {
     pub const ECR_REFRESH: &str = "ecr:refresh";
     pub const ECR_IMAGES: &str = "ecr:images";
     pub const ECR_ACTION: &str = "ecr:action";
+    pub const ECR_SCAN_FINDINGS: &str = "ecr:scan_findings";
     pub const BUDGETS_REFRESH: &str = "budgets:refresh";
     pub const BUDGETS_NOTIFICATIONS: &str = "budgets:notifications";
     pub const SQS_REFRESH: &str = "sqs:refresh";

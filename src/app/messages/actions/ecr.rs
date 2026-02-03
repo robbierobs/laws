@@ -15,6 +15,11 @@ pub enum EcrAction {
     },
     /// Load more images (pagination)
     LoadMoreImages,
+    /// Load scan findings for the selected image
+    LoadScanFindings {
+        repository_name: String,
+        image_digest: String,
+    },
     /// Open the filter modal
     OpenFilterModal,
     /// Close the filter modal without applying

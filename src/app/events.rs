@@ -309,6 +309,14 @@ impl App {
                 self.action_log
                     .push(format!("[SUCCESS] Pulled image: {}", image_uri));
             }
+            AwsEvent::EcrScanFindingsLoaded {
+                image_digest,
+                findings,
+            } => {
+                self.services.ecr.scan_findings_loading = false;
+                self.services.ecr.scan_findings_digest = Some(image_digest);
+                self.services.ecr.scan_findings = Some(findings);
+            }
             AwsEvent::BudgetsLoaded(budgets) => {
                 self.services.budgets.budgets = budgets;
                 self.loading = false;
