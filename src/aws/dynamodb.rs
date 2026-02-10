@@ -1,3 +1,4 @@
+use crate::aws::traits::paginate;
 use crate::error::AppResult;
 use crate::models::dynamodb::{
     DynamoDbTable, GlobalSecondaryIndex, KeyAttribute, LocalSecondaryIndex,
@@ -11,32 +12,29 @@ crate::aws_service_struct!(DynamoDbService, Client);
 impl DynamoDbService {
 
     pub async fn list_tables(&self) -> AppResult<Vec<DynamoDbTable>> {
-        // First, get all table names with pagination
-        let mut table_names = Vec::new();
-        let mut last_evaluated: Option<String> = None;
-
-        loop {
-            let mut request = self.client.list_tables();
-            if let Some(token) = last_evaluated {
-                request = request.exclusive_start_table_name(token);
-            }
-
-            let list_response = request
-                .send()
-                .await
-                .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))?;
-
-            table_names.extend(list_response.table_names().iter().cloned());
-
-            last_evaluated = list_response.last_evaluated_table_name().map(|s| s.to_string());
-            if last_evaluated.is_none() {
-                break;
-            }
-        }
-
-        let mut tables = Vec::new();
+        // Get all table names with pagination using the paginate helper
+        let client = &self.client;
+        let table_names: Vec<String> = paginate(
+            |token| async move {
+                let mut request = client.list_tables();
+                if let Some(t) = token {
+                    request = request.exclusive_start_table_name(t);
+                }
+                request
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))
+            },
+            |resp| {
+                let names = resp.table_names().to_vec();
+                let next = resp.last_evaluated_table_name().map(|s| s.to_string());
+                (names, next)
+            },
+        )
+        .await?;
 
         // For each table, get detailed information
+        let mut tables = Vec::new();
         for table_name in &table_names {
             match self.describe_table(table_name).await {
                 Ok(table) => tables.push(table),

@@ -2,12 +2,15 @@
 //!
 //! Handles all keyboard events and translates them to messages.
 
-use super::{
-    App, Focus, GlobalMessage, InputMode, InputResult, Message, Service,
-};
+use super::{App, Focus, GlobalMessage, InputMode, InputResult, Message, Service};
 use crate::app::global_search::Searchable;
 use crate::ui::components::Component;
 use crossterm::event::{KeyCode, KeyEvent};
+
+enum KeyHandling {
+    NotHandled,
+    Handled(Option<Message>),
+}
 
 impl App {
     /// Reset list selection to first item for current service
@@ -31,359 +34,445 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Message> {
         self.error_message = None;
 
-        // Handle S3 object viewer popup
+        if let KeyHandling::Handled(message) = self.handle_modal_inputs(key) {
+            return message;
+        }
+
+        if let KeyHandling::Handled(message) = self.handle_focus_toggle(key) {
+            return message;
+        }
+
+        if let KeyHandling::Handled(message) = self.handle_focus_input(key) {
+            return message;
+        }
+
+        self.handle_global_key(key)
+    }
+
+    fn handle_copy(&self) -> Option<Message> {
+        self.get_active_service_handler()
+            .get_copiable_text()
+            .map(Message::copy_to_clipboard)
+    }
+
+    fn handle_modal_inputs(&mut self, key: KeyEvent) -> KeyHandling {
         if self.services.s3.show_object_viewer {
-            return super::input_handlers::handle_s3_viewer_input(&mut self.services.s3, key);
+            return KeyHandling::Handled(super::input_handlers::handle_s3_viewer_input(
+                &mut self.services.s3,
+                key,
+            ));
         }
 
-        // Handle S3 bucket creation modal
-        if self.input_mode == InputMode::S3BucketCreation {
-            use super::input_handlers::{handle_s3_bucket_creation_input, S3BucketCreationResult};
-            match handle_s3_bucket_creation_input(&mut self.services.s3, key) {
-                S3BucketCreationResult::Continue => {}
-                S3BucketCreationResult::Cancel => {
-                    self.input_mode = InputMode::Normal;
-                }
-                S3BucketCreationResult::Create(name) => {
-                    self.input_mode = InputMode::Normal;
-                    return Some(Message::s3_create_bucket(name));
-                }
+        let handlers = [
+            Self::handle_s3_bucket_creation_input_mode,
+            Self::handle_action_log_input_mode,
+            Self::handle_confirmation_input_mode,
+            Self::handle_profile_selection_input_mode,
+            Self::handle_profile_region_input_mode,
+            Self::handle_filter_input_mode,
+            Self::handle_ecs_service_editor_input_mode,
+            Self::handle_ecs_task_def_selector_input_mode,
+            Self::handle_global_search_input_mode,
+            Self::handle_cloudtrail_filter_input_mode,
+            Self::handle_ecr_filter_input_mode,
+            Self::handle_backup_filter_input_mode,
+        ];
+
+        for handler in handlers {
+            if let KeyHandling::Handled(result) = handler(self, key) {
+                return KeyHandling::Handled(result);
             }
-            return None;
         }
 
-        // Handle action log popup navigation
-        if self.action_log_expanded {
-            use super::input_handlers::{handle_action_log_input, ActionLogState};
-            let mut state = ActionLogState {
-                expanded: &mut self.action_log_expanded,
-                selected_index: &mut self.action_log_selected_index,
-                detail_scroll: &mut self.action_log_detail_scroll,
-                log_len: self.action_log.len(),
-            };
-            handle_action_log_input(&mut state, key);
-            return None;
+        KeyHandling::NotHandled
+    }
+
+    fn handle_s3_bucket_creation_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::S3BucketCreation {
+            return KeyHandling::NotHandled;
         }
 
-        // Handle confirmation modal
-        if self.show_confirmation {
-            return match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => Some(Message::confirm_action()),
-                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
-                    Some(Message::cancel_action())
-                }
-                _ => None,
-            };
-        }
-
-        // Handle profile switcher - profile selection
-        if self.input_mode == InputMode::ProfileSwitcherProfile {
-            use super::input_handlers::{handle_profile_selection_input, ProfileSwitcherResult};
-            match handle_profile_selection_input(&mut self.profile_switcher, key) {
-                ProfileSwitcherResult::Continue => {}
-                ProfileSwitcherResult::Cancel => {
-                    return Some(Message::cancel_profile_switcher());
-                }
-                ProfileSwitcherResult::ProfileSelected => {
-                    self.input_mode = InputMode::ProfileSwitcherRegion;
-                    // Pre-select current region in region list
-                    let current_region = &self.region;
-                    let filtered = self.profile_switcher.filtered_regions();
-                    if let Some(idx) = filtered.iter().position(|r| *r == current_region) {
-                        self.profile_switcher.region_switcher_index = idx;
-                    } else {
-                        self.profile_switcher.region_switcher_index = 0;
-                    }
-                }
-                _ => {}
+        use super::input_handlers::{handle_s3_bucket_creation_input, S3BucketCreationResult};
+        match handle_s3_bucket_creation_input(&mut self.services.s3, key) {
+            S3BucketCreationResult::Continue => KeyHandling::Handled(None),
+            S3BucketCreationResult::Cancel => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
             }
-            return None;
-        }
-
-        // Handle profile switcher - region selection
-        if self.input_mode == InputMode::ProfileSwitcherRegion {
-            use super::input_handlers::{handle_region_selection_input, ProfileSwitcherResult};
-            match handle_region_selection_input(&mut self.profile_switcher, key) {
-                ProfileSwitcherResult::Continue => {}
-                ProfileSwitcherResult::Cancel => {
-                    return Some(Message::cancel_profile_switcher());
-                }
-                ProfileSwitcherResult::Switch {
-                    profile,
-                    region,
-                    read_only,
-                } => {
-                    return Some(Message::switch_profile_region(profile, region, read_only));
-                }
-                _ => {}
+            S3BucketCreationResult::Create(name) => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(Some(Message::s3_create_bucket(name)))
             }
-            return None;
+        }
+    }
+
+    fn handle_action_log_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if !self.action_log_expanded {
+            return KeyHandling::NotHandled;
         }
 
-        // Handle filter input mode
-        if self.input_mode == InputMode::Filtering {
-            match key.code {
-                KeyCode::Enter => self.input_mode = InputMode::Normal,
-                KeyCode::Esc => {
-                    self.input_mode = InputMode::Normal;
-                    self.filter_input.clear();
-                    self.reset_selection();
-                }
-                KeyCode::Backspace => {
-                    self.filter_input.pop();
-                    self.reset_selection();
-                }
-                KeyCode::Char(c) => {
-                    self.filter_input.push(c);
-                    self.reset_selection();
-                }
-                _ => {}
+        use super::input_handlers::{handle_action_log_input, ActionLogState};
+        let mut state = ActionLogState {
+            expanded: &mut self.action_log_expanded,
+            selected_index: &mut self.action_log_selected_index,
+            detail_scroll: &mut self.action_log_detail_scroll,
+            log_len: self.action_log.len(),
+        };
+        handle_action_log_input(&mut state, key);
+        KeyHandling::Handled(None)
+    }
+
+    fn handle_confirmation_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if !self.show_confirmation {
+            return KeyHandling::NotHandled;
+        }
+
+        let message = match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => Some(Message::confirm_action()),
+            KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
+                Some(Message::cancel_action())
             }
-            return None;
+            _ => None,
+        };
+
+        KeyHandling::Handled(message)
+    }
+
+    fn handle_profile_selection_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::ProfileSwitcherProfile {
+            return KeyHandling::NotHandled;
         }
 
-        // Handle ECS service editor modal
-        if self.input_mode == InputMode::EcsServiceEditor {
-            use super::input_handlers::{handle_ecs_service_editor_input, EcsEditorResult};
-            match handle_ecs_service_editor_input(&mut self.services.ecs, key) {
-                EcsEditorResult::Continue => {}
-                EcsEditorResult::Cancel => {
-                    self.input_mode = InputMode::Normal;
-                }
-                EcsEditorResult::Update(msg) => {
-                    self.input_mode = InputMode::Normal;
-                    return Some(msg);
-                }
-                EcsEditorResult::Error(err) => {
-                    self.error_message = Some(err);
-                }
+        use super::input_handlers::{handle_profile_selection_input, ProfileSwitcherResult};
+        match handle_profile_selection_input(&mut self.profile_switcher, key) {
+            ProfileSwitcherResult::Continue => KeyHandling::Handled(None),
+            ProfileSwitcherResult::Cancel => {
+                KeyHandling::Handled(Some(Message::cancel_profile_switcher()))
             }
-            return None;
-        }
-
-        // Handle ECS task definition selector modal
-        if self.input_mode == InputMode::EcsTaskDefSelector {
-            use super::input_handlers::{handle_ecs_task_def_selector_input, EcsTaskDefSelectorResult};
-            match handle_ecs_task_def_selector_input(&mut self.services.ecs, key) {
-                EcsTaskDefSelectorResult::Continue => {}
-                EcsTaskDefSelectorResult::Cancel => {
-                    self.input_mode = InputMode::Normal;
-                }
-                EcsTaskDefSelectorResult::SelectWithConfirmation(msg) => {
-                    self.input_mode = InputMode::Normal;
-                    // Request confirmation for the task definition change
-                    return self.request_action(msg);
-                }
+            ProfileSwitcherResult::ProfileSelected => {
+                self.input_mode = InputMode::ProfileSwitcherRegion;
+                // Pre-select current region in region list
+                let current_region = &self.region;
+                let filtered = self.profile_switcher.filtered_regions();
+                self.profile_switcher.region_switcher_index = filtered
+                    .iter()
+                    .position(|r| *r == current_region)
+                    .unwrap_or(0);
+                KeyHandling::Handled(None)
             }
-            return None;
+            ProfileSwitcherResult::Switch { .. } => KeyHandling::Handled(None),
+        }
+    }
+
+    fn handle_profile_region_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::ProfileSwitcherRegion {
+            return KeyHandling::NotHandled;
         }
 
-        // Handle global search modal
-        if self.input_mode == InputMode::GlobalSearch {
-            use super::input_handlers::{handle_global_search_input, GlobalSearchInputResult};
-            match handle_global_search_input(&mut self.global_search, key) {
-                GlobalSearchInputResult::Continue => {}
-                GlobalSearchInputResult::Cancel => {
-                    self.input_mode = InputMode::Normal;
-                }
-                GlobalSearchInputResult::Select(service, resource_id) => {
-                    self.input_mode = InputMode::Normal;
-                    return Some(Message::goto_search_result(service, resource_id));
-                }
-                GlobalSearchInputResult::QueryChanged => {
-                    self.refresh_global_search();
-                }
+        use super::input_handlers::{handle_region_selection_input, ProfileSwitcherResult};
+        match handle_region_selection_input(&mut self.profile_switcher, key) {
+            ProfileSwitcherResult::Continue | ProfileSwitcherResult::ProfileSelected => {
+                KeyHandling::Handled(None)
             }
-            return None;
-        }
-
-        // Handle CloudTrail event filter modal
-        if self.input_mode == InputMode::CloudTrailEventFilter {
-            use crate::app::messages::{CloudTrailAction, ServiceAction};
-            use crate::app::states::cloudtrail::filter_state_to_params;
-            
-            let config = &self.services.cloudtrail.filter_config;
-            let state = &mut self.services.cloudtrail.filter_modal;
-            let total_fields = config.fields.len();
-            
-            match key.code {
-                KeyCode::Esc => {
-                    state.close();
-                    self.input_mode = InputMode::Normal;
-                }
-                KeyCode::Enter => {
-                    // Apply filters and close modal
-                    let params = filter_state_to_params(state);
-                    state.close();
-                    self.input_mode = InputMode::Normal;
-                    return Some(Message::Service(ServiceAction::CloudTrail(
-                        CloudTrailAction::ApplyFilters(params),
-                    )));
-                }
-                KeyCode::Tab | KeyCode::Down => {
-                    state.next_field(total_fields);
-                }
-                KeyCode::BackTab | KeyCode::Up => {
-                    state.prev_field(total_fields);
-                }
-                KeyCode::Char(c) => {
-                    state.handle_char(c, config);
-                }
-                KeyCode::Backspace => {
-                    state.handle_backspace(config);
-                }
-                _ => {}
+            ProfileSwitcherResult::Cancel => {
+                KeyHandling::Handled(Some(Message::cancel_profile_switcher()))
             }
-            return None;
+            ProfileSwitcherResult::Switch {
+                profile,
+                region,
+                read_only,
+            } => KeyHandling::Handled(Some(Message::switch_profile_region(
+                profile, region, read_only,
+            ))),
+        }
+    }
+
+    fn handle_filter_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::Filtering {
+            return KeyHandling::NotHandled;
         }
 
-        // Handle ECR image filter modal
-        if self.input_mode == InputMode::EcrImageFilter {
-            let config = &self.services.ecr.filter_config;
-            let state = &mut self.services.ecr.filter_modal;
-            let total_fields = config.fields.len();
-            
-            match key.code {
-                KeyCode::Esc => {
-                    state.close();
-                    self.input_mode = InputMode::Normal;
-                }
-                KeyCode::Enter => {
-                    // Apply filters via message
-                    return Some(Message::ecr_apply_filters());
-                }
-                KeyCode::Tab | KeyCode::Down => {
-                    state.next_field(total_fields);
-                }
-                KeyCode::BackTab | KeyCode::Up => {
-                    state.prev_field(total_fields);
-                }
-                KeyCode::Char(c) => {
-                    state.handle_char(c, config);
-                }
-                KeyCode::Backspace => {
-                    state.handle_backspace(config);
-                }
-                _ => {}
+        match key.code {
+            KeyCode::Enter => self.input_mode = InputMode::Normal,
+            KeyCode::Esc => {
+                self.input_mode = InputMode::Normal;
+                self.filter_input.clear();
+                self.reset_selection();
             }
-            return None;
-        }
-
-        // Handle Backup job filter modal
-        if self.input_mode == InputMode::BackupJobFilter {
-            let config = &self.services.backup.jobs_filter_config;
-            let state = &mut self.services.backup.jobs_filter_modal;
-            let total_fields = config.fields.len();
-            
-            match key.code {
-                KeyCode::Esc => {
-                    state.close();
-                    self.input_mode = InputMode::Normal;
-                }
-                KeyCode::Enter => {
-                    // Apply filters via message
-                    return Some(Message::backup_apply_filters());
-                }
-                KeyCode::Tab | KeyCode::Down => {
-                    state.next_field(total_fields);
-                }
-                KeyCode::BackTab | KeyCode::Up => {
-                    state.prev_field(total_fields);
-                }
-                KeyCode::Char(c) => {
-                    state.handle_char(c, config);
-                }
-                KeyCode::Backspace => {
-                    state.handle_backspace(config);
-                }
-                _ => {}
+            KeyCode::Backspace => {
+                self.filter_input.pop();
+                self.reset_selection();
             }
-            return None;
+            KeyCode::Char(c) => {
+                self.filter_input.push(c);
+                self.reset_selection();
+            }
+            _ => {}
         }
 
-        if key.code == KeyCode::Tab {
-            self.toggle_focus();
-            return None;
+        KeyHandling::Handled(None)
+    }
+
+    fn handle_ecs_service_editor_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::EcsServiceEditor {
+            return KeyHandling::NotHandled;
         }
 
-        // Route to focused component
+        use super::input_handlers::{handle_ecs_service_editor_input, EcsEditorResult};
+        match handle_ecs_service_editor_input(&mut self.services.ecs, key) {
+            EcsEditorResult::Continue => KeyHandling::Handled(None),
+            EcsEditorResult::Cancel => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
+            }
+            EcsEditorResult::Update(msg) => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(Some(msg))
+            }
+            EcsEditorResult::Error(err) => {
+                self.error_message = Some(err);
+                KeyHandling::Handled(None)
+            }
+        }
+    }
+
+    fn handle_ecs_task_def_selector_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::EcsTaskDefSelector {
+            return KeyHandling::NotHandled;
+        }
+
+        use super::input_handlers::{handle_ecs_task_def_selector_input, EcsTaskDefSelectorResult};
+        match handle_ecs_task_def_selector_input(&mut self.services.ecs, key) {
+            EcsTaskDefSelectorResult::Continue => KeyHandling::Handled(None),
+            EcsTaskDefSelectorResult::Cancel => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
+            }
+            EcsTaskDefSelectorResult::SelectWithConfirmation(msg) => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(self.request_action(msg))
+            }
+        }
+    }
+
+    fn handle_global_search_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::GlobalSearch {
+            return KeyHandling::NotHandled;
+        }
+
+        use super::input_handlers::{handle_global_search_input, GlobalSearchInputResult};
+        match handle_global_search_input(&mut self.global_search, key) {
+            GlobalSearchInputResult::Continue => KeyHandling::Handled(None),
+            GlobalSearchInputResult::Cancel => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
+            }
+            GlobalSearchInputResult::Select(service, resource_id) => {
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(Some(Message::goto_search_result(service, resource_id)))
+            }
+            GlobalSearchInputResult::QueryChanged => {
+                self.refresh_global_search();
+                KeyHandling::Handled(None)
+            }
+        }
+    }
+
+    fn handle_cloudtrail_filter_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::CloudTrailEventFilter {
+            return KeyHandling::NotHandled;
+        }
+
+        use crate::app::messages::{CloudTrailAction, ServiceAction};
+        use crate::app::states::cloudtrail::filter_state_to_params;
+
+        let config = &self.services.cloudtrail.filter_config;
+        let state = &mut self.services.cloudtrail.filter_modal;
+        let total_fields = config.fields.len();
+
+        match key.code {
+            KeyCode::Esc => {
+                state.close();
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Enter => {
+                let params = filter_state_to_params(state);
+                state.close();
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(Some(Message::Service(ServiceAction::CloudTrail(
+                    CloudTrailAction::ApplyFilters(params),
+                ))))
+            }
+            KeyCode::Tab | KeyCode::Down => {
+                state.next_field(total_fields);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                state.prev_field(total_fields);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Char(c) => {
+                state.handle_char(c, config);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Backspace => {
+                state.handle_backspace(config);
+                KeyHandling::Handled(None)
+            }
+            _ => KeyHandling::Handled(None),
+        }
+    }
+
+    fn handle_ecr_filter_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::EcrImageFilter {
+            return KeyHandling::NotHandled;
+        }
+
+        let config = &self.services.ecr.filter_config;
+        let state = &mut self.services.ecr.filter_modal;
+        let total_fields = config.fields.len();
+
+        match key.code {
+            KeyCode::Esc => {
+                state.close();
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Enter => KeyHandling::Handled(Some(Message::ecr_apply_filters())),
+            KeyCode::Tab | KeyCode::Down => {
+                state.next_field(total_fields);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                state.prev_field(total_fields);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Char(c) => {
+                state.handle_char(c, config);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Backspace => {
+                state.handle_backspace(config);
+                KeyHandling::Handled(None)
+            }
+            _ => KeyHandling::Handled(None),
+        }
+    }
+
+    fn handle_backup_filter_input_mode(&mut self, key: KeyEvent) -> KeyHandling {
+        if self.input_mode != InputMode::BackupJobFilter {
+            return KeyHandling::NotHandled;
+        }
+
+        let config = &self.services.backup.jobs_filter_config;
+        let state = &mut self.services.backup.jobs_filter_modal;
+        let total_fields = config.fields.len();
+
+        match key.code {
+            KeyCode::Esc => {
+                state.close();
+                self.input_mode = InputMode::Normal;
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Enter => KeyHandling::Handled(Some(Message::backup_apply_filters())),
+            KeyCode::Tab | KeyCode::Down => {
+                state.next_field(total_fields);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                state.prev_field(total_fields);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Char(c) => {
+                state.handle_char(c, config);
+                KeyHandling::Handled(None)
+            }
+            KeyCode::Backspace => {
+                state.handle_backspace(config);
+                KeyHandling::Handled(None)
+            }
+            _ => KeyHandling::Handled(None),
+        }
+    }
+
+    fn handle_focus_toggle(&mut self, key: KeyEvent) -> KeyHandling {
+        if key.code != KeyCode::Tab {
+            return KeyHandling::NotHandled;
+        }
+
+        self.toggle_focus();
+        KeyHandling::Handled(None)
+    }
+
+    fn handle_focus_input(&mut self, key: KeyEvent) -> KeyHandling {
         match self.focus {
-            Focus::Sidebar => {
-                // Global search is only available from sidebar (S or ?)
-                if matches!(key.code, KeyCode::Char('S') | KeyCode::Char('?')) {
-                    return Some(Message::open_global_search());
-                }
-                if let Some(msg) = self.sidebar.handle_key(key) {
-                    return Some(msg);
-                }
-            }
-            Focus::Main => {
-                // Filter mode
-                if key.code == KeyCode::Char('/') {
-                    self.input_mode = InputMode::Filtering;
-                    self.filter_input.clear();
-                    self.reset_selection();
-                    return None;
-                }
+            Focus::Sidebar => self.handle_sidebar_input(key),
+            Focus::Main => self.handle_main_input(key),
+        }
+    }
 
-                // View mode cycling - only for services that support it
-                if self.services.get(self.current_service).can_cycle_view() {
-                    match key.code {
-                        KeyCode::Char('v') => return Some(Message::cycle_view_mode()),
-                        KeyCode::Right | KeyCode::Char('l') => return Some(Message::next_view()),
-                        KeyCode::Left | KeyCode::Char('h') => return Some(Message::previous_view()),
-                        _ => {}
-                    }
+    fn handle_sidebar_input(&mut self, key: KeyEvent) -> KeyHandling {
+        if matches!(key.code, KeyCode::Char('S') | KeyCode::Char('?')) {
+            return KeyHandling::Handled(Some(Message::open_global_search()));
+        }
+
+        if let Some(msg) = self.sidebar.handle_key(key) {
+            return KeyHandling::Handled(Some(msg));
+        }
+
+        KeyHandling::NotHandled
+    }
+
+    fn handle_main_input(&mut self, key: KeyEvent) -> KeyHandling {
+        if key.code == KeyCode::Char('/') {
+            self.input_mode = InputMode::Filtering;
+            self.filter_input.clear();
+            self.reset_selection();
+            return KeyHandling::Handled(None);
+        }
+
+        if self.services.get(self.current_service).can_cycle_view() {
+            match key.code {
+                KeyCode::Char('v') => {
+                    return KeyHandling::Handled(Some(Message::cycle_view_mode()))
                 }
-
-                // Service-specific input handling
-                let result = self.get_active_service_handler_mut().handle_input(key);
-
-                match result {
-                    InputResult::Message(msg) => return Some(msg),
-                    InputResult::Action(action) => return self.request_action(action),
-                    InputResult::OpenInputMode(mode) => {
-                        self.input_mode = mode;
-                        // For EcsTaskDefSelector, we need to trigger loading task definitions
-                        if mode == InputMode::EcsTaskDefSelector {
-                            // Get the family from the current service's task definition
-                            if let Some(service) = self
-                                .services
-                                .ecs
-                                .services
-                                .get(self.services.ecs.list_state.selected().unwrap_or(0))
-                            {
-                                if let Some(td_arn) = &service.task_definition {
-                                    // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
-                                    let family = td_arn
-                                        .split('/')
-                                        .next_back()
-                                        .and_then(|f| f.split(':').next())
-                                        .map(|f| f.to_string());
-
-                                    if let Some(family) = family {
-                                        return Some(
-                                            Message::ecs_load_task_definitions_for_selector(family),
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        return None;
-                    }
-                    InputResult::None => {
-                        // ESC: If service handler didn't consume it, switch focus to sidebar
-                        if key.code == KeyCode::Esc {
-                            self.focus = Focus::Sidebar;
-                            self.sidebar.is_focused = true;
-                            return None;
-                        }
-                    }
+                KeyCode::Right | KeyCode::Char('l') => {
+                    return KeyHandling::Handled(Some(Message::next_view()))
                 }
+                KeyCode::Left | KeyCode::Char('h') => {
+                    return KeyHandling::Handled(Some(Message::previous_view()))
+                }
+                _ => {}
             }
         }
 
-        // Global keys
+        let result = self.get_active_service_handler_mut().handle_input(key);
+
+        match result {
+            InputResult::Message(msg) => KeyHandling::Handled(Some(msg)),
+            InputResult::Action(action) => KeyHandling::Handled(self.request_action(action)),
+            InputResult::OpenInputMode(mode) => {
+                self.input_mode = mode;
+                if mode == InputMode::EcsTaskDefSelector {
+                    if let Some(message) = self.ecs_task_def_selector_message() {
+                        return KeyHandling::Handled(Some(message));
+                    }
+                }
+                KeyHandling::Handled(None)
+            }
+            InputResult::None => {
+                if key.code == KeyCode::Esc {
+                    self.focus = Focus::Sidebar;
+                    self.sidebar.is_focused = true;
+                    return KeyHandling::Handled(None);
+                }
+                KeyHandling::NotHandled
+            }
+        }
+    }
+
+    fn handle_global_key(&self, key: KeyEvent) -> Option<Message> {
         match key.code {
             KeyCode::Char('r') => Some(Message::refresh()),
             KeyCode::Char('y') => self.handle_copy(),
@@ -399,8 +488,8 @@ impl App {
             KeyCode::Char('8') => Some(Message::navigate(Service::Backup)),
             KeyCode::Char('9') => Some(Message::navigate(Service::CloudTrail)),
             KeyCode::Char('0') => Some(Message::navigate(Service::SecretsManager)),
-            KeyCode::Char('e') => Some(Message::navigate(Service::ECS)), // Using 'e' for ECS
-            KeyCode::Char('c') => Some(Message::navigate(Service::ECR)), // Using 'c' for ECR (Container Registry)
+            KeyCode::Char('e') => Some(Message::navigate(Service::ECS)),
+            KeyCode::Char('c') => Some(Message::navigate(Service::ECR)),
             KeyCode::Char('A') => Some(Message::toggle_action_log()),
             KeyCode::Char('d') => Some(Message::toggle_detail_panel()),
             KeyCode::Char('D') => Some(Message::Global(GlobalMessage::ToggleDetailFullscreen)),
@@ -410,10 +499,19 @@ impl App {
         }
     }
 
-    fn handle_copy(&self) -> Option<Message> {
-        self.get_active_service_handler()
-            .get_copiable_text()
-            .map(Message::copy_to_clipboard)
+    fn ecs_task_def_selector_message(&self) -> Option<Message> {
+        let service = self
+            .services
+            .ecs
+            .services
+            .get(self.services.ecs.list_state.selected().unwrap_or(0))?;
+        let td_arn = service.task_definition.as_ref()?;
+
+        td_arn
+            .split('/')
+            .next_back()
+            .and_then(|family| family.split(':').next())
+            .map(|family| Message::ecs_load_task_definitions_for_selector(family.to_string()))
     }
 
     /// Toggle focus between sidebar and main pane
@@ -432,7 +530,9 @@ impl App {
     }
 
     fn auto_select_first_item(&mut self) {
-        self.services.get_mut(self.current_service).auto_select_first();
+        self.services
+            .get_mut(self.current_service)
+            .auto_select_first();
     }
 
     // ====================================

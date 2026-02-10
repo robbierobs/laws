@@ -52,7 +52,8 @@ pub use filtered_list::FilteredList;
 // Re-export navigation helpers
 pub use navigation::TableStateExt;
 
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::widgets::TableState;
 
 /// Result from service input handlers
 #[derive(Debug)]
@@ -68,4 +69,26 @@ pub trait ServiceInputHandler {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult;
     fn reset_selection(&mut self);
     fn get_copiable_text(&self) -> Option<String>;
+}
+
+pub fn handle_list_navigation(list_state: &mut TableState, items_len: usize, key: KeyEvent) -> bool {
+    match key.code {
+        KeyCode::Down | KeyCode::Char('j') => {
+            list_state.nav_down(items_len);
+            true
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            list_state.nav_up(items_len);
+            true
+        }
+        KeyCode::Home | KeyCode::Char('g') => {
+            list_state.nav_first(items_len);
+            true
+        }
+        KeyCode::End | KeyCode::Char('G') => {
+            list_state.nav_last(items_len);
+            true
+        }
+        _ => false,
+    }
 }

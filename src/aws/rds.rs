@@ -1,4 +1,5 @@
 use crate::error::AppResult;
+use crate::aws::traits::paginate;
 use crate::models::rds::RdsInstance;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_rds::Client;
@@ -9,34 +10,33 @@ crate::aws_service_struct!(RdsService, Client);
 impl RdsService {
 
     pub async fn list_instances(&self) -> AppResult<Vec<RdsInstance>> {
-        let mut instances = Vec::new();
-        let mut marker: Option<String> = None;
+        let client = self.client.clone();
+        paginate(
+            move |marker| {
+                let client = client.clone();
+                async move {
+                    let mut request = client.describe_db_instances();
+                    if let Some(marker) = marker {
+                        request = request.marker(marker);
+                    }
 
-        loop {
-            let mut request = self.client.describe_db_instances();
-            if let Some(m) = marker {
-                request = request.marker(m);
-            }
-
-            let response = request
-                .send()
-                .await
-                .map_err(|e| format_sdk_error("RDS", "describe", "all", e))?;
-
-            instances.extend(
-                response
+                    request
+                        .send()
+                        .await
+                        .map_err(|e| format_sdk_error("RDS", "describe", "all", e))
+                }
+            },
+            |response| {
+                let instances = response
                     .db_instances()
                     .iter()
-                    .map(RdsInstance::from_aws),
-            );
-
-            marker = response.marker().map(|s| s.to_string());
-            if marker.is_none() {
-                break;
-            }
-        }
-
-        Ok(instances)
+                    .map(RdsInstance::from_aws)
+                    .collect();
+                let next_token = response.marker().map(|s| s.to_string());
+                (instances, next_token)
+            },
+        )
+        .await
     }
 
     pub async fn start_instance(&self, db_instance_identifier: &str) -> AppResult<()> {

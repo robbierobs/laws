@@ -1,7 +1,8 @@
 use aws_sdk_secretsmanager::types::SecretListEntry;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Secret {
     pub name: String,
     pub arn: Option<String>,

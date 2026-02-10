@@ -1,3 +1,4 @@
+use crate::aws::traits::paginate;
 use crate::error::{AppError, AppResult};
 use crate::models::ecs::{EcsCluster, EcsService, EcsTask, EcsTaskDefinition};
 use crate::utils::error::format_sdk_error;
@@ -360,29 +361,25 @@ impl EcsClient {
 
     #[allow(dead_code)]
     pub async fn list_task_definition_families(&self) -> AppResult<Vec<String>> {
-        let mut families = Vec::new();
-        let mut next_token: Option<String> = None;
-
-        loop {
-            let mut request = self.client.list_task_definition_families();
-            if let Some(token) = next_token {
-                request = request.next_token(token);
-            }
-
-            let output = request
-                .send()
-                .await
-                .map_err(|e| format_sdk_error("ECS", "list_task_definition_families", "all", e))?;
-
-            families.extend(output.families().iter().map(|f| f.to_string()));
-
-            next_token = output.next_token().map(|s| s.to_string());
-            if next_token.is_none() {
-                break;
-            }
-        }
-
-        Ok(families)
+        let client = &self.client;
+        paginate(
+            |token| async move {
+                let mut request = client.list_task_definition_families();
+                if let Some(t) = token {
+                    request = request.next_token(t);
+                }
+                request
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("ECS", "list_task_definition_families", "all", e))
+            },
+            |resp| {
+                let families = resp.families().iter().map(|f| f.to_string()).collect();
+                let next = resp.next_token().map(|s| s.to_string());
+                (families, next)
+            },
+        )
+        .await
     }
 
     pub async fn deregister_task_definition(&self, task_definition: &str) -> AppResult<()> {
@@ -681,37 +678,33 @@ impl EcsClient {
         &self,
         family_prefix: Option<&str>,
     ) -> AppResult<Vec<String>> {
-        let mut task_definitions = Vec::new();
-        let mut next_token: Option<String> = None;
-
-        loop {
-            let mut request = self.client.list_task_definitions();
-            if let Some(family) = family_prefix {
-                request = request.family_prefix(family);
-            }
-            if let Some(token) = next_token {
-                request = request.next_token(token);
-            }
-
-            let output = request
-                .send()
-                .await
-                .map_err(|e| format_sdk_error("ECS", "list_task_definitions", "all", e))?;
-
-            task_definitions.extend(
-                output
-                    .task_definition_arns()
-                    .iter()
-                    .map(|arn| arn.to_string()),
-            );
-
-            next_token = output.next_token().map(|s| s.to_string());
-            if next_token.is_none() {
-                break;
-            }
-        }
-
-        Ok(task_definitions)
+        let client = &self.client;
+        let prefix = family_prefix.map(|s| s.to_string());
+        paginate(
+            |token| {
+                let client = client;
+                let prefix = prefix.clone();
+                async move {
+                    let mut request = client.list_task_definitions();
+                    if let Some(ref family) = prefix {
+                        request = request.family_prefix(family);
+                    }
+                    if let Some(t) = token {
+                        request = request.next_token(t);
+                    }
+                    request
+                        .send()
+                        .await
+                        .map_err(|e| format_sdk_error("ECS", "list_task_definitions", "all", e))
+                }
+            },
+            |resp| {
+                let arns = resp.task_definition_arns().iter().map(|s| s.to_string()).collect();
+                let next = resp.next_token().map(|s| s.to_string());
+                (arns, next)
+            },
+        )
+        .await
     }
 
     /// List task definition revisions with full details
