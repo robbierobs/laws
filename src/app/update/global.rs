@@ -5,6 +5,7 @@
 use crate::app::task_manager::task_keys;
 use crate::app::{App, GlobalMessage, InputMode, Service};
 use crate::event::{AwsEvent, Event, ProfileRegionSwitchedData};
+use std::time::Duration;
 
 impl App {
     /// Handle global (non-service-specific) messages
@@ -167,6 +168,7 @@ impl App {
         self.loading = true;
 
         let profile_name = profile.clone().unwrap_or_else(|| "default".to_string());
+        let sso_login_timeout_secs = self.config.sso_login_timeout_secs;
         self.action_log.push(format!(
             "Switching to profile: {}, region: {}...",
             profile_name, region
@@ -182,9 +184,32 @@ impl App {
 
             // Check if profile uses SSO and run login if needed
             if is_sso {
+                let cli_check = tokio::process::Command::new("aws")
+                    .arg("--version")
+                    .kill_on_drop(true)
+                    .output()
+                    .await;
+
+                let cli_available = cli_check
+                    .as_ref()
+                    .map(|output| output.status.success())
+                    .unwrap_or(false);
+
+                if !cli_available {
+                    let message = "AWS CLI not found in PATH. Install it from https://aws.amazon.com/cli/ or ensure it's in your PATH.".to_string();
+                    sso_messages.push(message.clone());
+                    let _ = event_tx
+                        .send(Event::Aws(Box::new(AwsEvent::ProfileRegionSwitchFailed(
+                            message,
+                        ))))
+                        .await;
+                    return;
+                }
+
                 // First check if existing credentials are valid
                 let creds_check = tokio::process::Command::new("aws")
                     .args(["sts", "get-caller-identity", "--profile", &profile_name])
+                    .kill_on_drop(true)
                     .output()
                     .await;
 
@@ -195,25 +220,50 @@ impl App {
 
                 if needs_login {
                     sso_messages.push(format!("Running SSO login for profile: {}", profile_name));
-                    let sso_result = tokio::process::Command::new("aws")
+                    let mut command = tokio::process::Command::new("aws");
+                    command
                         .args(["sso", "login", "--profile", &profile_name])
-                        .output()
-                        .await;
+                        .kill_on_drop(true);
+
+                    let sso_result = tokio::time::timeout(
+                        Duration::from_secs(sso_login_timeout_secs),
+                        command.output(),
+                    )
+                    .await;
 
                     match sso_result {
-                        Ok(output) => {
-                            if output.status.success() {
-                                sso_messages.push(format!(
-                                    "SSO login successful for profile: {}",
-                                    profile_name
-                                ));
-                            } else {
+                        Ok(output_result) => match output_result {
+                            Ok(output) => {
                                 let stderr = String::from_utf8_lossy(&output.stderr);
-                                sso_messages.push(format!("SSO login warning: {}", stderr.trim()));
+                                for url in Self::extract_urls(&stderr) {
+                                    sso_messages.push(format!("SSO Login URL: {}", url));
+                                }
+
+                                if output.status.success() {
+                                    sso_messages.push(format!(
+                                        "SSO login successful for profile: {}",
+                                        profile_name
+                                    ));
+                                } else {
+                                    sso_messages
+                                        .push(format!("SSO login warning: {}", stderr.trim()));
+                                }
                             }
-                        }
-                        Err(e) => {
-                            sso_messages.push(format!("SSO login error: {}", e));
+                            Err(e) => {
+                                sso_messages.push(format!("SSO login error: {}", e));
+                            }
+                        },
+                        Err(_) => {
+                            let message = format!(
+                                "SSO login timed out after {} seconds. The browser window may still be open — complete login there and try switching profile again.",
+                                sso_login_timeout_secs
+                            );
+                            let _ = event_tx
+                                .send(Event::Aws(Box::new(
+                                    AwsEvent::ProfileRegionSwitchFailed(message),
+                                )))
+                                .await;
+                            return;
                         }
                     }
                 } else {
@@ -261,6 +311,22 @@ impl App {
         self.tasks.spawn(task_keys::PROFILE_SWITCH, handle);
     }
 
+    fn extract_urls(text: &str) -> Vec<String> {
+        text.split_whitespace()
+            .filter_map(|token| {
+                let start = token.find("https://")?;
+                let mut url = &token[start..];
+                url = url.trim_end_matches(|c: char| matches!(c, ')' | ',' | '.' | ';' | '"' | '\''));
+                if url.is_empty() {
+                    None
+                } else {
+                    Some(url.to_string())
+                }
+            })
+            .collect()
+    }
+
+
     pub(super) fn handle_refresh_data(&mut self, event_tx: crate::app::EventSender) {
         let Some(clients) = &self.aws_clients else {
             return;
@@ -305,5 +371,24 @@ impl App {
         // Set focus to main pane so user can immediately interact with the selection
         self.focus = super::super::Focus::Main;
         self.sidebar.is_focused = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::App;
+
+    #[test]
+    fn test_extract_urls_from_sso_output() {
+        let text = "Open the following URL: https://device.sso.us-east-1.amazonaws.com/ and complete login.";
+        let urls = App::extract_urls(text);
+        assert_eq!(urls, vec!["https://device.sso.us-east-1.amazonaws.com/".to_string()]);
+    }
+
+    #[test]
+    fn test_extract_urls_trims_punctuation() {
+        let text = "Visit https://example.com/login, then continue.";
+        let urls = App::extract_urls(text);
+        assert_eq!(urls, vec!["https://example.com/login".to_string()]);
     }
 }

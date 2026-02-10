@@ -54,6 +54,10 @@ pub enum AppError {
     /// Internal error
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// Credential error (expired/invalid credentials)
+    #[error("Credential error: {message}")]
+    CredentialError { message: String, is_expired: bool },
 }
 
 /// Convenience type alias for Results with AppError
@@ -111,24 +115,104 @@ impl AppError {
         Self::Internal(message.into())
     }
 
+    /// Create a credential error
+    pub fn credential_error(message: impl Into<String>, is_expired: bool) -> Self {
+        Self::CredentialError {
+            message: message.into(),
+            is_expired,
+        }
+    }
+
     /// Get a user-friendly message for display in the UI
     pub fn user_message(&self) -> String {
         match self {
-            Self::AwsApi { service, message, .. } => {
+            Self::AwsApi {
+                service, message, ..
+            } => {
                 format!("{}: {}", service, message)
             }
-            Self::NotFound { resource_type, resource_id } => {
+            Self::NotFound {
+                resource_type,
+                resource_id,
+            } => {
                 format!("{} '{}' not found", resource_type, resource_id)
             }
             Self::Validation(msg) => msg.clone(),
             Self::Io(e) => format!("IO error: {}", e),
-            Self::EditorFailed { editor, status_code } => {
+            Self::EditorFailed {
+                editor,
+                status_code,
+            } => {
                 format!("Editor '{}' failed with status: {:?}", editor, status_code)
             }
             Self::Config(msg) => format!("Config: {}", msg),
             Self::Cancelled(task) => format!("Cancelled: {}", task),
             Self::Internal(msg) => format!("Error: {}", msg),
+            Self::CredentialError {
+                message,
+                is_expired,
+            } => {
+                if *is_expired {
+                    format!(
+                        "Credential error: {}. Your credentials may have expired. Try switching profile (Shift+P) to re-authenticate.",
+                        message
+                    )
+                } else {
+                    format!(
+                        "Credential error: {}. Check your AWS credentials or switch profile (Shift+P) to re-authenticate.",
+                        message
+                    )
+                }
+            }
         }
+    }
+
+    /// Returns true if this error is credential-related
+    pub fn is_credential_error(&self) -> bool {
+        matches!(self, Self::CredentialError { .. })
+    }
+}
+
+const CREDENTIAL_ERROR_PATTERNS: [&str; 5] = [
+    "expiredtoken",
+    "expiredtokenexception",
+    "invalidclienttokenid",
+    "unrecognizedclientexception",
+    "authfailure",
+];
+
+/// Returns true if the message indicates a credential error
+pub fn is_credential_error_message(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    if CREDENTIAL_ERROR_PATTERNS
+        .iter()
+        .any(|pattern| lower.contains(pattern))
+    {
+        return true;
+    }
+
+    if lower.contains("accessdenied") {
+        return lower.contains("sts") || lower.contains("getcalleridentity");
+    }
+
+    false
+}
+
+/// Returns true if the message indicates expired credentials
+pub fn is_expired_credential_message(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("expiredtoken") || lower.contains("expiredtokenexception")
+}
+
+/// Classify a credential error message into an AppError if it matches
+pub fn classify_credential_error(message: &str) -> Option<AppError> {
+    if is_credential_error_message(message) {
+        Some(AppError::credential_error(
+            message,
+            is_expired_credential_message(message),
+        ))
+    } else {
+        None
     }
 }
 
@@ -165,5 +249,30 @@ mod tests {
     fn test_validation_error() {
         let err = AppError::validation("Invalid bucket name");
         assert_eq!(err.to_string(), "Invalid input: Invalid bucket name");
+    }
+
+    #[test]
+    fn test_credential_error_message_expired() {
+        let message = "ExpiredToken: The security token included in the request is expired";
+        assert!(is_credential_error_message(message));
+        assert!(is_expired_credential_message(message));
+        let err = classify_credential_error(message).expect("should classify");
+        assert!(err.is_credential_error());
+        assert!(err.user_message().contains("may have expired"));
+    }
+
+    #[test]
+    fn test_credential_error_message_access_denied_sts() {
+        let message = "AccessDenied: User is not authorized to perform sts:GetCallerIdentity";
+        assert!(is_credential_error_message(message));
+        let err = classify_credential_error(message).expect("should classify");
+        assert!(err.user_message().contains("Credential error"));
+    }
+
+    #[test]
+    fn test_credential_error_message_access_denied_non_sts() {
+        let message = "AccessDenied: User is not authorized to perform s3:ListBuckets";
+        assert!(!is_credential_error_message(message));
+        assert!(classify_credential_error(message).is_none());
     }
 }

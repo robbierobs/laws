@@ -8,6 +8,7 @@
 //! 4. Send success event or error event
 //! 5. Register with TaskManager
 
+use crate::error::classify_credential_error;
 use crate::event::{AwsEvent, Event, EventSender};
 use std::future::Future;
 use tokio::task::JoinHandle;
@@ -41,7 +42,11 @@ where
             }
             Err(e) => {
                 if report_errors {
-                    tx.send(Event::Aws(Box::new(AwsEvent::Error(e.to_string()))))
+                    let message = e.to_string();
+                    let user_message = classify_credential_error(&message)
+                        .map(|err| err.user_message())
+                        .unwrap_or(message);
+                    tx.send(Event::Aws(Box::new(AwsEvent::Error(user_message))))
                         .await
                         .ok();
                 }
@@ -191,5 +196,30 @@ mod tests {
 
         // Channel should be empty - no error sent
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_list_task_credential_error_classified() {
+        let (tx, mut rx) = mpsc::channel(10);
+
+        let handle = spawn_list_task(
+            tx,
+            || async { Err::<Vec<String>, _>("ExpiredToken: token expired") },
+            |_: Vec<String>| AwsEvent::ActionCompleted("success".to_string()),
+            true,
+        );
+
+        handle.await.unwrap();
+
+        if let Some(Event::Aws(aws_event)) = rx.recv().await {
+            if let AwsEvent::Error(msg) = *aws_event {
+                assert!(msg.contains("Credential error"));
+                assert!(msg.contains("expired"));
+            } else {
+                panic!("Expected Error event");
+            }
+        } else {
+            panic!("Expected Aws event");
+        }
     }
 }

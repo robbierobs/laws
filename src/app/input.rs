@@ -3,6 +3,7 @@
 //! Handles all keyboard events and translates them to messages.
 
 use super::{App, Focus, GlobalMessage, InputMode, InputResult, Message, Service};
+use crate::app::task_manager::task_keys;
 use crate::app::global_search::Searchable;
 use crate::ui::components::Component;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -33,6 +34,16 @@ impl App {
     /// Main keyboard event handler
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Message> {
         self.error_message = None;
+
+        if self.loading
+            && key.code == KeyCode::Esc
+            && self.tasks.is_active(task_keys::PROFILE_SWITCH)
+        {
+            self.tasks.cancel(task_keys::PROFILE_SWITCH);
+            self.loading = false;
+            self.action_log.push("Profile switch cancelled".to_string());
+            return None;
+        }
 
         if let KeyHandling::Handled(message) = self.handle_modal_inputs(key) {
             return message;
@@ -548,5 +559,29 @@ impl App {
     /// Collect all searchable resources from all services
     fn collect_all_search_results(&self) -> Vec<super::global_search::SearchResult> {
         self.services.get_search_results()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::task_manager::task_keys;
+    use std::sync::{atomic::AtomicBool, Arc};
+
+    #[tokio::test]
+    async fn test_escape_cancels_profile_switch_loading() {
+        let mut app = App::new(None, None, "us-east-1".to_string(), false, Arc::new(AtomicBool::new(false)));
+        app.loading = true;
+
+        let handle = tokio::spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        });
+        app.tasks.spawn(task_keys::PROFILE_SWITCH, handle);
+
+        let message = app.handle_key(KeyEvent::new(KeyCode::Esc, crossterm::event::KeyModifiers::NONE));
+        assert!(message.is_none());
+        assert!(!app.loading);
+        assert!(!app.tasks.is_active(task_keys::PROFILE_SWITCH));
+        assert!(app.action_log.iter().any(|msg| msg == "Profile switch cancelled"));
     }
 }

@@ -3,6 +3,7 @@
 //! Processes async events from AWS service calls and updates application state.
 
 use super::{App, IamViewMode, InputMode};
+use crate::error::classify_credential_error;
 use crate::event::AwsEvent;
 
 impl App {
@@ -272,8 +273,11 @@ impl App {
             AwsEvent::Error(e) => {
                 self.loading = false;
                 self.detail_loading = false;
-                self.error_message = Some(e.clone());
-                self.action_log.push(format!("[ERROR] {}", e));
+                let user_message = classify_credential_error(&e)
+                    .map(|err| err.user_message())
+                    .unwrap_or_else(|| e.clone());
+                self.error_message = Some(user_message.clone());
+                self.action_log.push(format!("[ERROR] {}", user_message));
                 // Reset S3 bucket view on error so user can try again
                 if self.services.s3.current_bucket.is_some() {
                     self.services.s3.current_bucket = None;
