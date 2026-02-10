@@ -7,6 +7,12 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
+#[derive(Copy, Clone)]
+enum ProfileSource {
+    Config,
+    Credentials,
+}
+
 /// All AWS regions, including GovCloud regions
 pub const ALL_REGIONS: &[&str] = &[
     // US regions
@@ -59,20 +65,16 @@ pub fn list_profiles() -> Vec<String> {
     profiles.insert("default".to_string());
 
     // Read from ~/.aws/config
-    if let Some(config_path) = get_aws_config_path() {
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            for profile in parse_profiles_from_config(&content) {
-                profiles.insert(profile);
-            }
+    if let Some(content) = read_aws_config() {
+        for profile in parse_profiles_from_config(&content) {
+            profiles.insert(profile);
         }
     }
 
     // Read from ~/.aws/credentials
-    if let Some(creds_path) = get_aws_credentials_path() {
-        if let Ok(content) = fs::read_to_string(&creds_path) {
-            for profile in parse_profiles_from_credentials(&content) {
-                profiles.insert(profile);
-            }
+    if let Some(content) = read_aws_credentials() {
+        for profile in parse_profiles_from_credentials(&content) {
+            profiles.insert(profile);
         }
     }
 
@@ -98,19 +100,35 @@ fn get_aws_credentials_path() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".aws").join("credentials"))
 }
 
+fn read_aws_config() -> Option<String> {
+    get_aws_config_path().and_then(|path| fs::read_to_string(path).ok())
+}
+
+fn read_aws_credentials() -> Option<String> {
+    get_aws_credentials_path().and_then(|path| fs::read_to_string(path).ok())
+}
+
 /// Parse profile names from ~/.aws/config
 /// Config file uses [profile name] format (except for default which is just [default])
 fn parse_profiles_from_config(content: &str) -> Vec<String> {
+    parse_profiles_from_sections(content, ProfileSource::Config)
+}
+
+/// Parse profile names from ~/.aws/credentials
+/// Credentials file uses [name] format directly
+fn parse_profiles_from_credentials(content: &str) -> Vec<String> {
+    parse_profiles_from_sections(content, ProfileSource::Credentials)
+}
+
+fn parse_profiles_from_sections(content: &str, source: ProfileSource) -> Vec<String> {
     let mut profiles = Vec::new();
 
     for line in content.lines() {
         let line = line.trim();
         if line.starts_with('[') && line.ends_with(']') {
-            let section = &line[1..line.len() - 1].trim();
-            if *section == "default" {
-                profiles.push("default".to_string());
-            } else if let Some(profile_name) = section.strip_prefix("profile ") {
-                profiles.push(profile_name.trim().to_string());
+            let section = line[1..line.len() - 1].trim();
+            if let Some(profile_name) = normalize_profile_section(section, source) {
+                profiles.push(profile_name);
             }
         }
     }
@@ -118,58 +136,94 @@ fn parse_profiles_from_config(content: &str) -> Vec<String> {
     profiles
 }
 
-/// Parse profile names from ~/.aws/credentials
-/// Credentials file uses [name] format directly
-fn parse_profiles_from_credentials(content: &str) -> Vec<String> {
-    let mut profiles = Vec::new();
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.starts_with('[') && line.ends_with(']') {
-            let profile_name = &line[1..line.len() - 1].trim();
-            profiles.push(profile_name.to_string());
-        }
+fn normalize_profile_section(section: &str, source: ProfileSource) -> Option<String> {
+    if section == "default" {
+        return Some("default".to_string());
     }
 
-    profiles
+    if let Some(profile_name) = section.strip_prefix("profile ") {
+        let profile_name = profile_name.trim();
+        if !profile_name.is_empty() {
+            return Some(profile_name.to_string());
+        }
+        return None;
+    }
+
+    match source {
+        ProfileSource::Credentials => Some(section.to_string()),
+        ProfileSource::Config => {
+            if is_non_profile_section(section) {
+                None
+            } else {
+                Some(section.to_string())
+            }
+        }
+    }
+}
+
+fn is_non_profile_section(section: &str) -> bool {
+    section == "sso-session"
+        || section.starts_with("sso-session ")
+        || section == "services"
+        || section.starts_with("services ")
 }
 
 /// Check if a profile uses SSO authentication
 pub fn is_sso_profile(profile_name: &str) -> bool {
-    if let Some(config_path) = get_aws_config_path() {
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            return check_profile_has_sso(&content, profile_name);
-        }
+    if let Some(content) = read_aws_config() {
+        return check_profile_has_sso(&content, profile_name);
     }
     false
 }
 
 /// Parse the config file and check if the given profile has SSO settings
 fn check_profile_has_sso(content: &str, profile_name: &str) -> bool {
-    let target_section = if profile_name == "default" {
+    profile_section_any(content, profile_name, |line| {
+        line.starts_with("sso_start_url")
+            || line.starts_with("sso_account_id")
+            || line.starts_with("sso_role_name")
+            || line.starts_with("sso_session")
+    })
+}
+
+/// Get the endpoint_url configured for a profile in ~/.aws/config
+/// This is used for LocalStack and other custom endpoints
+pub fn get_profile_endpoint_url(profile_name: &str) -> Option<String> {
+    if let Some(content) = read_aws_config() {
+        return parse_profile_endpoint_url(&content, profile_name);
+    }
+    None
+}
+
+/// Parse the config file and extract endpoint_url for a given profile
+fn parse_profile_endpoint_url(content: &str, profile_name: &str) -> Option<String> {
+    profile_section_find_value(content, profile_name, "endpoint_url")
+}
+
+fn profile_section_header(profile_name: &str) -> String {
+    if profile_name == "default" {
         "[default]".to_string()
     } else {
         format!("[profile {}]", profile_name)
-    };
+    }
+}
 
+fn profile_section_any<F>(content: &str, profile_name: &str, mut predicate: F) -> bool
+where
+    F: FnMut(&str) -> bool,
+{
+    let target_section = profile_section_header(profile_name);
     let mut in_target_section = false;
 
     for line in content.lines() {
         let line = line.trim();
 
-        // Check for section header
         if line.starts_with('[') && line.ends_with(']') {
             in_target_section = line == target_section;
             continue;
         }
 
-        // Check for SSO-related keys in the target section
-        if in_target_section
-            && (line.starts_with("sso_start_url")
-                || line.starts_with("sso_account_id")
-                || line.starts_with("sso_role_name")
-                || line.starts_with("sso_session"))
-        {
+        if in_target_section && predicate(line) {
             return true;
         }
     }
@@ -177,40 +231,20 @@ fn check_profile_has_sso(content: &str, profile_name: &str) -> bool {
     false
 }
 
-/// Get the endpoint_url configured for a profile in ~/.aws/config
-/// This is used for LocalStack and other custom endpoints
-pub fn get_profile_endpoint_url(profile_name: &str) -> Option<String> {
-    if let Some(config_path) = get_aws_config_path() {
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            return parse_profile_endpoint_url(&content, profile_name);
-        }
-    }
-    None
-}
-
-/// Parse the config file and extract endpoint_url for a given profile
-fn parse_profile_endpoint_url(content: &str, profile_name: &str) -> Option<String> {
-    let target_section = if profile_name == "default" {
-        "[default]".to_string()
-    } else {
-        format!("[profile {}]", profile_name)
-    };
-
+fn profile_section_find_value(content: &str, profile_name: &str, key: &str) -> Option<String> {
+    let target_section = profile_section_header(profile_name);
     let mut in_target_section = false;
 
     for line in content.lines() {
         let line = line.trim();
 
-        // Check for section header
         if line.starts_with('[') && line.ends_with(']') {
             in_target_section = line == target_section;
             continue;
         }
 
-        // Check for endpoint_url in the target section
         if in_target_section {
-            if let Some(value) = line.strip_prefix("endpoint_url") {
-                // Handle both "endpoint_url = value" and "endpoint_url=value"
+            if let Some(value) = line.strip_prefix(key) {
                 let value = value.trim().trim_start_matches('=').trim();
                 if !value.is_empty() {
                     return Some(value.to_string());

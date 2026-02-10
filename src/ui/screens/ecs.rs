@@ -7,6 +7,7 @@ use crate::app::{App, Focus};
 use crate::models::ecs::{
     EcsCluster, EcsContainerDefinition, EcsService, EcsTask, EcsTaskDefinition,
 };
+use crate::models::StateColor;
 use crate::ui::components::table::render_table;
 use crate::ui::theme::THEME;
 use ratatui::{

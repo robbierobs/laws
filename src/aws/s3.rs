@@ -53,14 +53,23 @@ impl S3Service {
     pub async fn get_bucket_details(&self, bucket_name: &str) -> S3BucketDetails {
         let mut details = S3BucketDetails::default();
 
+        let (versioning_result, encryption_result, tagging_result) = tokio::join!(
+            self.client
+                .get_bucket_versioning()
+                .bucket(bucket_name)
+                .send(),
+            self.client
+                .get_bucket_encryption()
+                .bucket(bucket_name)
+                .send(),
+            self.client
+                .get_bucket_tagging()
+                .bucket(bucket_name)
+                .send(),
+        );
+
         // Get versioning status
-        match self
-            .client
-            .get_bucket_versioning()
-            .bucket(bucket_name)
-            .send()
-            .await
-        {
+        match versioning_result {
             Ok(resp) => {
                 details.versioning_enabled = resp
                     .status()
@@ -72,13 +81,7 @@ impl S3Service {
         }
 
         // Get encryption configuration
-        match self
-            .client
-            .get_bucket_encryption()
-            .bucket(bucket_name)
-            .send()
-            .await
-        {
+        match encryption_result {
             Ok(resp) => {
                 if let Some(config) = resp.server_side_encryption_configuration() {
                     let encryption_types: Vec<String> = config
@@ -100,13 +103,7 @@ impl S3Service {
         }
 
         // Get bucket tagging
-        match self
-            .client
-            .get_bucket_tagging()
-            .bucket(bucket_name)
-            .send()
-            .await
-        {
+        match tagging_result {
             Ok(resp) => {
                 details.tags = resp
                     .tag_set()

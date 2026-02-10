@@ -1,3 +1,4 @@
+use super::StateColor;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,8 +75,10 @@ impl BackupJob {
             percent_done: job.percent_done().map(|s| s.to_string()),
         }
     }
+}
 
-    pub fn state_color(&self) -> ratatui::style::Color {
+impl StateColor for BackupJob {
+    fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self.state.to_uppercase().as_str() {
             "COMPLETED" => THEME.success,

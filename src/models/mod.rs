@@ -15,8 +15,14 @@ pub mod secretsmanager;
 pub mod sqs;
 pub mod vpc;
 
+use ratatui::style::Color;
+
 pub trait Filterable {
     fn matches_filter(&self, filter: &str) -> bool;
+}
+
+pub trait StateColor {
+    fn state_color(&self) -> Color;
 }
 
 pub trait TagView {

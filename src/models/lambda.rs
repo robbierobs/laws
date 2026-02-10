@@ -1,3 +1,4 @@
+use super::StateColor;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,7 +98,22 @@ impl LambdaFunction {
         }
     }
 
-    pub fn state_color(&self) -> ratatui::style::Color {
+    pub fn format_code_size(&self) -> String {
+        const KB: i64 = 1024;
+        const MB: i64 = KB * 1024;
+
+        if self.code_size >= MB {
+            format!("{:.2} MB", self.code_size as f64 / MB as f64)
+        } else if self.code_size >= KB {
+            format!("{:.2} KB", self.code_size as f64 / KB as f64)
+        } else {
+            format!("{} B", self.code_size)
+        }
+    }
+}
+
+impl StateColor for LambdaFunction {
+    fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self
             .state
@@ -111,19 +127,6 @@ impl LambdaFunction {
             "INACTIVE" => THEME.muted,
             "FAILED" => THEME.error,
             _ => THEME.muted,
-        }
-    }
-
-    pub fn format_code_size(&self) -> String {
-        const KB: i64 = 1024;
-        const MB: i64 = KB * 1024;
-
-        if self.code_size >= MB {
-            format!("{:.2} MB", self.code_size as f64 / MB as f64)
-        } else if self.code_size >= KB {
-            format!("{:.2} KB", self.code_size as f64 / KB as f64)
-        } else {
-            format!("{} B", self.code_size)
         }
     }
 }

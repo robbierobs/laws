@@ -1,3 +1,4 @@
+use super::StateColor;
 use crate::models::{collect_tags, find_name_tag};
 use crate::ui::theme::THEME;
 use ratatui::style::Color;
@@ -31,8 +32,9 @@ pub struct SecurityGroupInfo {
     pub group_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum InstanceState {
+    #[default]
     Pending,
     Running,
     ShuttingDown,
@@ -70,8 +72,8 @@ impl std::fmt::Display for InstanceState {
     }
 }
 
-impl Ec2Instance {
-    pub fn state_color(&self) -> Color {
+impl StateColor for Ec2Instance {
+    fn state_color(&self) -> Color {
         match self.state {
             InstanceState::Running => THEME.success,
             InstanceState::Stopped => THEME.error,
@@ -79,7 +81,9 @@ impl Ec2Instance {
             _ => THEME.muted,
         }
     }
+}
 
+impl Ec2Instance {
     pub fn from_aws(instance: aws_sdk_ec2::types::Instance) -> Self {
         let name = find_name_tag(instance.tags().iter());
         let tags = collect_tags(instance.tags().iter());
