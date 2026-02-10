@@ -30,18 +30,33 @@ impl InstanceAction {
 impl Ec2Service {
 
     pub async fn list_instances(&self) -> AppResult<Vec<Ec2Instance>> {
-        let response = self.client
-            .describe_instances()
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("EC2", "describe", "all", e))?;
+        let mut instances = Vec::new();
+        let mut next_token: Option<String> = None;
 
-        let instances = response
-            .reservations()
-            .iter()
-            .flat_map(|r| r.instances())
-            .map(|i| Ec2Instance::from_aws(i.clone()))
-            .collect();
+        loop {
+            let mut request = self.client.describe_instances();
+            if let Some(token) = next_token {
+                request = request.next_token(token);
+            }
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("EC2", "describe", "all", e))?;
+
+            instances.extend(
+                response
+                    .reservations()
+                    .iter()
+                    .flat_map(|r| r.instances())
+                    .map(|i| Ec2Instance::from_aws(i.clone())),
+            );
+
+            next_token = response.next_token().map(|s| s.to_string());
+            if next_token.is_none() {
+                break;
+            }
+        }
 
         Ok(instances)
     }

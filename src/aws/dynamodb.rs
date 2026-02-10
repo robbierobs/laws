@@ -11,19 +11,33 @@ crate::aws_service_struct!(DynamoDbService, Client);
 impl DynamoDbService {
 
     pub async fn list_tables(&self) -> AppResult<Vec<DynamoDbTable>> {
-        // First, get the list of table names
-        let list_response = self
-            .client
-            .list_tables()
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))?;
+        // First, get all table names with pagination
+        let mut table_names = Vec::new();
+        let mut last_evaluated: Option<String> = None;
 
-        let table_names = list_response.table_names();
+        loop {
+            let mut request = self.client.list_tables();
+            if let Some(token) = last_evaluated {
+                request = request.exclusive_start_table_name(token);
+            }
+
+            let list_response = request
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))?;
+
+            table_names.extend(list_response.table_names().iter().cloned());
+
+            last_evaluated = list_response.last_evaluated_table_name().map(|s| s.to_string());
+            if last_evaluated.is_none() {
+                break;
+            }
+        }
+
         let mut tables = Vec::new();
 
         // For each table, get detailed information
-        for table_name in table_names {
+        for table_name in &table_names {
             match self.describe_table(table_name).await {
                 Ok(table) => tables.push(table),
                 Err(e) => {

@@ -17,23 +17,18 @@ pub enum EcsEditorResult {
 }
 
 /// Handle keyboard input for the ECS service editor modal.
-pub fn handle_ecs_service_editor_input(
-    ecs_state: &mut EcsState,
-    key: KeyEvent,
-) -> EcsEditorResult {
+pub fn handle_ecs_service_editor_input(ecs_state: &mut EcsState, key: KeyEvent) -> EcsEditorResult {
     match key.code {
         KeyCode::Esc => {
             ecs_state.reset_service_editor();
             EcsEditorResult::Cancel
         }
         KeyCode::Tab | KeyCode::Down => {
-            // Cycle through fields: 0=task_def, 1=cpu, 2=memory, 3=force_deploy
-            ecs_state.service_editor.active_field = (ecs_state.service_editor.active_field + 1) % 4;
+            ecs_state.service_editor.next_field();
             EcsEditorResult::Continue
         }
         KeyCode::BackTab | KeyCode::Up => {
-            // Cycle backwards
-            ecs_state.service_editor.active_field = (ecs_state.service_editor.active_field + 3) % 4;
+            ecs_state.service_editor.prev_field();
             EcsEditorResult::Continue
         }
         KeyCode::Char(' ') => {
@@ -45,9 +40,15 @@ pub fn handle_ecs_service_editor_input(
         }
         KeyCode::Backspace => {
             match ecs_state.service_editor.active_field {
-                0 => { ecs_state.service_editor.task_def.pop(); }
-                1 => { ecs_state.service_editor.cpu.pop(); }
-                2 => { ecs_state.service_editor.memory.pop(); }
+                0 => {
+                    ecs_state.service_editor.task_def.pop();
+                }
+                1 => {
+                    ecs_state.service_editor.cpu.pop();
+                }
+                2 => {
+                    ecs_state.service_editor.memory.pop();
+                }
                 _ => {}
             }
             EcsEditorResult::Continue

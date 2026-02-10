@@ -9,17 +9,32 @@ crate::aws_service_struct!(RdsService, Client);
 impl RdsService {
 
     pub async fn list_instances(&self) -> AppResult<Vec<RdsInstance>> {
-        let response = self.client
-            .describe_db_instances()
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("RDS", "describe", "all", e))?;
+        let mut instances = Vec::new();
+        let mut marker: Option<String> = None;
 
-        let instances = response
-            .db_instances()
-            .iter()
-            .map(RdsInstance::from_aws)
-            .collect();
+        loop {
+            let mut request = self.client.describe_db_instances();
+            if let Some(m) = marker {
+                request = request.marker(m);
+            }
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("RDS", "describe", "all", e))?;
+
+            instances.extend(
+                response
+                    .db_instances()
+                    .iter()
+                    .map(RdsInstance::from_aws),
+            );
+
+            marker = response.marker().map(|s| s.to_string());
+            if marker.is_none() {
+                break;
+            }
+        }
 
         Ok(instances)
     }

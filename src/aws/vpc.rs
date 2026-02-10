@@ -9,40 +9,68 @@ crate::aws_service_struct!(VpcService, Client);
 impl VpcService {
 
     pub async fn list_vpcs(&self) -> AppResult<Vec<Vpc>> {
-        let response = self
-            .client
-            .describe_vpcs()
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("VPC", "describe_vpcs", "all", e))?;
+        let mut vpcs = Vec::new();
+        let mut next_token: Option<String> = None;
 
-        let vpcs = response.vpcs().iter().map(Vpc::from_aws).collect();
+        loop {
+            let mut request = self.client.describe_vpcs();
+            if let Some(token) = next_token {
+                request = request.next_token(token);
+            }
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("VPC", "describe_vpcs", "all", e))?;
+
+            vpcs.extend(response.vpcs().iter().map(Vpc::from_aws));
+
+            next_token = response.next_token().map(|s| s.to_string());
+            if next_token.is_none() {
+                break;
+            }
+        }
 
         Ok(vpcs)
     }
 
     pub async fn list_subnets(&self, vpc_id: Option<&str>) -> AppResult<Vec<Subnet>> {
-        let mut request = self.client.describe_subnets();
+        let mut subnets = Vec::new();
+        let mut next_token: Option<String> = None;
 
-        if let Some(id) = vpc_id {
-            request = request.filters(
-                aws_sdk_ec2::types::Filter::builder()
-                    .name("vpc-id")
-                    .values(id)
-                    .build(),
+        loop {
+            let mut request = self.client.describe_subnets();
+
+            if let Some(id) = vpc_id {
+                request = request.filters(
+                    aws_sdk_ec2::types::Filter::builder()
+                        .name("vpc-id")
+                        .values(id)
+                        .build(),
+                );
+            }
+
+            if let Some(token) = next_token {
+                request = request.next_token(token);
+            }
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| format_sdk_error("VPC", "describe_subnets", vpc_id.unwrap_or("all"), e))?;
+
+            subnets.extend(
+                response
+                    .subnets()
+                    .iter()
+                    .map(Subnet::from_aws),
             );
+
+            next_token = response.next_token().map(|s| s.to_string());
+            if next_token.is_none() {
+                break;
+            }
         }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("VPC", "describe_subnets", vpc_id.unwrap_or("all"), e))?;
-
-        let subnets = response
-            .subnets()
-            .iter()
-            .map(Subnet::from_aws)
-            .collect();
 
         Ok(subnets)
     }
@@ -51,31 +79,46 @@ impl VpcService {
         &self,
         vpc_id: Option<&str>,
     ) -> AppResult<Vec<SecurityGroup>> {
-        let mut request = self.client.describe_security_groups();
+        let mut sgs = Vec::new();
+        let mut next_token: Option<String> = None;
 
-        if let Some(id) = vpc_id {
-            request = request.filters(
-                aws_sdk_ec2::types::Filter::builder()
-                    .name("vpc-id")
-                    .values(id)
-                    .build(),
+        loop {
+            let mut request = self.client.describe_security_groups();
+
+            if let Some(id) = vpc_id {
+                request = request.filters(
+                    aws_sdk_ec2::types::Filter::builder()
+                        .name("vpc-id")
+                        .values(id)
+                        .build(),
+                );
+            }
+
+            if let Some(token) = next_token {
+                request = request.next_token(token);
+            }
+
+            let response = request.send().await.map_err(|e| {
+                format_sdk_error(
+                    "VPC",
+                    "describe_security_groups",
+                    vpc_id.unwrap_or("all"),
+                    e,
+                )
+            })?;
+
+            sgs.extend(
+                response
+                    .security_groups()
+                    .iter()
+                    .map(SecurityGroup::from_aws),
             );
+
+            next_token = response.next_token().map(|s| s.to_string());
+            if next_token.is_none() {
+                break;
+            }
         }
-
-        let response = request.send().await.map_err(|e| {
-            format_sdk_error(
-                "VPC",
-                "describe_security_groups",
-                vpc_id.unwrap_or("all"),
-                e,
-            )
-        })?;
-
-        let sgs = response
-            .security_groups()
-            .iter()
-            .map(SecurityGroup::from_aws)
-            .collect();
 
         Ok(sgs)
     }

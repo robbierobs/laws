@@ -427,7 +427,7 @@ impl ServiceInternal for CloudTrailState {
                 }
             }
         });
-        tasks.spawn(task_keys::CLOUDTRAIL_REFRESH, handle_events);
+        tasks.spawn(task_keys::CLOUDTRAIL_EVENTS, handle_events);
     }
 
     fn clear(&mut self) {

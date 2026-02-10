@@ -134,7 +134,7 @@ impl App {
         let filters = self.services.cloudtrail.current_filters.clone();
         let max_results = self.config.max_cloudtrail_events as i32;
 
-        self.spawn_aws_task(event_tx, task_keys::CLOUDTRAIL_REFRESH, move |clients, tx| async move {
+        self.spawn_aws_task(event_tx, task_keys::CLOUDTRAIL_EVENTS, move |clients, tx| async move {
             let service = crate::aws::cloudtrail::CloudTrailService::new(clients.cloudtrail.clone());
             let params = if filters.is_empty() { None } else { Some(&filters) };
             

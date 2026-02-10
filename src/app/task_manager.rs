@@ -182,6 +182,7 @@ impl TaskManager {
             task_keys::IAM_REFRESH,
             task_keys::BACKUP_REFRESH,
             task_keys::CLOUDTRAIL_REFRESH,
+            task_keys::CLOUDTRAIL_EVENTS,
             task_keys::SECRETSMANAGER_REFRESH,
             task_keys::ECS_REFRESH,
             task_keys::ECR_REFRESH,
@@ -290,6 +291,7 @@ pub mod task_keys {
     pub const IAM_POLICIES: &str = "iam:policies";
     pub const BACKUP_REFRESH: &str = "backup:refresh";
     pub const CLOUDTRAIL_REFRESH: &str = "cloudtrail:refresh";
+    pub const CLOUDTRAIL_EVENTS: &str = "cloudtrail:events";
     pub const SECRETSMANAGER_REFRESH: &str = "secretsmanager:refresh";
     pub const ECS_REFRESH: &str = "ecs:refresh";
     pub const ECS_SERVICES: &str = "ecs:services";
