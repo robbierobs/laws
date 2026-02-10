@@ -266,6 +266,7 @@ impl ServiceInternal for S3State {
         let client = clients.s3.clone();
         let tx_clone = tx.clone();
         let delay_ms = config.s3_detail_delay_ms;
+        let max_keys = config.max_s3_objects;
 
         let handle = tokio::spawn(async move {
             let service = crate::aws::s3::S3Service::new(client.clone());
@@ -310,9 +311,10 @@ impl ServiceInternal for S3State {
             let bucket_name = bucket_name.clone();
             let client = clients.s3.clone();
             let tx = tx.clone();
+            let max_keys = max_keys;
             let handle = tokio::spawn(async move {
                 let service = crate::aws::s3::S3Service::new(client);
-                match service.list_objects(&bucket_name).await {
+                match service.list_objects(&bucket_name, max_keys).await {
                     Ok(objects) => {
                         tx.send(Event::Aws(Box::new(AwsEvent::S3ObjectsLoaded(objects))))
                             .await
