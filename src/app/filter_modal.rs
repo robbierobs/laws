@@ -1,3 +1,4 @@
+#![allow(dead_code)] // TODO: Complete filter modal feature - Toggle, width, field accessors not yet wired
 //! Generic filter modal abstraction
 //!
 //! Provides a reusable filter modal system that can be configured for different services.
@@ -170,7 +171,11 @@ impl FilterFieldState {
                 self.text_value.clone()
             }
             FilterFieldType::Toggle => {
-                if self.toggle_value { "Yes".into() } else { "No".into() }
+                if self.toggle_value {
+                    "Yes".into()
+                } else {
+                    "No".into()
+                }
             }
             FilterFieldType::Cycle(options) => {
                 options.get(self.cycle_index).cloned().unwrap_or_default()
@@ -257,8 +262,13 @@ impl FilterModalState {
     }
 
     /// Get mutable reference to current field state
-    pub fn current_field_state_mut(&mut self, config: &FilterModalConfig) -> Option<&mut FilterFieldState> {
-        config.fields.get(self.selected_field)
+    pub fn current_field_state_mut(
+        &mut self,
+        config: &FilterModalConfig,
+    ) -> Option<&mut FilterFieldState> {
+        config
+            .fields
+            .get(self.selected_field)
             .and_then(|f| self.field_states.get_mut(&f.id))
     }
 
@@ -274,21 +284,24 @@ impl FilterModalState {
 
     /// Get text value for a field
     pub fn get_text(&self, id: &str) -> String {
-        self.field_states.get(id)
+        self.field_states
+            .get(id)
             .map(|s| s.text_value.clone())
             .unwrap_or_default()
     }
 
     /// Get toggle value for a field
     pub fn get_toggle(&self, id: &str) -> bool {
-        self.field_states.get(id)
+        self.field_states
+            .get(id)
             .map(|s| s.toggle_value)
             .unwrap_or(false)
     }
 
     /// Get cycle index for a field
     pub fn get_cycle_index(&self, id: &str) -> usize {
-        self.field_states.get(id)
+        self.field_states
+            .get(id)
             .map(|s| s.cycle_index)
             .unwrap_or(0)
     }
@@ -424,18 +437,17 @@ mod tests {
 
     #[test]
     fn test_filter_field_state_char_handling() {
-        let config = FilterModalConfig::new("Test")
-            .field(FilterFieldConfig::date("date", "Date"));
+        let config = FilterModalConfig::new("Test").field(FilterFieldConfig::date("date", "Date"));
 
         let mut state = FilterModalState::new(&config);
-        
+
         // Valid date chars
         state.handle_char('2', &config);
         state.handle_char('0', &config);
         state.handle_char('2', &config);
         state.handle_char('4', &config);
         state.handle_char('-', &config);
-        
+
         assert_eq!(state.get_text("date"), "2024-");
 
         // Invalid char for date (letter)
@@ -445,8 +457,11 @@ mod tests {
 
     #[test]
     fn test_cycle_field() {
-        let config = FilterModalConfig::new("Test")
-            .field(FilterFieldConfig::cycle("status", "Status", vec!["All".into(), "Active".into(), "Inactive".into()]));
+        let config = FilterModalConfig::new("Test").field(FilterFieldConfig::cycle(
+            "status",
+            "Status",
+            vec!["All".into(), "Active".into(), "Inactive".into()],
+        ));
 
         let mut state = FilterModalState::new(&config);
         assert_eq!(state.get_cycle_index("status"), 0);

@@ -74,13 +74,21 @@ impl ConfirmableAction for EcsAction {
                 let short_arn = arn.split('/').next_back().unwrap_or(arn);
                 format!("Edit task definition {}", short_arn)
             }
-            Self::UpdateDesiredCount { service_name, desired_count, .. } => {
+            Self::UpdateDesiredCount {
+                service_name,
+                desired_count,
+                ..
+            } => {
                 format!("Update {} desired count to {}", service_name, desired_count)
             }
             Self::ForceNewDeployment { service_name, .. } => {
                 format!("Force new deployment for {}", service_name)
             }
-            Self::UpdateService { service_name, task_definition, .. } => {
+            Self::UpdateService {
+                service_name,
+                task_definition,
+                ..
+            } => {
                 if let Some(td) = task_definition {
                     let short_td = td.split('/').next_back().unwrap_or(td);
                     format!("Update {} to use {}", service_name, short_td)

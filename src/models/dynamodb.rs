@@ -99,6 +99,7 @@ impl DynamoDbTable {
         }
     }
 
+    #[allow(dead_code)] // TODO: Display formatted table size in DynamoDB detail view
     pub fn format_size(&self) -> String {
         if let Some(size) = self.table_size_bytes {
             const KB: i64 = 1024;

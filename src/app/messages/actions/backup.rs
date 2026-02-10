@@ -9,6 +9,7 @@ pub enum BackupAction {
     LeaveVault,
     /// Open the filter modal (Jobs view)
     OpenFilterModal,
+    #[allow(dead_code)] // TODO: Wire up backup filter modal
     /// Close the filter modal without applying
     CloseFilterModal,
     /// Apply filters from modal

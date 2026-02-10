@@ -51,6 +51,7 @@ impl SqsService {
         Ok(SqsQueue::from_aws(queue_url, response.attributes()))
     }
 
+    #[allow(dead_code)] // TODO: Wire up SQS send message action
     pub async fn send_message(&self, queue_url: &str, body: &str) -> AppResult<String> {
         let response = self
             .client

@@ -59,6 +59,7 @@ impl Budget {
     }
 
     /// Calculate the forecasted percentage (forecasted / limit * 100)
+    #[allow(dead_code)] // TODO: Display forecasted budget percentage in UI
     pub fn forecasted_percentage(&self) -> Option<f64> {
         match (self.forecasted_spend, self.budget_limit) {
             (Some(forecasted), Some(limit)) if limit > 0.0 => Some((forecasted / limit) * 100.0),
@@ -139,6 +140,7 @@ impl crate::models::Filterable for BudgetNotification {
 }
 
 /// Represents a subscriber to a budget notification
+#[allow(dead_code)] // TODO: Wire up budget subscriber display
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BudgetSubscriber {
     pub subscription_type: String,
@@ -146,6 +148,7 @@ pub struct BudgetSubscriber {
 }
 
 impl BudgetSubscriber {
+    #[allow(dead_code)]
     pub fn from_aws(subscriber: &aws_sdk_budgets::types::Subscriber) -> Self {
         Self {
             subscription_type: subscriber.subscription_type().as_str().to_string(),

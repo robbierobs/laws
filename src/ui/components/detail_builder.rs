@@ -58,6 +58,7 @@ impl<'a> DetailBuilder<'a> {
     }
 
     /// Add a field only if the value is Some, otherwise skip
+    #[allow(dead_code)] // TODO: Wire up optional_field for conditional detail display
     pub fn optional_field<T: AsRef<str>>(
         mut self,
         label: &'static str,
