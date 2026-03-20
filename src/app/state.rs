@@ -179,6 +179,7 @@ impl App {
             Service::ECS => &mut self.services.ecs,
             Service::ECR => &mut self.services.ecr,
             Service::Budgets => &mut self.services.budgets,
+            Service::SQS => &mut self.services.sqs,
         }
     }
 
@@ -197,6 +198,7 @@ impl App {
             Service::ECS => &self.services.ecs,
             Service::ECR => &self.services.ecr,
             Service::Budgets => &self.services.budgets,
+            Service::SQS => &self.services.sqs,
         }
     }
 

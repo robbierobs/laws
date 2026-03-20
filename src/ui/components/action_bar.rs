@@ -153,6 +153,9 @@ pub fn render(frame: &mut Frame, area: Rect, app: &App) {
                 }
             }
         }
+        Service::SQS => {
+            actions.extend_from_slice(&[("j/k", "Navigate"), ("P", "Purge"), ("X", "Delete")]);
+        }
     }
 
     let spans: Vec<Span> = actions

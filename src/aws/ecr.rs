@@ -1,5 +1,7 @@
 use crate::error::AppResult;
-use crate::models::ecr::{EcrImage, EcrRepository};
+use crate::models::ecr::{
+    EcrImage, EcrRepository, EnhancedImageScanFinding, ImageScanFinding, ImageScanFindings,
+};
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ecr::Client;
 
@@ -14,7 +16,6 @@ pub struct EcrImagesResult {
 crate::aws_service_struct!(EcrService, Client);
 
 impl EcrService {
-
     pub async fn list_repositories(&self) -> AppResult<Vec<EcrRepository>> {
         let response = self
             .client
@@ -35,12 +36,14 @@ impl EcrService {
     #[allow(dead_code)] // Backward-compatible wrapper, may be used in tests
     pub async fn describe_images(&self, repository_name: &str) -> AppResult<Vec<EcrImage>> {
         // Simple version without pagination for backward compatibility
-        let result = self.describe_images_paginated(repository_name, None, None, None).await?;
+        let result = self
+            .describe_images_paginated(repository_name, None, None, None)
+            .await?;
         Ok(result.images)
     }
 
     /// Describe images with pagination and optional tag status filter
-    /// 
+    ///
     /// # Arguments
     /// * `repository_name` - The repository to query
     /// * `max_results` - Maximum number of results (1-1000, default 100)
@@ -97,6 +100,87 @@ impl EcrService {
         })
     }
 
+    /// Get detailed scan findings for a specific image
+    pub async fn describe_image_scan_findings(
+        &self,
+        repository_name: &str,
+        image_digest: &str,
+    ) -> AppResult<ImageScanFindings> {
+        use aws_sdk_ecr::types::ImageIdentifier;
+
+        let image_id = ImageIdentifier::builder()
+            .image_digest(image_digest)
+            .build();
+
+        let response = self
+            .client
+            .describe_image_scan_findings()
+            .repository_name(repository_name)
+            .image_id(image_id)
+            .send()
+            .await
+            .map_err(|e| {
+                format_sdk_error("ECR", "describe_image_scan_findings", repository_name, e)
+            })?;
+
+        let status = response
+            .image_scan_status()
+            .and_then(|s| s.status())
+            .map(|s| s.as_str().to_string());
+
+        let status_description = response
+            .image_scan_status()
+            .and_then(|s| s.description())
+            .map(|s| s.to_string());
+
+        let scan_findings = response.image_scan_findings();
+
+        let scan_completed_at = scan_findings
+            .and_then(|f| f.image_scan_completed_at())
+            .map(|d| d.to_string());
+
+        let vulnerability_source_updated_at = scan_findings
+            .and_then(|f| f.vulnerability_source_updated_at())
+            .map(|d| d.to_string());
+
+        let finding_severity_counts = scan_findings
+            .and_then(|f| f.finding_severity_counts())
+            .map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.as_str().to_string(), *v))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let findings = scan_findings
+            .map(|f| {
+                f.findings()
+                    .iter()
+                    .map(ImageScanFinding::from_aws)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let enhanced_findings = scan_findings
+            .map(|f| {
+                f.enhanced_findings()
+                    .iter()
+                    .map(EnhancedImageScanFinding::from_aws)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(ImageScanFindings {
+            status,
+            status_description,
+            scan_completed_at,
+            vulnerability_source_updated_at,
+            finding_severity_counts,
+            findings,
+            enhanced_findings,
+        })
+    }
+
     /// Get ECR authorization token for docker login
     /// Returns (username, password, proxy_endpoint) tuple
     pub async fn get_authorization_token(&self) -> AppResult<(String, String, String)> {
@@ -109,14 +193,13 @@ impl EcrService {
             .await
             .map_err(|e| format_sdk_error("ECR", "get_authorization_token", "default", e))?;
 
-        let auth_data = response
-            .authorization_data()
-            .first()
-            .ok_or_else(|| crate::error::AppError::Internal("No authorization data returned".to_string()))?;
+        let auth_data = response.authorization_data().first().ok_or_else(|| {
+            crate::error::AppError::Internal("No authorization data returned".to_string())
+        })?;
 
-        let token = auth_data
-            .authorization_token()
-            .ok_or_else(|| crate::error::AppError::Internal("No authorization token".to_string()))?;
+        let token = auth_data.authorization_token().ok_or_else(|| {
+            crate::error::AppError::Internal("No authorization token".to_string())
+        })?;
 
         let proxy_endpoint = auth_data
             .proxy_endpoint()
@@ -126,14 +209,19 @@ impl EcrService {
         // Token is base64 encoded "username:password"
         let decoded = base64::engine::general_purpose::STANDARD
             .decode(token)
-            .map_err(|e| crate::error::AppError::Internal(format!("Failed to decode token: {}", e)))?;
+            .map_err(|e| {
+                crate::error::AppError::Internal(format!("Failed to decode token: {}", e))
+            })?;
 
-        let decoded_str = String::from_utf8(decoded)
-            .map_err(|e| crate::error::AppError::Internal(format!("Invalid UTF-8 in token: {}", e)))?;
+        let decoded_str = String::from_utf8(decoded).map_err(|e| {
+            crate::error::AppError::Internal(format!("Invalid UTF-8 in token: {}", e))
+        })?;
 
         let parts: Vec<&str> = decoded_str.splitn(2, ':').collect();
         if parts.len() != 2 {
-            return Err(crate::error::AppError::Internal("Invalid token format".to_string()));
+            return Err(crate::error::AppError::Internal(
+                "Invalid token format".to_string(),
+            ));
         }
 
         Ok((parts[0].to_string(), parts[1].to_string(), proxy_endpoint))

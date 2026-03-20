@@ -1,14 +1,16 @@
-use ratatui::widgets::TableState;
-use crate::models::ecr::{EcrImage, EcrRepository};
-use crate::app::{EcrViewMode, InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
-use crate::app::states::ServiceInternal;
-use crate::app::pagination::PaginatedList;
 use crate::app::filter_modal::{FilterFieldConfig, FilterModalConfig, FilterModalState};
-use crate::aws::client::AwsClients;
-use crate::app::task_manager::{TaskManager, task_keys};
+use crate::app::pagination::PaginatedList;
+use crate::app::states::ServiceInternal;
+use crate::app::task_manager::{task_keys, TaskManager};
 use crate::app::update::refresh::spawn_list_task;
+use crate::app::{
+    EcrViewMode, EventSender, InputResult, Message, ServiceInputHandler, TableStateExt,
+};
+use crate::aws::client::AwsClients;
 use crate::event::AwsEvent;
+use crate::models::ecr::{EcrImage, EcrRepository, ImageScanFindings};
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::widgets::TableState;
 
 /// Field to sort ECR images by
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -27,7 +29,7 @@ impl ImageSortField {
             Self::Size => "Size",
         }
     }
-    
+
     pub fn next(&self) -> Self {
         match self {
             Self::PushedAt => Self::Tag,
@@ -52,7 +54,7 @@ impl ImageSortDirection {
             Self::Descending => "↓",
         }
     }
-    
+
     pub fn toggle(&self) -> Self {
         match self {
             Self::Ascending => Self::Descending,
@@ -71,12 +73,19 @@ pub mod filter_fields {
 /// Get the ECR filter modal configuration
 pub fn ecr_filter_config() -> FilterModalConfig {
     FilterModalConfig::new("ECR Image Filters")
-        .field(FilterFieldConfig::cycle(filter_fields::TAG_STATUS, "Tag Status",
-            vec!["All".into(), "Tagged".into(), "Untagged".into()]))
-        .field(FilterFieldConfig::text(filter_fields::TAG_SEARCH, "Tag Contains")
-            .placeholder("e.g., latest, v1.0"))
-        .field(FilterFieldConfig::text(filter_fields::DIGEST_SEARCH, "Digest Contains")
-            .placeholder("e.g., sha256:abc"))
+        .field(FilterFieldConfig::cycle(
+            filter_fields::TAG_STATUS,
+            "Tag Status",
+            vec!["All".into(), "Tagged".into(), "Untagged".into()],
+        ))
+        .field(
+            FilterFieldConfig::text(filter_fields::TAG_SEARCH, "Tag Contains")
+                .placeholder("e.g., latest, v1.0"),
+        )
+        .field(
+            FilterFieldConfig::text(filter_fields::DIGEST_SEARCH, "Digest Contains")
+                .placeholder("e.g., sha256:abc"),
+        )
         .dimensions(50, 40)
 }
 
@@ -99,7 +108,7 @@ impl EcrImageFilters {
             digest_search: state.get_text(filter_fields::DIGEST_SEARCH),
         }
     }
-    
+
     pub fn tag_status_api_value(&self) -> Option<&'static str> {
         match self.tag_status_index {
             1 => Some("TAGGED"),
@@ -107,17 +116,21 @@ impl EcrImageFilters {
             _ => None,
         }
     }
-    
+
     /// Check if an image matches the local filters (tag/digest search)
     pub fn matches(&self, image: &EcrImage) -> bool {
         // Tag search filter
         if !self.tag_search.is_empty() {
             let search = self.tag_search.to_lowercase();
-            if !image.image_tags.iter().any(|t| t.to_lowercase().contains(&search)) {
+            if !image
+                .image_tags
+                .iter()
+                .any(|t| t.to_lowercase().contains(&search))
+            {
                 return false;
             }
         }
-        
+
         // Digest search filter
         if !self.digest_search.is_empty() {
             let search = self.digest_search.to_lowercase();
@@ -125,14 +138,14 @@ impl EcrImageFilters {
                 return false;
             }
         }
-        
+
         true
     }
-    
+
     pub fn has_local_filters(&self) -> bool {
         !self.tag_search.is_empty() || !self.digest_search.is_empty()
     }
-    
+
     /// Check if any filters are active (including API-level tag status)
     pub fn is_empty(&self) -> bool {
         self.tag_status_index == 0 && self.tag_search.is_empty() && self.digest_search.is_empty()
@@ -147,13 +160,13 @@ pub struct EcrState {
     pub list_state: TableState,
     pub view_mode: EcrViewMode,
     pub selected_repo_name: Option<String>,
-    
+
     // Sort state for images
     /// Current sort field for images
     pub sort_field: ImageSortField,
     /// Sort direction for images
     pub sort_direction: ImageSortDirection,
-    
+
     // Filter state (using generic filter modal)
     /// Filter modal configuration
     pub filter_config: FilterModalConfig,
@@ -161,6 +174,14 @@ pub struct EcrState {
     pub filter_modal: FilterModalState,
     /// Current active filters (cached from modal)
     pub current_filters: EcrImageFilters,
+
+    // Scan findings (loaded on-demand for selected image)
+    /// Digest of image for which we have loaded scan findings
+    pub scan_findings_digest: Option<String>,
+    /// Loaded scan findings for the selected image
+    pub scan_findings: Option<ImageScanFindings>,
+    /// Whether scan findings are currently loading
+    pub scan_findings_loading: bool,
 }
 
 impl Default for EcrState {
@@ -178,6 +199,9 @@ impl Default for EcrState {
             filter_config: config,
             filter_modal: modal_state,
             current_filters: EcrImageFilters::default(),
+            scan_findings_digest: None,
+            scan_findings: None,
+            scan_findings_loading: false,
         }
     }
 }
@@ -190,7 +214,9 @@ impl EcrState {
     /// Get the currently selected repository, if any
     pub fn selected_repository(&self) -> Option<&EcrRepository> {
         if self.view_mode == EcrViewMode::Repositories {
-            self.list_state.selected().and_then(|i| self.repositories.get(i))
+            self.list_state
+                .selected()
+                .and_then(|i| self.repositories.get(i))
         } else {
             None
         }
@@ -199,7 +225,9 @@ impl EcrState {
     /// Get the currently selected image, if any
     pub fn selected_image(&self) -> Option<&EcrImage> {
         if self.view_mode == EcrViewMode::Images {
-            self.list_state.selected().and_then(|i| self.images.items.get(i))
+            self.list_state
+                .selected()
+                .and_then(|i| self.images.items.get(i))
         } else {
             None
         }
@@ -221,7 +249,7 @@ impl EcrState {
     /// Sort images based on current sort field and direction
     pub fn sort_images(&mut self) {
         let ascending = self.sort_direction == ImageSortDirection::Ascending;
-        
+
         self.images.items.sort_by(|a, b| {
             let cmp = match self.sort_field {
                 ImageSortField::PushedAt => {
@@ -230,8 +258,16 @@ impl EcrState {
                 }
                 ImageSortField::Tag => {
                     // Compare by first tag (or digest if untagged)
-                    let tag_a = a.image_tags.first().cloned().unwrap_or_else(|| a.image_digest.clone());
-                    let tag_b = b.image_tags.first().cloned().unwrap_or_else(|| b.image_digest.clone());
+                    let tag_a = a
+                        .image_tags
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| a.image_digest.clone());
+                    let tag_b = b
+                        .image_tags
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| b.image_digest.clone());
                     tag_a.cmp(&tag_b)
                 }
                 ImageSortField::Size => {
@@ -239,16 +275,20 @@ impl EcrState {
                     a.image_size_in_bytes.cmp(&b.image_size_in_bytes)
                 }
             };
-            
-            if ascending { cmp } else { cmp.reverse() }
+
+            if ascending {
+                cmp
+            } else {
+                cmp.reverse()
+            }
         });
     }
 }
 
 impl crate::app::global_search::Searchable for EcrState {
     fn get_search_results(&self) -> Vec<crate::app::global_search::SearchResult> {
-        use crate::app::Service;
         use crate::app::global_search::SearchResult;
+        use crate::app::Service;
 
         let mut results = Vec::new();
         // Ecr Repositories
@@ -266,7 +306,11 @@ impl crate::app::global_search::Searchable for EcrState {
 impl crate::app::global_search::AutoSelectable for EcrState {
     fn select_by_id(&mut self, resource_id: &str) -> bool {
         self.view_mode = EcrViewMode::Repositories;
-        if let Some(idx) = self.repositories.iter().position(|r| r.repository_name == resource_id) {
+        if let Some(idx) = self
+            .repositories
+            .iter()
+            .position(|r| r.repository_name == resource_id)
+        {
             self.list_state.select(Some(idx));
             true
         } else {
@@ -302,9 +346,13 @@ impl ServiceInputHandler for EcrState {
             // Pull image with docker
             KeyCode::Char('p') => {
                 if self.view_mode == EcrViewMode::Images {
-                    if let (Some(repo_uri), Some(image)) = (self.current_repository_uri(), self.selected_image()) {
+                    if let (Some(repo_uri), Some(image)) =
+                        (self.current_repository_uri(), self.selected_image())
+                    {
                         // Use first tag if available, otherwise use digest
-                        let tag = image.image_tags.first()
+                        let tag = image
+                            .image_tags
+                            .first()
                             .cloned()
                             .unwrap_or_else(|| image.image_digest.clone());
                         return InputResult::Message(Message::ecr_pull_image(repo_uri, tag));
@@ -330,8 +378,37 @@ impl ServiceInputHandler for EcrState {
                 return InputResult::Message(Message::ecr_open_filter_modal());
             }
             // Clear filters (Images view only, when filters active)
-            KeyCode::Char('c') if self.view_mode == EcrViewMode::Images && !self.current_filters.is_empty() => {
+            KeyCode::Char('c')
+                if self.view_mode == EcrViewMode::Images && !self.current_filters.is_empty() =>
+            {
                 return InputResult::Message(Message::ecr_clear_filters());
+            }
+            // Load scan findings for selected image
+            KeyCode::Char('v') if self.view_mode == EcrViewMode::Images => {
+                if let (Some(repo_name), Some(image)) =
+                    (self.selected_repo_name.clone(), self.selected_image())
+                {
+                    return InputResult::Message(Message::ecr_load_scan_findings(
+                        repo_name,
+                        image.image_digest.clone(),
+                    ));
+                }
+            }
+            // Export scan findings to JSON
+            KeyCode::Char('e')
+                if self.view_mode == EcrViewMode::Images && self.scan_findings.is_some() =>
+            {
+                return InputResult::Message(Message::ecr_export_scan_findings(
+                    crate::app::messages::ExportFormat::Json,
+                ));
+            }
+            // Export scan findings to CSV
+            KeyCode::Char('E')
+                if self.view_mode == EcrViewMode::Images && self.scan_findings.is_some() =>
+            {
+                return InputResult::Message(Message::ecr_export_scan_findings(
+                    crate::app::messages::ExportFormat::Csv,
+                ));
             }
             _ => {}
         }
@@ -344,7 +421,9 @@ impl ServiceInputHandler for EcrState {
 
     fn get_copiable_text(&self) -> Option<String> {
         match self.view_mode {
-            EcrViewMode::Repositories => self.selected_repository().map(|r| r.repository_name.clone()),
+            EcrViewMode::Repositories => self
+                .selected_repository()
+                .map(|r| r.repository_name.clone()),
             EcrViewMode::Images => self.selected_image().map(|i| i.image_digest.clone()),
         }
     }

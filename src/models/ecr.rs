@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::models::Filterable;
 
@@ -35,13 +36,164 @@ impl Filterable for EcrRepository {
     }
 }
 
+/// Image scan status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageScanStatus {
+    pub status: Option<String>,
+    pub description: Option<String>,
+}
+
+impl ImageScanStatus {
+    pub fn from_aws(scan_status: &aws_sdk_ecr::types::ImageScanStatus) -> Self {
+        Self {
+            status: scan_status.status().map(|s| s.as_str().to_string()),
+            description: scan_status.description().map(|s| s.to_string()),
+        }
+    }
+}
+
+/// Summary of image scan findings with severity counts
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ImageScanFindingsSummary {
+    pub scan_completed_at: Option<String>,
+    pub vulnerability_source_updated_at: Option<String>,
+    /// Severity counts: CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL, UNDEFINED
+    pub finding_severity_counts: HashMap<String, i32>,
+}
+
+impl ImageScanFindingsSummary {
+    pub fn from_aws(summary: &aws_sdk_ecr::types::ImageScanFindingsSummary) -> Self {
+        let counts = summary
+            .finding_severity_counts()
+            .map(|m| {
+                m.iter()
+                    .map(|(k, v)| (k.as_str().to_string(), *v))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Self {
+            scan_completed_at: summary.image_scan_completed_at().map(|d| d.to_string()),
+            vulnerability_source_updated_at: summary
+                .vulnerability_source_updated_at()
+                .map(|d| d.to_string()),
+            finding_severity_counts: counts,
+        }
+    }
+
+    /// Get total vulnerability count
+    pub fn total_count(&self) -> i32 {
+        self.finding_severity_counts.values().sum()
+    }
+
+    /// Get count for a specific severity (case-insensitive)
+    pub fn get_count(&self, severity: &str) -> i32 {
+        self.finding_severity_counts
+            .get(&severity.to_uppercase())
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// Get critical + high count (most important)
+    pub fn critical_high_count(&self) -> i32 {
+        self.get_count("CRITICAL") + self.get_count("HIGH")
+    }
+}
+
+/// Individual scan finding (vulnerability)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageScanFinding {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub severity: Option<String>,
+    pub uri: Option<String>,
+}
+
+impl ImageScanFinding {
+    pub fn from_aws(finding: &aws_sdk_ecr::types::ImageScanFinding) -> Self {
+        Self {
+            name: finding.name().map(|s| s.to_string()),
+            description: finding.description().map(|s| s.to_string()),
+            severity: finding.severity().map(|s| s.as_str().to_string()),
+            uri: finding.uri().map(|s| s.to_string()),
+        }
+    }
+}
+
+/// Enhanced scan finding from Inspector
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedImageScanFinding {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub severity: Option<String>,
+    pub finding_arn: Option<String>,
+    pub package_name: Option<String>,
+    pub package_version: Option<String>,
+    pub fixed_version: Option<String>,
+}
+
+impl EnhancedImageScanFinding {
+    pub fn from_aws(finding: &aws_sdk_ecr::types::EnhancedImageScanFinding) -> Self {
+        let (package_name, package_version, fixed_version) = finding
+            .package_vulnerability_details()
+            .map(|pvd| {
+                let pkg = pvd.vulnerable_packages().first();
+                (
+                    pkg.and_then(|p| p.name()).map(|s| s.to_string()),
+                    pkg.and_then(|p| p.version()).map(|s| s.to_string()),
+                    pkg.and_then(|p| p.fixed_in_version())
+                        .map(|s| s.to_string()),
+                )
+            })
+            .unwrap_or((None, None, None));
+
+        Self {
+            title: finding.title().map(|s| s.to_string()),
+            description: finding.description().map(|s| s.to_string()),
+            severity: finding.severity().map(|s| s.to_string()),
+            finding_arn: finding.finding_arn().map(|s| s.to_string()),
+            package_name,
+            package_version,
+            fixed_version,
+        }
+    }
+}
+
+/// Detailed scan findings for an image (from describe_image_scan_findings)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ImageScanFindings {
+    pub status: Option<String>,
+    pub status_description: Option<String>,
+    pub scan_completed_at: Option<String>,
+    pub vulnerability_source_updated_at: Option<String>,
+    pub finding_severity_counts: HashMap<String, i32>,
+    /// Basic scan findings
+    pub findings: Vec<ImageScanFinding>,
+    /// Enhanced scan findings (from Inspector)
+    pub enhanced_findings: Vec<EnhancedImageScanFinding>,
+}
+
+impl ImageScanFindings {
+    pub fn total_count(&self) -> usize {
+        self.findings.len() + self.enhanced_findings.len()
+    }
+
+    pub fn has_enhanced(&self) -> bool {
+        !self.enhanced_findings.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcrImage {
     pub image_digest: String,
     pub image_tags: Vec<String>,
     pub image_pushed_at: Option<String>,
     pub image_size_in_bytes: Option<i64>,
-    pub image_uri: Option<String>, // Constructed usually
+    pub image_uri: Option<String>,
+    /// Scan status (if scanning enabled)
+    pub scan_status: Option<ImageScanStatus>,
+    /// Scan findings summary (if scan completed)
+    pub scan_findings_summary: Option<ImageScanFindingsSummary>,
 }
 
 impl EcrImage {
@@ -51,16 +203,41 @@ impl EcrImage {
             image_tags: image.image_tags().iter().map(|t| t.to_string()).collect(),
             image_pushed_at: image.image_pushed_at().map(|d| d.to_string()),
             image_size_in_bytes: image.image_size_in_bytes(),
-            image_uri: None, // Can be constructed if we have repo URI
+            image_uri: None,
+            scan_status: image.image_scan_status().map(ImageScanStatus::from_aws),
+            scan_findings_summary: image
+                .image_scan_findings_summary()
+                .map(ImageScanFindingsSummary::from_aws),
         }
     }
 
-    #[allow(dead_code)] // Helper for display, may be used in future
+    #[allow(dead_code)]
     pub fn main_tag(&self) -> String {
         self.image_tags
             .first()
             .cloned()
             .unwrap_or_else(|| "<untagged>".to_string())
+    }
+
+    /// Check if scan is complete
+    pub fn is_scan_complete(&self) -> bool {
+        self.scan_status
+            .as_ref()
+            .and_then(|s| s.status.as_ref())
+            .map(|s| s == "COMPLETE")
+            .unwrap_or(false)
+    }
+
+    /// Get a short scan status display string
+    pub fn scan_status_display(&self) -> &'static str {
+        match self.scan_status.as_ref().and_then(|s| s.status.as_deref()) {
+            Some("COMPLETE") => "✓",
+            Some("IN_PROGRESS") | Some("PENDING") => "⏳",
+            Some("FAILED") => "✗",
+            Some("UNSUPPORTED_IMAGE") => "N/A",
+            Some(_) => "?",
+            None => "-",
+        }
     }
 }
 

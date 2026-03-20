@@ -10,24 +10,25 @@
 use std::collections::HashMap;
 
 // Sub-modules
-mod service;
-mod view_modes;
 pub mod actions;
 pub mod confirmable;
+mod service;
+mod view_modes;
 
 // Re-export Service enum
 pub use service::Service;
 
 // Re-export ViewMode enums
 pub use view_modes::{
-    BackupViewMode, BudgetsViewMode, CloudTrailViewMode, DynamoDbViewMode, EcrViewMode, EcsViewMode, IamViewMode,
-    VpcViewMode,
+    BackupViewMode, BudgetsViewMode, CloudTrailViewMode, DynamoDbViewMode, EcrViewMode,
+    EcsViewMode, IamViewMode, VpcViewMode,
 };
 
 // Re-export action enums
 pub use actions::{
-    BackupAction, BudgetsAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction, Ec2Action, EcrAction, EcsAction, IamAction,
-    LambdaAction, RdsAction, S3Action, SecretsManagerAction, VpcAction,
+    BackupAction, BudgetsAction, CloudTrailAction, CloudTrailLookupParams, DynamoDbAction,
+    Ec2Action, EcrAction, EcsAction, ExportFormat, IamAction, LambdaAction, RdsAction, S3Action,
+    SecretsManagerAction, SqsAction, VpcAction,
 };
 
 // Re-export confirmable trait
@@ -106,8 +107,8 @@ pub enum ServiceAction {
     Ecs(EcsAction),
     Ecr(EcrAction),
     Budgets(BudgetsAction),
+    Sqs(SqsAction),
 }
-
 impl ConfirmableAction for ServiceAction {
     fn confirmation_description(&self) -> String {
         match self {
@@ -124,6 +125,7 @@ impl ConfirmableAction for ServiceAction {
             Self::Ecs(a) => a.confirmation_description(),
             Self::Ecr(a) => a.confirmation_description(),
             Self::Budgets(a) => a.confirmation_description(),
+            Self::Sqs(a) => a.confirmation_description(),
         }
     }
 }
@@ -433,7 +435,9 @@ impl Message {
 
     #[allow(dead_code)] // Used internally via direct Message construction
     pub fn cloudtrail_apply_filters(params: CloudTrailLookupParams) -> Self {
-        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::ApplyFilters(params)))
+        Message::Service(ServiceAction::CloudTrail(CloudTrailAction::ApplyFilters(
+            params,
+        )))
     }
 
     pub fn cloudtrail_clear_filters() -> Self {
@@ -603,6 +607,17 @@ impl Message {
         Message::Service(ServiceAction::Ecr(EcrAction::ClearFilters))
     }
 
+    pub fn ecr_load_scan_findings(repository_name: String, image_digest: String) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::LoadScanFindings {
+            repository_name,
+            image_digest,
+        }))
+    }
+
+    pub fn ecr_export_scan_findings(format: ExportFormat) -> Self {
+        Message::Service(ServiceAction::Ecr(EcrAction::ExportScanFindings { format }))
+    }
+
     // Budgets message constructors
     pub fn budgets_load_notifications(budget_name: String) -> Self {
         Message::Service(ServiceAction::Budgets(BudgetsAction::LoadNotifications(
@@ -612,6 +627,15 @@ impl Message {
 
     pub fn budgets_leave_notifications() -> Self {
         Message::Service(ServiceAction::Budgets(BudgetsAction::LeaveNotifications))
+    }
+
+    // SQS message constructors
+    pub fn sqs_purge(queue_url: String) -> Self {
+        Message::Service(ServiceAction::Sqs(SqsAction::PurgeQueue(queue_url)))
+    }
+
+    pub fn sqs_delete(queue_url: String) -> Self {
+        Message::Service(ServiceAction::Sqs(SqsAction::DeleteQueue(queue_url)))
     }
 }
 
@@ -668,10 +692,11 @@ mod tests {
     #[test]
     fn test_service_iterator() {
         let services: Vec<Service> = Service::iterator().collect();
-        assert_eq!(services.len(), 13); // All 13 services including Budgets
+        assert_eq!(services.len(), 14); // All 14 services including SQS
         assert!(services.contains(&Service::EC2));
         assert!(services.contains(&Service::SecretsManager));
         assert!(services.contains(&Service::Budgets));
+        assert!(services.contains(&Service::SQS));
     }
 
     #[test]

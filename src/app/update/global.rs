@@ -153,7 +153,7 @@ impl App {
     }
 
     /// Spawn a background task to switch profile/region
-    /// 
+    ///
     /// This performs SSO login (if needed) and AWS client creation in a background
     /// task, then sends a ProfileRegionSwitched event when complete.
     fn handle_switch_profile_region(
@@ -165,44 +165,62 @@ impl App {
     ) {
         self.input_mode = InputMode::Normal;
         self.loading = true;
-        
+
         let profile_name = profile.clone().unwrap_or_else(|| "default".to_string());
         self.action_log.push(format!(
             "Switching to profile: {}, region: {}...",
             profile_name, region
         ));
-        
+
         // Clone values for async task
         let profile_clone = profile.clone();
         let region_clone = region.clone();
         let is_sso = crate::utils::aws_profiles::is_sso_profile(&profile_name);
-        
+
         let handle = tokio::spawn(async move {
             let mut sso_messages = Vec::new();
-            
+
             // Check if profile uses SSO and run login if needed
             if is_sso {
-                sso_messages.push(format!("Running SSO login for profile: {}", profile_name));
-                let sso_result = tokio::process::Command::new("aws")
-                    .args(["sso", "login", "--profile", &profile_name])
+                // First check if existing credentials are valid
+                let creds_check = tokio::process::Command::new("aws")
+                    .args(["sts", "get-caller-identity", "--profile", &profile_name])
                     .output()
                     .await;
 
-                match sso_result {
-                    Ok(output) => {
-                        if output.status.success() {
-                            sso_messages.push(format!(
-                                "SSO login successful for profile: {}",
-                                profile_name
-                            ));
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            sso_messages.push(format!("SSO login warning: {}", stderr.trim()));
+                let needs_login = match creds_check {
+                    Ok(output) => !output.status.success(),
+                    Err(_) => true,
+                };
+
+                if needs_login {
+                    sso_messages.push(format!("Running SSO login for profile: {}", profile_name));
+                    let sso_result = tokio::process::Command::new("aws")
+                        .args(["sso", "login", "--profile", &profile_name])
+                        .output()
+                        .await;
+
+                    match sso_result {
+                        Ok(output) => {
+                            if output.status.success() {
+                                sso_messages.push(format!(
+                                    "SSO login successful for profile: {}",
+                                    profile_name
+                                ));
+                            } else {
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                sso_messages.push(format!("SSO login warning: {}", stderr.trim()));
+                            }
+                        }
+                        Err(e) => {
+                            sso_messages.push(format!("SSO login error: {}", e));
                         }
                     }
-                    Err(e) => {
-                        sso_messages.push(format!("SSO login error: {}", e));
-                    }
+                } else {
+                    sso_messages.push(format!(
+                        "SSO credentials valid for profile: {}",
+                        profile_name
+                    ));
                 }
             }
 
@@ -217,13 +235,15 @@ impl App {
             match new_clients {
                 Ok(clients) => {
                     event_tx
-                        .send(Event::Aws(Box::new(AwsEvent::ProfileRegionSwitched(Box::new(ProfileRegionSwitchedData {
-                            clients,
-                            profile: profile_clone,
-                            region: region_clone,
-                            read_only,
-                            sso_messages,
-                        })))))
+                        .send(Event::Aws(Box::new(AwsEvent::ProfileRegionSwitched(
+                            Box::new(ProfileRegionSwitchedData {
+                                clients,
+                                profile: profile_clone,
+                                region: region_clone,
+                                read_only,
+                                sso_messages,
+                            }),
+                        ))))
                         .await
                         .ok();
                 }
@@ -237,7 +257,7 @@ impl App {
                 }
             }
         });
-        
+
         self.tasks.spawn(task_keys::PROFILE_SWITCH, handle);
     }
 

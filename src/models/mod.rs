@@ -12,6 +12,7 @@ pub mod lambda;
 pub mod rds;
 pub mod s3;
 pub mod secretsmanager;
+pub mod sqs;
 pub mod vpc;
 
 pub trait Filterable {

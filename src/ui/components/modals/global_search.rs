@@ -259,5 +259,6 @@ fn get_service_icon(service: Service) -> &'static str {
         Service::ECS => "🐳",
         Service::ECR => "📷",
         Service::Budgets => "💰",
+        Service::SQS => "📨",
     }
 }
