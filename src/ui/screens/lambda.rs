@@ -1,3 +1,8 @@
+use crate::app::App;
+use crate::models::lambda::LambdaFunction;
+use crate::models::StateColor;
+use crate::ui::components::detail_panel::render_detail_panel_with_selection;
+use crate::ui::components::table::render_table;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Modifier, Style},
@@ -5,16 +10,17 @@ use ratatui::{
     widgets::{Cell, Row},
     Frame,
 };
-use crate::app::App;
-use crate::models::lambda::LambdaFunction;
-use crate::ui::components::detail_panel::render_detail_panel_with_selection;
-use crate::ui::components::table::render_table;
 
-pub fn render(frame: &mut Frame, list_area: Option<Rect>, detail_area: Option<Rect>, app: &mut App) {
+pub fn render(
+    frame: &mut Frame,
+    list_area: Option<Rect>,
+    detail_area: Option<Rect>,
+    app: &mut App,
+) {
     if let Some(area) = list_area {
         render_function_list(frame, area, app);
     }
-    
+
     if let Some(area) = detail_area {
         render_function_details(frame, area, app);
     }
@@ -26,18 +32,30 @@ use crate::models::Filterable;
 
 fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let filter = app.filter_input.to_lowercase();
-    let rows = app.services.lambda.functions.iter()
+    let rows = app
+        .services
+        .lambda
+        .functions
+        .iter()
         .filter(|f| {
-            if filter.is_empty() { return true; }
+            if filter.is_empty() {
+                return true;
+            }
             f.matches_filter(&filter)
         })
         .map(|func| {
             let state_color = func.state_color();
             let runtime = func.runtime.clone().unwrap_or_else(|| "-".to_string());
-            let memory = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
-            let timeout = func.timeout.map(|t| format!("{}s", t)).unwrap_or_else(|| "-".to_string());
+            let memory = func
+                .memory_size
+                .map(|m| format!("{} MB", m))
+                .unwrap_or_else(|| "-".to_string());
+            let timeout = func
+                .timeout
+                .map(|t| format!("{}s", t))
+                .unwrap_or_else(|| "-".to_string());
             let state = func.state.clone().unwrap_or_else(|| "Unknown".to_string());
-            
+
             let cells = vec![
                 Cell::from(func.function_name.clone()),
                 Cell::from(runtime),
@@ -46,7 +64,7 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(func.format_code_size()),
                 Cell::from(state).style(Style::default().fg(state_color)),
             ];
-            
+
             Row::new(cells).height(1)
         });
 
@@ -54,7 +72,14 @@ fn render_function_list(frame: &mut Frame, area: Rect, app: &mut App) {
         frame,
         area,
         rows,
-        &["Function Name", "Runtime", "Memory", "Timeout", "Code Size", "State"],
+        &[
+            "Function Name",
+            "Runtime",
+            "Memory",
+            "Timeout",
+            "Code Size",
+            "State",
+        ],
         &[
             Constraint::Length(35), // Function Name
             Constraint::Length(15), // Runtime
@@ -82,27 +107,58 @@ fn render_function_details(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-
-
-fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collections::HashMap<String, crate::models::lambda::LambdaFunctionDetails>) -> Vec<Line<'static>> {
+fn build_function_detail_lines(
+    func: &LambdaFunction,
+    details_map: &std::collections::HashMap<String, crate::models::lambda::LambdaFunctionDetails>,
+) -> Vec<Line<'static>> {
     let state_color = func.state_color();
-    
+
     let runtime_str = func.runtime.clone().unwrap_or_else(|| "-".to_string());
     let handler_str = func.handler.clone().unwrap_or_else(|| "-".to_string());
-    let desc_str = func.description.clone().unwrap_or_else(|| "(no description)".to_string());
-    let memory_str = func.memory_size.map(|m| format!("{} MB", m)).unwrap_or_else(|| "-".to_string());
-    let timeout_str = func.timeout.map(|t| format!("{} seconds", t)).unwrap_or_else(|| "-".to_string());
-    let ephemeral_str = func.ephemeral_storage_size.map(|s| format!("{} MB", s)).unwrap_or_else(|| "512 MB".to_string());
-    let last_modified_str = func.last_modified.clone().unwrap_or_else(|| "-".to_string());
-    let version_str = func.version.clone().unwrap_or_else(|| "$LATEST".to_string());
-    let package_type_str = func.package_type.clone().unwrap_or_else(|| "Zip".to_string());
+    let desc_str = func
+        .description
+        .clone()
+        .unwrap_or_else(|| "(no description)".to_string());
+    let memory_str = func
+        .memory_size
+        .map(|m| format!("{} MB", m))
+        .unwrap_or_else(|| "-".to_string());
+    let timeout_str = func
+        .timeout
+        .map(|t| format!("{} seconds", t))
+        .unwrap_or_else(|| "-".to_string());
+    let ephemeral_str = func
+        .ephemeral_storage_size
+        .map(|s| format!("{} MB", s))
+        .unwrap_or_else(|| "512 MB".to_string());
+    let last_modified_str = func
+        .last_modified
+        .clone()
+        .unwrap_or_else(|| "-".to_string());
+    let version_str = func
+        .version
+        .clone()
+        .unwrap_or_else(|| "$LATEST".to_string());
+    let package_type_str = func
+        .package_type
+        .clone()
+        .unwrap_or_else(|| "Zip".to_string());
     let state_str = func.state.clone().unwrap_or_else(|| "Unknown".to_string());
-    let arch_str = if func.architectures.is_empty() { "x86_64".to_string() } else { func.architectures.join(", ") };
+    let arch_str = if func.architectures.is_empty() {
+        "x86_64".to_string()
+    } else {
+        func.architectures.join(", ")
+    };
 
     let mut lines: Vec<Line> = vec![
         Line::from(vec![
             Span::styled("Function: ", Style::default().fg(THEME.primary)),
-            Span::styled(func.function_name.clone(), Style::default().fg(THEME.selection_fg).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                func.function_name.clone(),
+                Style::default()
+                    .fg(THEME.selection_fg)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("   "),
             Span::styled("State: ", Style::default().fg(THEME.primary)),
             Span::styled(state_str, Style::default().fg(state_color)),
@@ -112,9 +168,12 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
             Span::raw(desc_str),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Runtime ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Runtime ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("Runtime: ", Style::default().fg(THEME.primary)),
             Span::raw(runtime_str),
@@ -134,9 +193,12 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
             Span::raw(version_str),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("─── Resources ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "─── Resources ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("Memory: ", Style::default().fg(THEME.primary)),
             Span::raw(memory_str),
@@ -156,9 +218,12 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
     // VPC Configuration
     if func.vpc_id.is_some() || !func.subnet_ids.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("─── VPC Configuration ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "─── VPC Configuration ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         if let Some(vpc) = &func.vpc_id {
             lines.push(Line::from(vec![
                 Span::styled("VPC ID: ", Style::default().fg(THEME.primary)),
@@ -183,7 +248,10 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
     if !func.environment_variables.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("Environment Variables: ", Style::default().fg(THEME.primary)),
+            Span::styled(
+                "Environment Variables: ",
+                Style::default().fg(THEME.primary),
+            ),
             Span::raw(format!("{} defined", func.environment_variables.len())),
         ]));
     }
@@ -191,9 +259,12 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
     // Layers
     if !func.layers.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("─── Layers ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "─── Layers ───",
+            Style::default()
+                .fg(THEME.secondary)
+                .add_modifier(Modifier::BOLD),
+        )]));
         for layer in &func.layers {
             // Extract layer name from ARN
             let layer_name = layer.split(':').nth(6).unwrap_or(layer);
@@ -207,8 +278,8 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
     // Cached details
     if let Some(details) = details_map.get(&func.function_name) {
         if details.loading {
-             lines.push(Line::from(""));
-             lines.push(Line::from(vec![
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
                 Span::styled("⏳ ", Style::default().fg(THEME.warning)),
                 Span::raw("Loading extended details..."),
             ]));
@@ -221,13 +292,16 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
                     Span::raw(concurrency.to_string()),
                 ]));
             }
-            
+
             // Tags
             if !details.tags.is_empty() {
                 lines.push(Line::from(""));
-                lines.push(Line::from(vec![
-                    Span::styled("─── Tags ───", Style::default().fg(THEME.secondary).add_modifier(Modifier::BOLD)),
-                ]));
+                lines.push(Line::from(vec![Span::styled(
+                    "─── Tags ───",
+                    Style::default()
+                        .fg(THEME.secondary)
+                        .add_modifier(Modifier::BOLD),
+                )]));
                 for (key, value) in &details.tags {
                     lines.push(Line::from(vec![
                         Span::styled(format!("{}: ", key), Style::default().fg(THEME.primary)),
@@ -255,13 +329,13 @@ fn build_function_detail_lines(func: &LambdaFunction, details_map: &std::collect
     // Cached details - Update Status
     if let Some(details) = details_map.get(&func.function_name) {
         if let Some(status) = &details.last_update_status {
-             lines.push(Line::from(vec![
+            lines.push(Line::from(vec![
                 Span::styled("Last Update Status: ", Style::default().fg(THEME.primary)),
                 Span::raw(status.clone()),
             ]));
         }
         if let Some(reason) = &details.last_update_status_reason {
-             lines.push(Line::from(vec![
+            lines.push(Line::from(vec![
                 Span::styled("Last Update Reason: ", Style::default().fg(THEME.primary)),
                 Span::raw(reason.clone()),
             ]));

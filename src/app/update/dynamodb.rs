@@ -117,10 +117,6 @@ impl App {
         key_attrs: HashMap<String, String>,
         event_tx: crate::app::EventSender,
     ) {
-        let Some(clients) = &self.aws_clients else {
-            return;
-        };
-
         let Some(table) = self
             .services
             .dynamodb
@@ -139,12 +135,9 @@ impl App {
             .map(|k| k.attribute_type.clone());
         let sk_type = table.sort_key.as_ref().map(|k| k.attribute_type.clone());
 
-        self.loading = true;
-        let client = clients.dynamodb.clone();
-        let tx = event_tx;
         let tbl = table_name.clone();
 
-        tokio::spawn(async move {
+        self.spawn_aws_task(event_tx, task_keys::DYNAMODB_ACTION, move |clients, tx| async move {
             use aws_sdk_dynamodb::types::AttributeValue;
 
             let mut key = HashMap::new();
@@ -169,7 +162,7 @@ impl App {
                 }
             }
 
-            let service = crate::aws::dynamodb::DynamoDbService::new(client);
+            let service = crate::aws::dynamodb::DynamoDbService::new(clients.dynamodb.clone());
             match service.delete_item(&tbl, key).await {
                 Ok(_) => {
                     let msg = format!("Deleted item from {}", tbl);

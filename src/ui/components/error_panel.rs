@@ -16,6 +16,7 @@ use ratatui::{
 /// * `area` - The area to render in
 /// * `title` - Optional title for the error panel
 /// * `message` - The error message to display
+#[allow(dead_code)] // TODO: Wire up error panel in main UI
 pub fn render_error_panel(frame: &mut Frame, area: Rect, title: Option<&str>, message: &str) {
     let title_text = title.unwrap_or("Error");
 
@@ -53,6 +54,7 @@ pub fn render_error_panel(frame: &mut Frame, area: Rect, title: Option<&str>, me
 /// * `area` - The area to render in
 /// * `title` - Optional title for the error panel
 /// * `messages` - Multiple error messages to display
+#[allow(dead_code)] // TODO: Wire up multi-error panel
 pub fn render_error_panel_multi(
     frame: &mut Frame,
     area: Rect,
@@ -102,6 +104,7 @@ pub fn render_error_panel_multi(
 /// * `area` - The area to render in
 /// * `title` - Optional title for the warning panel
 /// * `message` - The warning message to display
+#[allow(dead_code)] // TODO: Wire up warning panel
 pub fn render_warning_panel(frame: &mut Frame, area: Rect, title: Option<&str>, message: &str) {
     let title_text = title.unwrap_or("Warning");
 
@@ -134,8 +137,6 @@ pub fn render_warning_panel(frame: &mut Frame, area: Rect, title: Option<&str>, 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_error_panel_functions_exist() {
         // Just verify the functions compile and have correct signatures

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::StateColor;
 use crate::models::collect_tags;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -89,9 +90,11 @@ impl RdsInstance {
             tags,
         }
     }
+}
 
+impl StateColor for RdsInstance {
     /// Get a status color based on the instance status
-    pub fn state_color(&self) -> ratatui::style::Color {
+    fn state_color(&self) -> ratatui::style::Color {
         use crate::ui::theme::THEME;
         match self.status.to_lowercase().as_str() {
             "available" => THEME.success,

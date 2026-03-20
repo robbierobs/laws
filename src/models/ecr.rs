@@ -82,11 +82,13 @@ impl ImageScanFindingsSummary {
     }
 
     /// Get total vulnerability count
+    #[allow(dead_code)] // TODO: Display scan findings summary
     pub fn total_count(&self) -> i32 {
         self.finding_severity_counts.values().sum()
     }
 
     /// Get count for a specific severity (case-insensitive)
+    #[allow(dead_code)]
     pub fn get_count(&self, severity: &str) -> i32 {
         self.finding_severity_counts
             .get(&severity.to_uppercase())
@@ -95,6 +97,7 @@ impl ImageScanFindingsSummary {
     }
 
     /// Get critical + high count (most important)
+    #[allow(dead_code)]
     pub fn critical_high_count(&self) -> i32 {
         self.get_count("CRITICAL") + self.get_count("HIGH")
     }
@@ -174,10 +177,12 @@ pub struct ImageScanFindings {
 }
 
 impl ImageScanFindings {
+    #[allow(dead_code)] // TODO: Display enhanced scan findings
     pub fn total_count(&self) -> usize {
         self.findings.len() + self.enhanced_findings.len()
     }
 
+    #[allow(dead_code)]
     pub fn has_enhanced(&self) -> bool {
         !self.enhanced_findings.is_empty()
     }
@@ -220,6 +225,7 @@ impl EcrImage {
     }
 
     /// Check if scan is complete
+    #[allow(dead_code)] // TODO: Display scan status in ECR image list
     pub fn is_scan_complete(&self) -> bool {
         self.scan_status
             .as_ref()
@@ -229,6 +235,7 @@ impl EcrImage {
     }
 
     /// Get a short scan status display string
+    #[allow(dead_code)]
     pub fn scan_status_display(&self) -> &'static str {
         match self.scan_status.as_ref().and_then(|s| s.status.as_deref()) {
             Some("COMPLETE") => "✓",

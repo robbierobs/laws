@@ -18,6 +18,7 @@ use aws_sdk_rds::Client as RdsClient;
 use aws_sdk_s3::Client as S3Client;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use aws_sdk_sqs::Client as SqsClient;
+use aws_sdk_sts::Client as StsClient;
 use std::time::Duration;
 
 /// Default maximum retry attempts for AWS API calls
@@ -42,6 +43,7 @@ pub struct AwsClients {
     pub budgets: BudgetsClient,
     pub billing: BillingClient,
     pub sqs: SqsClient,
+    pub sts: StsClient,
 }
 
 impl std::fmt::Debug for AwsClients {
@@ -61,6 +63,7 @@ impl std::fmt::Debug for AwsClients {
             .field("budgets", &"<BudgetsClient>")
             .field("billing", &"<BillingClient>")
             .field("sqs", &"<SqsClient>")
+            .field("sts", &"<StsClient>")
             .finish()
     }
 }
@@ -155,7 +158,17 @@ impl AwsClients {
             budgets: BudgetsClient::new(&config),
             billing: BillingClient::new(&config),
             sqs: SqsClient::new(&config),
+            sts: StsClient::new(&config),
         })
+    }
+
+    pub async fn validate(&self) -> crate::error::AppResult<()> {
+        self.sts
+            .get_caller_identity()
+            .send()
+            .await
+            .map_err(|e| crate::error::AppError::aws_api("STS", e.to_string()))
+            .map(|_| ())
     }
 }
 

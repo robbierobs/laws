@@ -33,6 +33,7 @@ pub enum EcrAction {
     },
     /// Open the filter modal
     OpenFilterModal,
+    #[allow(dead_code)] // TODO: Wire up ECR filter modal
     /// Close the filter modal without applying
     CloseFilterModal,
     /// Apply filters from modal

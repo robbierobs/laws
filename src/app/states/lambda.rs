@@ -1,6 +1,6 @@
 use ratatui::widgets::TableState;
 use crate::models::lambda::LambdaFunction;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::{handle_list_navigation, EventSender, InputResult, Message, ServiceInputHandler};
 use crate::app::states::ServiceInternal;
 use crate::aws::client::AwsClients;
 use crate::app::task_manager::{TaskManager, task_keys};
@@ -63,23 +63,16 @@ impl crate::app::global_search::AutoSelectable for LambdaState {
 
 impl ServiceInputHandler for LambdaState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        if handle_list_navigation(&mut self.list_state, self.functions.len(), key) {
+            if let Some(f) = self.selected_function() {
+                return InputResult::Message(crate::app::Message::lambda_load_details(
+                    f.function_name.clone(),
+                ));
+            }
+            return InputResult::None;
+        }
+
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                self.list_state.nav_down(self.functions.len());
-                if let Some(f) = self.selected_function() {
-                    return InputResult::Message(crate::app::Message::lambda_load_details(
-                        f.function_name.clone(),
-                    ));
-                }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                self.list_state.nav_up(self.functions.len());
-                if let Some(f) = self.selected_function() {
-                    return InputResult::Message(crate::app::Message::lambda_load_details(
-                        f.function_name.clone(),
-                    ));
-                }
-            }
             KeyCode::Char('I') => {
                 if let Some(f) = self.selected_function() {
                     return InputResult::Action(Message::lambda_invoke(f.function_name.clone()));

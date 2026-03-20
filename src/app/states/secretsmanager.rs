@@ -1,6 +1,6 @@
 use ratatui::widgets::TableState;
 use crate::models::secretsmanager::Secret;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::{handle_list_navigation, EventSender, InputResult, Message, ServiceInputHandler};
 use crate::app::states::ServiceInternal;
 use crate::aws::client::AwsClients;
 use crate::app::task_manager::{TaskManager, task_keys};
@@ -67,9 +67,11 @@ impl ServiceInputHandler for SecretsManagerState {
             return InputResult::None;
         }
 
+        if handle_list_navigation(&mut self.list_state, self.secrets.len(), key) {
+            return InputResult::None;
+        }
+
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.list_state.nav_down(self.secrets.len()),
-            KeyCode::Up | KeyCode::Char('k') => self.list_state.nav_up(self.secrets.len()),
             KeyCode::Char('s') | KeyCode::Enter => {
                 if let Some(secret) = self.selected_secret() {
                     if let Some(arn) = &secret.arn {

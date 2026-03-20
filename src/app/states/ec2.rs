@@ -1,6 +1,6 @@
 use ratatui::widgets::TableState;
 use crate::models::ec2::Ec2Instance;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, Service};
+use crate::app::{handle_list_navigation, InputResult, Message, ServiceInputHandler, Service};
 use crate::app::global_search::{AutoSelectable, Searchable, SearchResult};
 use crossterm::event::{KeyCode, KeyEvent};
 use crate::app::states::ServiceInternal;
@@ -67,9 +67,10 @@ impl AutoSelectable for Ec2State {
 
 impl ServiceInputHandler for Ec2State {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        if handle_list_navigation(&mut self.list_state, self.instances.len(), key) {
+            return InputResult::None;
+        }
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.list_state.nav_down(self.instances.len()),
-            KeyCode::Up | KeyCode::Char('k') => self.list_state.nav_up(self.instances.len()),
             KeyCode::Char('s') => {
                 if let Some(i) = self.list_state.selected() {
                     if let Some(instance) = self.instances.get(i) {

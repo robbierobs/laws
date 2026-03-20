@@ -17,12 +17,18 @@ mod tests {
     #[test]
     fn test_ec2_start_description() {
         let action = Ec2Action::Start("i-12345".to_string());
-        assert_eq!(action.confirmation_description(), "Start EC2 instance i-12345");
+        assert_eq!(
+            action.confirmation_description(),
+            "Start EC2 instance i-12345"
+        );
     }
 
     #[test]
     fn test_ec2_terminate_description() {
         let action = Ec2Action::Terminate("i-67890".to_string());
-        assert_eq!(action.confirmation_description(), "Terminate EC2 instance i-67890");
+        assert_eq!(
+            action.confirmation_description(),
+            "Terminate EC2 instance i-67890"
+        );
     }
 }

@@ -1,4 +1,5 @@
 use crate::error::AppResult;
+use crate::aws::traits::paginate;
 use crate::models::ec2::Ec2Instance;
 use crate::utils::error::format_sdk_error;
 use aws_sdk_ec2::Client;
@@ -30,20 +31,34 @@ impl InstanceAction {
 impl Ec2Service {
 
     pub async fn list_instances(&self) -> AppResult<Vec<Ec2Instance>> {
-        let response = self.client
-            .describe_instances()
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("EC2", "describe", "all", e))?;
+        let client = self.client.clone();
+        paginate(
+            move |token| {
+                let client = client.clone();
+                async move {
+                    let mut request = client.describe_instances();
+                    if let Some(token) = token {
+                        request = request.next_token(token);
+                    }
 
-        let instances = response
-            .reservations()
-            .iter()
-            .flat_map(|r| r.instances())
-            .map(|i| Ec2Instance::from_aws(i.clone()))
-            .collect();
-
-        Ok(instances)
+                    request
+                        .send()
+                        .await
+                        .map_err(|e| format_sdk_error("EC2", "describe", "all", e))
+                }
+            },
+            |response| {
+                let instances = response
+                    .reservations()
+                    .iter()
+                    .flat_map(|r| r.instances())
+                    .map(|i| Ec2Instance::from_aws(i.clone()))
+                    .collect();
+                let next_token = response.next_token().map(|s| s.to_string());
+                (instances, next_token)
+            },
+        )
+        .await
     }
 
     /// Execute an instance action (start, stop, reboot, terminate)
@@ -108,4 +123,3 @@ impl crate::aws::traits::AwsService<Ec2Instance> for Ec2Service {
         Box::pin(self.list_instances())
     }
 }
-

@@ -56,6 +56,7 @@ impl BudgetsService {
     }
 
     /// Get subscribers for a specific notification
+    #[allow(dead_code)] // TODO: Wire up budget subscriber notifications
     pub async fn describe_subscribers_for_notification(
         &self,
         account_id: &str,

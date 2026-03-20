@@ -360,6 +360,7 @@ impl Message {
         Message::Service(ServiceAction::Backup(BackupAction::OpenFilterModal))
     }
 
+    #[allow(dead_code)] // TODO: Wire up backup filter modal close action
     pub fn backup_close_filter_modal() -> Self {
         Message::Service(ServiceAction::Backup(BackupAction::CloseFilterModal))
     }
@@ -595,6 +596,7 @@ impl Message {
         Message::Service(ServiceAction::Ecr(EcrAction::OpenFilterModal))
     }
 
+    #[allow(dead_code)] // TODO: Wire up ECR filter modal close action
     pub fn ecr_close_filter_modal() -> Self {
         Message::Service(ServiceAction::Ecr(EcrAction::CloseFilterModal))
     }

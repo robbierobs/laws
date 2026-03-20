@@ -6,6 +6,37 @@ use aws_sdk_s3::Client;
 // Use macro to generate struct and constructor
 crate::aws_service_struct!(S3Service, Client);
 
+const S3_MAX_KEYS_PER_PAGE: usize = 1000;
+
+fn connection_error_message(bucket_name: &str, error: &str) -> Option<String> {
+    let lower = error.to_lowercase();
+    let patterns = [
+        "connection refused",
+        "connection error",
+        "connect error",
+        "failed to connect",
+        "connection reset",
+        "connection aborted",
+        "timed out",
+        "timeout",
+        "dns",
+        "failed to lookup address",
+        "name or service not known",
+        "no such host",
+        "could not resolve",
+        "os error 111",
+    ];
+
+    if patterns.iter().any(|pattern| lower.contains(pattern)) {
+        Some(format!(
+            "Connection failed while listing objects in bucket '{}'. If you're using a custom endpoint (LocalStack/MinIO), verify --endpoint-url or AWS_ENDPOINT_URL. LocalStack often needs 127.0.0.1 instead of localhost (IPv6).",
+            bucket_name
+        ))
+    } else {
+        None
+    }
+}
+
 impl S3Service {
 
     pub async fn list_buckets(&self) -> AppResult<Vec<S3Bucket>> {
@@ -28,39 +59,87 @@ impl S3Service {
     pub async fn list_objects(
         &self,
         bucket_name: &str,
+        max_keys: usize,
     ) -> AppResult<Vec<crate::models::s3::S3Object>> {
-        let result = self
-            .client
-            .list_objects_v2()
-            .bucket(bucket_name)
-            .send()
-            .await;
-
-        match result {
-            Ok(response) => {
-                let objects = response
-                    .contents()
-                    .iter()
-                    .map(|o| crate::models::s3::S3Object::from_aws(o.clone()))
-                    .collect();
-                Ok(objects)
-            }
-            Err(e) => Err(format_s3_error(bucket_name, e)),
+        if max_keys == 0 {
+            return Ok(Vec::new());
         }
+
+        let mut objects = Vec::new();
+        let mut continuation_token: Option<String> = None;
+        let mut remaining = max_keys;
+
+        loop {
+            let page_size = remaining.min(S3_MAX_KEYS_PER_PAGE) as i32;
+            let mut request = self
+                .client
+                .list_objects_v2()
+                .bucket(bucket_name)
+                .max_keys(page_size);
+
+            if let Some(token) = continuation_token {
+                request = request.continuation_token(token);
+            }
+
+            let result = request.send().await;
+
+            match result {
+                Ok(response) => {
+                    for obj in response.contents() {
+                        objects.push(crate::models::s3::S3Object::from_aws(obj.clone()));
+                    }
+
+                    let fetched = response.contents().len();
+                    remaining = remaining.saturating_sub(fetched);
+                    if remaining == 0 {
+                        break;
+                    }
+
+                    if response.is_truncated() == Some(true) {
+                        if let Some(token) = response.next_continuation_token() {
+                            continuation_token = Some(token.to_string());
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    let debug_str = format!("{:?}", e);
+                    if let Some(message) = connection_error_message(bucket_name, &debug_str) {
+                        return Err(crate::error::AppError::aws_api("S3", message));
+                    }
+
+                    return Err(format_s3_error(bucket_name, e));
+                }
+            }
+        }
+
+        Ok(objects)
     }
 
     /// Fetch bucket details asynchronously (versioning, encryption, object count)
     pub async fn get_bucket_details(&self, bucket_name: &str) -> S3BucketDetails {
         let mut details = S3BucketDetails::default();
 
+        let (versioning_result, encryption_result, tagging_result) = tokio::join!(
+            self.client
+                .get_bucket_versioning()
+                .bucket(bucket_name)
+                .send(),
+            self.client
+                .get_bucket_encryption()
+                .bucket(bucket_name)
+                .send(),
+            self.client
+                .get_bucket_tagging()
+                .bucket(bucket_name)
+                .send(),
+        );
+
         // Get versioning status
-        match self
-            .client
-            .get_bucket_versioning()
-            .bucket(bucket_name)
-            .send()
-            .await
-        {
+        match versioning_result {
             Ok(resp) => {
                 details.versioning_enabled = resp
                     .status()
@@ -72,13 +151,7 @@ impl S3Service {
         }
 
         // Get encryption configuration
-        match self
-            .client
-            .get_bucket_encryption()
-            .bucket(bucket_name)
-            .send()
-            .await
-        {
+        match encryption_result {
             Ok(resp) => {
                 if let Some(config) = resp.server_side_encryption_configuration() {
                     let encryption_types: Vec<String> = config
@@ -100,13 +173,7 @@ impl S3Service {
         }
 
         // Get bucket tagging
-        match self
-            .client
-            .get_bucket_tagging()
-            .bucket(bucket_name)
-            .send()
-            .await
-        {
+        match tagging_result {
             Ok(resp) => {
                 details.tags = resp
                     .tag_set()
@@ -241,5 +308,25 @@ impl crate::aws::traits::AwsService<S3Bucket> for S3Service {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<S3Bucket>>> + Send + 'a>>
     {
         Box::pin(self.list_buckets())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::connection_error_message;
+
+    #[test]
+    fn test_connection_error_message_matches_common_failure() {
+        let message = connection_error_message("my-bucket", "Connection refused");
+        assert!(message.is_some());
+        let msg = message.expect("expected message");
+        assert!(msg.contains("my-bucket"));
+        assert!(msg.contains("127.0.0.1"));
+    }
+
+    #[test]
+    fn test_connection_error_message_returns_none_for_service_errors() {
+        let message = connection_error_message("my-bucket", "NoSuchBucket");
+        assert!(message.is_none());
     }
 }

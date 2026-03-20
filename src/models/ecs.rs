@@ -1,6 +1,7 @@
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
 
+use super::StateColor;
 use crate::models::collect_tags;
 use crate::ui::theme::THEME;
 
@@ -71,8 +72,10 @@ impl EcsCluster {
                 .collect(),
         }
     }
+}
 
-    pub fn state_color(&self) -> Color {
+impl StateColor for EcsCluster {
+    fn state_color(&self) -> Color {
         match self.status.to_uppercase().as_str() {
             "ACTIVE" => THEME.success,
             "INACTIVE" => THEME.muted,
@@ -215,15 +218,6 @@ impl EcsService {
         }
     }
 
-    pub fn state_color(&self) -> Color {
-        match self.status.to_uppercase().as_str() {
-            "ACTIVE" => THEME.success,
-            "DRAINING" => THEME.warning,
-            "INACTIVE" => THEME.muted,
-            _ => THEME.fg,
-        }
-    }
-
     /// Get a short display name for the task definition
     pub fn task_definition_short(&self) -> String {
         self.task_definition
@@ -231,6 +225,17 @@ impl EcsService {
             .and_then(|td| td.split('/').next_back())
             .unwrap_or("N/A")
             .to_string()
+    }
+}
+
+impl StateColor for EcsService {
+    fn state_color(&self) -> Color {
+        match self.status.to_uppercase().as_str() {
+            "ACTIVE" => THEME.success,
+            "DRAINING" => THEME.warning,
+            "INACTIVE" => THEME.muted,
+            _ => THEME.fg,
+        }
     }
 }
 
@@ -399,16 +404,6 @@ impl EcsTask {
         }
     }
 
-    pub fn state_color(&self) -> Color {
-        match self.last_status.to_uppercase().as_str() {
-            "RUNNING" => THEME.success,
-            "PENDING" | "ACTIVATING" | "PROVISIONING" => THEME.warning,
-            "STOPPED" | "DEACTIVATING" | "STOPPING" => THEME.error,
-            "DEPROVISIONING" => THEME.muted,
-            _ => THEME.fg,
-        }
-    }
-
     pub fn health_color(&self) -> Color {
         match self.health_status.as_deref() {
             Some("HEALTHY") => THEME.success,
@@ -434,6 +429,18 @@ impl EcsTask {
             .next_back()
             .unwrap_or(&self.task_definition_arn)
             .to_string()
+    }
+}
+
+impl StateColor for EcsTask {
+    fn state_color(&self) -> Color {
+        match self.last_status.to_uppercase().as_str() {
+            "RUNNING" => THEME.success,
+            "PENDING" | "ACTIVATING" | "PROVISIONING" => THEME.warning,
+            "STOPPED" | "DEACTIVATING" | "STOPPING" => THEME.error,
+            "DEPROVISIONING" => THEME.muted,
+            _ => THEME.fg,
+        }
     }
 }
 

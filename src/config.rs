@@ -30,7 +30,7 @@ pub struct Args {
     /// Read-only mode: prevents any actions that modify state
     #[arg(long, default_value = "false")]
     pub read_only: bool,
-    
+
     /// Theme to use (dark, light, monokai, nord)
     #[arg(long)]
     pub theme: Option<String>,
@@ -48,33 +48,36 @@ impl Args {
 pub struct ConfigFile {
     /// Theme preset to use
     pub theme: ThemePreset,
-    
+
     /// Tick rate in milliseconds for the main event loop
     pub tick_rate_ms: u64,
-    
+
     /// API timeout in seconds for AWS SDK calls
     pub api_timeout_secs: u64,
-    
+
     /// Maximum retry attempts for AWS API calls (default: 3)
     pub aws_max_retries: u32,
-    
+
     /// Initial backoff in milliseconds for AWS retries (default: 100)
     pub aws_initial_backoff_ms: u64,
-    
+
     /// Maximum number of items in action history log
     pub max_history_items: usize,
-    
+
     /// Maximum number of S3 objects to load per bucket
     pub max_s3_objects: usize,
-    
+
     /// Maximum number of DynamoDB items to scan
     pub max_dynamodb_items: usize,
-    
+
     /// Maximum number of CloudTrail events to lookup
     pub max_cloudtrail_events: usize,
-    
+
     /// Maximum number of ECR images to load per page
     pub max_ecr_images: usize,
+
+    /// SSO login timeout in seconds
+    pub sso_login_timeout_secs: u64,
 }
 
 impl Default for ConfigFile {
@@ -90,6 +93,7 @@ impl Default for ConfigFile {
             max_dynamodb_items: 100,
             max_cloudtrail_events: 50,
             max_ecr_images: 100,
+            sso_login_timeout_secs: 120,
         }
     }
 }
@@ -100,34 +104,32 @@ impl ConfigFile {
     pub fn config_path() -> Option<PathBuf> {
         dirs::config_dir().map(|p| p.join("laws").join("config.toml"))
     }
-    
+
     /// Load config from file, returning defaults if file doesn't exist
     pub fn load() -> Self {
         let Some(path) = Self::config_path() else {
             return Self::default();
         };
-        
+
         if !path.exists() {
             return Self::default();
         }
-        
+
         match std::fs::read_to_string(&path) {
-            Ok(contents) => {
-                match toml::from_str(&contents) {
-                    Ok(config) => config,
-                    Err(e) => {
-                        tracing::warn!("Failed to parse config file: {}", e);
-                        Self::default()
-                    }
+            Ok(contents) => match toml::from_str(&contents) {
+                Ok(config) => config,
+                Err(e) => {
+                    tracing::warn!("Failed to parse config file: {}", e);
+                    Self::default()
                 }
-            }
+            },
             Err(e) => {
                 tracing::warn!("Failed to read config file: {}", e);
                 Self::default()
             }
         }
     }
-    
+
     /// Save config to file (creates directory if needed)
     #[allow(dead_code)]
     pub fn save(&self) -> std::io::Result<()> {
@@ -137,18 +139,18 @@ impl ConfigFile {
                 "Could not determine config directory",
             ));
         };
-        
+
         // Create parent directory if needed
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         let contents = toml::to_string_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        
+
         std::fs::write(&path, contents)
     }
-    
+
     /// Generate example config content
     pub fn example_config() -> String {
         r#"# laws Configuration
@@ -185,12 +187,16 @@ max_cloudtrail_events = 50
 
 # Maximum ECR images per page
 max_ecr_images = 100
-"#.to_string()
+
+# SSO login timeout (seconds)
+sso_login_timeout_secs = 120
+"#
+        .to_string()
     }
 }
 
 /// Centralized application configuration
-/// 
+///
 /// Contains all magic numbers and configurable values in one place.
 /// This struct combines CLI args with config file settings.
 #[derive(Debug, Clone)]
@@ -198,43 +204,46 @@ max_ecr_images = 100
 pub struct AppConfig {
     /// Theme preset to use
     pub theme: ThemePreset,
-    
+
     /// Tick rate in milliseconds for the main event loop
     pub tick_rate_ms: u64,
-    
+
     /// API timeout in seconds for AWS SDK calls
     pub api_timeout_secs: u64,
-    
+
     /// Maximum retry attempts for AWS API calls
     pub aws_max_retries: u32,
-    
+
     /// Initial backoff in milliseconds for AWS retries
     pub aws_initial_backoff_ms: u64,
-    
+
     /// Maximum number of items in action history log
     pub max_history_items: usize,
-    
+
     /// Maximum number of S3 objects to load per bucket
     pub max_s3_objects: usize,
-    
+
     /// Maximum number of DynamoDB items to scan
     pub max_dynamodb_items: usize,
-    
+
     /// Maximum number of CloudTrail events to lookup
     pub max_cloudtrail_events: usize,
-    
+
     /// Maximum number of ECR images to load per page
     pub max_ecr_images: usize,
-    
+
+    /// SSO login timeout in seconds
+    pub sso_login_timeout_secs: u64,
+
     /// Number of buckets to load details for concurrently
     pub s3_detail_concurrency: usize,
-    
+
     /// Delay between S3 bucket detail requests (ms)
     pub s3_detail_delay_ms: u64,
-    
+
     /// Sidebar width in characters
     pub sidebar_width: u16,
-    
+
     /// Detail panel height percentage
     pub detail_panel_percent: u16,
 }
@@ -252,6 +261,7 @@ impl Default for AppConfig {
             max_dynamodb_items: 100,
             max_cloudtrail_events: 50,
             max_ecr_images: 100,
+            sso_login_timeout_secs: 120,
             s3_detail_concurrency: 3,
             s3_detail_delay_ms: 100,
             sidebar_width: 20,
@@ -266,7 +276,7 @@ impl AppConfig {
     pub fn from_args(args: &Args) -> Self {
         // Load config file
         let file_config = ConfigFile::load();
-        
+
         // Determine theme: CLI arg > config file > default
         let theme = if let Some(theme_name) = &args.theme {
             match theme_name.to_lowercase().as_str() {
@@ -278,7 +288,7 @@ impl AppConfig {
         } else {
             file_config.theme
         };
-        
+
         Self {
             theme,
             tick_rate_ms: file_config.tick_rate_ms,
@@ -290,13 +300,14 @@ impl AppConfig {
             max_dynamodb_items: file_config.max_dynamodb_items,
             max_cloudtrail_events: file_config.max_cloudtrail_events,
             max_ecr_images: file_config.max_ecr_images,
+            sso_login_timeout_secs: file_config.sso_login_timeout_secs,
             s3_detail_concurrency: 3,
             s3_detail_delay_ms: 100,
             sidebar_width: 20,
             detail_panel_percent: 40,
         }
     }
-    
+
     /// Create a new AppConfig with default values (for backwards compatibility)
     #[allow(dead_code)]
     pub fn new() -> Self {
@@ -313,6 +324,7 @@ mod tests {
         let config = ConfigFile::default();
         assert_eq!(config.theme, ThemePreset::Dark);
         assert_eq!(config.tick_rate_ms, 250);
+        assert_eq!(config.sso_login_timeout_secs, 120);
     }
 
     #[test]
@@ -320,6 +332,7 @@ mod tests {
         let config = AppConfig::default();
         assert_eq!(config.theme, ThemePreset::Dark);
         assert_eq!(config.sidebar_width, 20);
+        assert_eq!(config.sso_login_timeout_secs, 120);
     }
 
     #[test]
@@ -338,4 +351,3 @@ mod tests {
         assert!(parsed.is_ok(), "Example config should be valid TOML");
     }
 }
-

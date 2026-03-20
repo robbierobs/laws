@@ -1,6 +1,6 @@
 use ratatui::widgets::TableState;
 use crate::models::rds::RdsInstance;
-use crate::app::{InputResult, Message, ServiceInputHandler, TableStateExt, EventSender};
+use crate::app::{handle_list_navigation, EventSender, InputResult, Message, ServiceInputHandler};
 use crate::app::states::ServiceInternal;
 use crate::aws::client::AwsClients;
 use crate::app::task_manager::{TaskManager, task_keys};
@@ -66,9 +66,10 @@ impl crate::app::global_search::AutoSelectable for RdsState {
 
 impl ServiceInputHandler for RdsState {
     fn handle_input(&mut self, key: KeyEvent) -> InputResult {
+        if handle_list_navigation(&mut self.list_state, self.instances.len(), key) {
+            return InputResult::None;
+        }
         match key.code {
-            KeyCode::Down | KeyCode::Char('j') => self.list_state.nav_down(self.instances.len()),
-            KeyCode::Up | KeyCode::Char('k') => self.list_state.nav_up(self.instances.len()),
             KeyCode::Char('s') => {
                 if let Some(i) = self.list_state.selected() {
                     if let Some(inst) = self.instances.get(i) {

@@ -1,3 +1,4 @@
+use crate::aws::traits::paginate;
 use crate::error::AppResult;
 use crate::models::dynamodb::{
     DynamoDbTable, GlobalSecondaryIndex, KeyAttribute, LocalSecondaryIndex,
@@ -11,19 +12,30 @@ crate::aws_service_struct!(DynamoDbService, Client);
 impl DynamoDbService {
 
     pub async fn list_tables(&self) -> AppResult<Vec<DynamoDbTable>> {
-        // First, get the list of table names
-        let list_response = self
-            .client
-            .list_tables()
-            .send()
-            .await
-            .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))?;
-
-        let table_names = list_response.table_names();
-        let mut tables = Vec::new();
+        // Get all table names with pagination using the paginate helper
+        let client = &self.client;
+        let table_names: Vec<String> = paginate(
+            |token| async move {
+                let mut request = client.list_tables();
+                if let Some(t) = token {
+                    request = request.exclusive_start_table_name(t);
+                }
+                request
+                    .send()
+                    .await
+                    .map_err(|e| format_sdk_error("DynamoDB", "list_tables", "all", e))
+            },
+            |resp| {
+                let names = resp.table_names().to_vec();
+                let next = resp.last_evaluated_table_name().map(|s| s.to_string());
+                (names, next)
+            },
+        )
+        .await?;
 
         // For each table, get detailed information
-        for table_name in table_names {
+        let mut tables = Vec::new();
+        for table_name in &table_names {
             match self.describe_table(table_name).await {
                 Ok(table) => tables.push(table),
                 Err(e) => {

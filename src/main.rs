@@ -19,11 +19,24 @@ use std::sync::{Arc, atomic::AtomicBool};
 
 use crate::aws::client::AwsClients;
 use crate::config::Args;
+use crate::error::classify_credential_error;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Parse CLI arguments
     let args = Args::parse_args();
+
+    // Determine profile early — needed for SSO login before TUI starts
+    let profile = args.profile.clone()
+        .or_else(|| std::env::var("AWS_PROFILE").ok());
+
+    // If an SSO profile is specified, ensure credentials are valid before entering TUI.
+    // This runs before enable_raw_mode() so the user can see SSO browser prompts.
+    if let Some(ref profile_name) = profile {
+        if crate::utils::aws_profiles::is_sso_profile(profile_name) {
+            try_sso_login_at_startup(profile_name).await;
+        }
+    }
     
     // Setup terminal
     enable_raw_mode()?;
@@ -34,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize AWS clients
     // Priority: CLI args > environment variables > defaults
+    let mut init_error: Option<String> = None;
     let aws_clients = match AwsClients::new(
         args.profile.as_deref(),
         args.region.as_deref(),
@@ -41,14 +55,32 @@ async fn main() -> anyhow::Result<()> {
     ).await {
         Ok(clients) => Some(clients),
         Err(e) => {
-            eprintln!("Failed to initialize AWS clients: {}", e);
+            init_error = Some(e.to_string());
             None
         }
     };
 
-    // Determine the actual profile and region being used
-    let profile = args.profile.clone()
-        .or_else(|| std::env::var("AWS_PROFILE").ok());
+    let mut startup_error: Option<String> = None;
+    if let Some(clients) = &aws_clients {
+        if let Err(e) = clients.validate().await {
+            let message = e.to_string();
+            startup_error = Some(
+                classify_credential_error(&message)
+                    .map(|err| err.user_message())
+                    .unwrap_or_else(|| e.user_message()),
+            );
+        }
+    } else {
+        let message = init_error
+            .unwrap_or_else(|| "Failed to initialize AWS clients".to_string());
+        startup_error = Some(
+            classify_credential_error(&message)
+                .map(|err| err.user_message())
+                .unwrap_or(message),
+        );
+    }
+
+    // Determine the actual region being used
     let region = args.region.clone()
         .or_else(|| std::env::var("AWS_REGION").ok())
         .or_else(|| std::env::var("AWS_DEFAULT_REGION").ok())
@@ -58,7 +90,17 @@ async fn main() -> anyhow::Result<()> {
     let input_paused = Arc::new(AtomicBool::new(false));
 
     // Create app state
-    let mut app = App::new(aws_clients, profile.clone(), region, args.read_only, input_paused.clone());
+    let mut app = App::new(
+        aws_clients,
+        profile.clone(),
+        region,
+        args.read_only,
+        input_paused.clone(),
+    );
+    if let Some(message) = startup_error {
+        app.error_message = Some(message.clone());
+        app.action_log.push(format!("[ERROR] {}", message));
+    }
 
     // Create event handler
     let mut events = EventHandler::new(app.config.tick_rate_ms, input_paused);
@@ -136,4 +178,85 @@ async fn main() -> anyhow::Result<()> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+/// Attempt SSO login before the TUI starts.
+///
+/// Runs before `enable_raw_mode()` so the user sees SSO browser prompts
+/// and URLs in their normal terminal. Non-fatal: if anything fails, the
+/// TUI will still start and show the credential error via `clients.validate()`.
+async fn try_sso_login_at_startup(profile_name: &str) {
+    use std::time::Duration;
+
+    let config = crate::config::ConfigFile::load();
+    let timeout_secs = config.sso_login_timeout_secs;
+
+    // Check if AWS CLI is available
+    let cli_check = tokio::process::Command::new("aws")
+        .arg("--version")
+        .kill_on_drop(true)
+        .output()
+        .await;
+
+    let cli_available = cli_check
+        .as_ref()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+
+    if !cli_available {
+        // No AWS CLI — can't do SSO login. The TUI will show the credential error.
+        return;
+    }
+
+    // Check if existing SSO credentials are still valid
+    let creds_check = tokio::process::Command::new("aws")
+        .args(["sts", "get-caller-identity", "--profile", profile_name])
+        .kill_on_drop(true)
+        .output()
+        .await;
+
+    let needs_login = match creds_check {
+        Ok(output) => !output.status.success(),
+        Err(_) => true,
+    };
+
+    if !needs_login {
+        return;
+    }
+
+    // Credentials expired or missing — run SSO login
+    eprintln!("SSO credentials expired for profile '{}'. Launching SSO login...", profile_name);
+
+    let mut command = tokio::process::Command::new("aws");
+    command
+        .args(["sso", "login", "--profile", profile_name])
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    let sso_result = tokio::time::timeout(
+        Duration::from_secs(timeout_secs),
+        command.status(),
+    )
+    .await;
+
+    match sso_result {
+        Ok(Ok(status)) => {
+            if status.success() {
+                eprintln!("SSO login successful.");
+            } else {
+                eprintln!("SSO login exited with status: {}. Continuing to TUI...", status);
+            }
+        }
+        Ok(Err(e)) => {
+            eprintln!("SSO login failed: {}. Continuing to TUI...", e);
+        }
+        Err(_) => {
+            eprintln!(
+                "SSO login timed out after {}s. Complete login in the browser, then refresh in the TUI.",
+                timeout_secs
+            );
+        }
+    }
 }
